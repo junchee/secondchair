@@ -33,19 +33,19 @@ from mlx_whisper.transcribe import ModelHolder
 
 import audio_output
 from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
-from events import Settings, print_event
+from events import Settings, fan_out, print_event
 from translate import Translator
+from voice_out import VoiceOut
 
 WHISPER_RATE = 16000
 POLL_SECONDS = 0.2  # how often the main loop collects new audio
-MAX_TOKENS = 120  # enough for a max-length segment; caps the length of any loop
+MAX_TOKENS = 160  # enough for the longest allowed line (20 s); caps the length of any loop
 LANGUAGES = ("en", "ko")  # with --translate, each line is detected as one of these
 
 # Segmenting. A frame counts as speech when it is clearly louder than the background
 # noise, which is tracked per source (the mic has room noise, BlackHole has none).
+# The pause that ends a line and the maximum line length are live settings (events.Settings).
 FRAME_SECONDS = 0.03
-PAUSE_SECONDS = 0.5  # this much silence after speech ends a segment
-MAX_SEGMENT_SECONDS = 10  # cut long monologues here even without a pause (12 felt too slow)
 PREROLL_SECONDS = 0.3  # audio kept before speech starts, so the first word is not clipped
 MIN_SPEECH_SECONDS = 0.3  # shorter bursts (a click, a cough) are dropped
 SPEECH_RATIO = 3.0  # speech = this many times louder than the noise floor
@@ -55,7 +55,8 @@ MIN_SPEECH_RMS = 0.003  # and never quieter than this
 class Segmenter:
     """Collects 16 kHz audio and returns complete segments, cut at pauses."""
 
-    def __init__(self):
+    def __init__(self, settings):
+        self.settings = settings
         self.frame = int(WHISPER_RATE * FRAME_SECONDS)
         self.noise_floor = 0.01
         self.reset()
@@ -96,7 +97,8 @@ class Segmenter:
                 continue
 
             length = len(self.frames) * FRAME_SECONDS
-            if self.silence_seconds >= PAUSE_SECONDS or length >= MAX_SEGMENT_SECONDS:
+            pause, longest = self.settings.pause_seconds, self.settings.max_line_seconds
+            if self.silence_seconds >= pause or length >= longest:
                 if self.speech_seconds >= MIN_SPEECH_SECONDS:
                     segments.append(np.concatenate(self.frames))
                 self.frames = []
@@ -108,14 +110,14 @@ class Segmenter:
 class Source:
     """One audio input, collected into a buffer that the main loop drains."""
 
-    def __init__(self, label, device_index):
+    def __init__(self, label, device_index, settings):
         self.label = label
         info = sd.query_devices(device_index)
         self.rate = int(info["default_samplerate"])
         self.channels = min(info["max_input_channels"], 2)
         self.buffer = []
         self.lock = threading.Lock()
-        self.segmenter = Segmenter()
+        self.segmenter = Segmenter(settings)
         self.stream = sd.InputStream(
             device=device_index,
             channels=self.channels,
@@ -189,12 +191,15 @@ def claim_single_instance():
     return lock  # keep it open: the lock lasts until this process ends
 
 
-def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event):
-    """Transcribe until Ctrl+C or SIGTERM. `settings` may be changed by another thread."""
+def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event, voice=False, controls=None):
+    """Transcribe until Ctrl+C or SIGTERM. `settings` may be changed by another thread.
+
+    With `voice`, Jun's speech can be sent into the meeting through the virtual mic
+    (voice_out.py); the VoiceOut object is put in `controls["voice"]` for the page to drive.
+    """
     lock = claim_single_instance()  # noqa: F841 (held for the life of the process)
     signal.signal(signal.SIGTERM, stop_on_sigterm)
     settings = settings or Settings()
-    translator = Translator(emit) if settings.translate_available else None
 
     system_index = find_input(SYSTEM_NAME)
     if system_index is None:
@@ -205,8 +210,15 @@ def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event
         print(f"Could not find '{MIC_NAME}' or another non-BlackHole input. Run audio_test.py.")
         sys.exit(1)
 
-    mic = Source("MIC", mic_index)
-    sources = [Source("SYSTEM", system_index), mic]
+    voice_out = VoiceOut(mic_index, emit) if voice else None
+    if voice_out:
+        emit = fan_out(emit, voice_out.observe)  # it collects Jun's translated Korean lines
+        if controls is not None:
+            controls["voice"] = voice_out
+    translator = Translator(emit) if settings.translate_available else None
+
+    mic = Source("MIC", mic_index, settings)
+    sources = [Source("SYSTEM", system_index, settings), mic]
     print(f"System audio: {sd.query_devices(system_index)['name']}")
     print(f"Microphone:   {sd.query_devices(mic_index)['name']}")
     print(f"Model: {model}")
@@ -217,6 +229,8 @@ def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event
     route = audio_output.Route(emit) if switch_output else None
     for source in sources:
         source.stream.start()
+    if voice_out:
+        voice_out.start()
 
     line_ids = itertools.count(1)
     last_status = None
@@ -263,6 +277,8 @@ def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event
         for source in sources:
             source.stream.stop()
             source.stream.close()
+        if voice_out:
+            voice_out.stop()
         if route:
             route.stop()
             time.sleep(0.1)  # let the reader thread report the "restored" line

@@ -6,25 +6,43 @@ Every component reports through an `emit(event)` callable; the terminal and the 
     line         id, source ("SYSTEM" or "MIC"), lang ("en"/"ko"), text, time ("HH:MM:SS")
     translation  id (of the line), text, revised (True when redone with the next line)
     status       output (device name or None), kind ("headphones"/"speakers"/None), mic (bool)
-    settings     translate (bool), translate_available (bool)
+    settings     translate, translate_available, max_line_seconds, pause_seconds
+    voice        available, mode ("direct"/"interpret"), device, voice (see voice_out.py)
+    draft        text (English waiting for Jun to confirm; "" when cleared)
+    spoken       text, seconds (sent into the meeting by voice)
     info         text
 """
 
 import os
 
+# Line cutting: a line ends after this much silence, or at the maximum length.
+LIMITS = {"max_line_seconds": (4.0, 20.0), "pause_seconds": (0.2, 1.5)}
+
 
 class Settings:
-    """What the user can change while secondchair runs."""
+    """What the user can change while secondchair runs (read by other threads as it changes)."""
 
-    def __init__(self, translate=False):
+    def __init__(self, translate=False, max_line_seconds=10.0, pause_seconds=0.5):
         self.translate_available = bool(os.environ.get("OPENROUTER_API_KEY"))
         self.translate = translate and self.translate_available
+        self.max_line_seconds = max_line_seconds
+        self.pause_seconds = pause_seconds
+
+    def update(self, change):
+        """Apply a change from the page; values outside LIMITS are clamped."""
+        if "translate" in change:
+            self.translate = bool(change["translate"]) and self.translate_available
+        for key, (low, high) in LIMITS.items():
+            if key in change:
+                setattr(self, key, min(high, max(low, float(change[key]))))
 
     def as_event(self):
         return {
             "type": "settings",
             "translate": self.translate,
             "translate_available": self.translate_available,
+            "max_line_seconds": self.max_line_seconds,
+            "pause_seconds": self.pause_seconds,
         }
 
 
@@ -40,7 +58,18 @@ def print_event(event):
         output = f"{event['output']} + BlackHole, {event['kind']}" if event["output"] else "not switched"
         print(f"[output: {output} | mic {'on' if event['mic'] else 'off'}]", flush=True)
     elif kind == "settings":
-        print(f"[translation {'on' if event['translate'] else 'off'}]", flush=True)
+        print(
+            f"[translation {'on' if event['translate'] else 'off'} | lines end after "
+            f"{event['pause_seconds']} s pause, max {event['max_line_seconds']} s]",
+            flush=True,
+        )
+    elif kind == "voice":
+        state = f"{event['mode']} via {event['device']}" if event["available"] else f"{event['device']} not installed"
+        print(f"[voice: {state}]", flush=True)
+    elif kind == "draft":
+        print(f"[draft: {event['text']}]" if event["text"] else "[draft cleared]", flush=True)
+    elif kind == "spoken":
+        print(f"[spoken ({event['seconds']} s): {event['text']}]", flush=True)
     elif kind == "info":
         print(f"[{event['text']}]", flush=True)
 

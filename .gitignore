@@ -5,3 +5,4 @@ __pycache__/
 # Built from native/*.swift on first use
 native/route
 native/audiotap
+transcripts/

@@ -59,7 +59,8 @@ def build_request(text, target, context=(), following=None):
 class Client:
     """One HTTPS connection kept open between requests, so each line skips the TLS handshake."""
 
-    def __init__(self):
+    def __init__(self, timeout=20):
+        self.timeout = timeout
         self.connection = None
 
     def post(self, body):
@@ -70,7 +71,7 @@ class Client:
         }
         for attempt in (1, 2):  # the server may have closed an idle connection: reconnect once
             if self.connection is None:
-                self.connection = http.client.HTTPSConnection(HOST, timeout=20)
+                self.connection = http.client.HTTPSConnection(HOST, timeout=self.timeout)
             try:
                 self.connection.request("POST", PATH, payload, headers)
                 response = self.connection.getresponse()

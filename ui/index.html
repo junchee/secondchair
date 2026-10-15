@@ -14,10 +14,12 @@
     --muted: #74746f;
     --faint: #a5a5a0;
     --accent: #2f6fde;
+    --on-accent: #ffffff;
     --ok: #1f9d55;
     --warn: #b7791f;
     --danger: #c53030;
     --flash: #fff4c2;
+    --shadow: 0 8px 28px rgb(0 0 0 / .14);
     --text-size: 17px;
     color-scheme: light;
   }
@@ -31,10 +33,12 @@
       --muted: #9a9a95;
       --faint: #66665f;
       --accent: #6b9cf5;
+      --on-accent: #0d1420;
       --ok: #3fbf74;
       --warn: #d9a441;
       --danger: #f07070;
       --flash: #3a3417;
+      --shadow: 0 8px 28px rgb(0 0 0 / .5);
       color-scheme: dark;
     }
   }
@@ -48,18 +52,20 @@
     display: flex;
     flex-direction: column;
   }
-  button { font: inherit; color: inherit; }
+  button, input, textarea { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
 
-  /* Top bar */
+  /* ---- Top bar */
   header {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 10px 16px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
+    position: relative; z-index: 3;
   }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -0.01em; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-  .dot.live { background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: pulse 2s infinite; }
+  .dot.live { background: var(--ok); animation: pulse 2s infinite; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 50%, transparent); }
                      70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -76,7 +82,7 @@
 
   .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
   .switch input { position: absolute; opacity: 0; pointer-events: none; }
-  .track { width: 34px; height: 20px; border-radius: 999px; background: var(--border); position: relative; transition: background .15s; }
+  .track { width: 34px; height: 20px; border-radius: 999px; background: var(--border); position: relative; transition: background .15s; flex: none; }
   .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
                   background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s; }
   .switch input:checked + .track { background: var(--accent); }
@@ -88,15 +94,35 @@
   .segmented button { border: 0; background: transparent; padding: 4px 10px; cursor: pointer; color: var(--muted); }
   .segmented button + button { border-left: 1px solid var(--border); }
   .segmented button[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 600; }
+  .segmented button:disabled { cursor: not-allowed; opacity: .5; }
+  .segmented.voice button[data-mode="interpret"][aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
   .icon-btn { border: 1px solid var(--border); background: transparent; border-radius: 8px; padding: 4px 8px; cursor: pointer; color: var(--muted); }
-  .icon-btn:hover, .segmented button:hover { color: var(--text); }
+  .icon-btn:hover, .segmented button:not(:disabled):hover { color: var(--text); }
+  .stop-btn { border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); color: var(--danger);
+              background: transparent; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+  .stop-btn:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
-  /* Banner */
-  #banner { display: none; padding: 8px 16px; background: color-mix(in srgb, var(--danger) 12%, var(--surface));
-            color: var(--danger); border-bottom: 1px solid var(--border); }
-  #banner.show { display: block; }
+  /* ---- Settings panel */
+  .panel-wrap { position: relative; }
+  #settings-panel {
+    position: absolute; right: 0; top: calc(100% + 8px); width: 300px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 14px 16px; z-index: 5;
+  }
+  #settings-panel h3 { margin: 0 0 10px; font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .setting { margin-bottom: 14px; }
+  .setting label { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 4px; }
+  .setting output { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .setting input[type=range] { width: 100%; accent-color: var(--accent); }
+  .setting p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 
-  /* Transcript */
+  /* ---- Banners */
+  .banner { display: none; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+  .banner.show { display: block; }
+  #banner { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); }
+  #stopped { background: var(--surface); color: var(--muted); }
+
+  /* ---- Transcript */
   main { flex: 1; overflow-y: auto; position: relative; }
   .grid { display: grid; grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr); }
   body.view-original .grid, body.view-translation .grid { grid-template-columns: 92px minmax(0, 1fr); }
@@ -116,8 +142,7 @@
   .who { font-weight: 650; color: var(--text); }
   .row.me .who { color: var(--accent); }
   .lang { font-size: 10px; letter-spacing: .05em; color: var(--faint); }
-  .text { font-size: var(--text-size); line-height: 1.5; overflow-wrap: anywhere; }
-  .col-translation .text { color: var(--text); }
+  .text { font-size: var(--text-size); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
   .col-original { border-right: 1px solid var(--border); }
   body.view-original .col-original { border-right: 0; }
   .pending { color: var(--faint); }
@@ -127,8 +152,16 @@
   .failed { color: var(--danger); font-size: 13px; }
   .flash { animation: flash 1.4s ease-out; }
   @keyframes flash { from { background: var(--flash); } to { background: transparent; } }
+  .voice-tag { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 12px; font-weight: 600; }
+  .voice-tag svg { width: 13px; height: 13px; }
 
   .note { grid-column: 1 / -1; text-align: center; color: var(--faint); font-size: 12px; padding: 6px 16px; }
+
+  .summary { margin: 16px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .summary h2 { margin: 0 0 8px; font-size: 16px; }
+  .summary h4 { margin: 14px 0 4px; font-size: 14px; }
+  .summary ul { margin: 0; padding-left: 20px; }
+  .summary p { margin: 4px 0; }
 
   .empty { padding: 64px 24px; text-align: center; color: var(--muted); }
   .empty h2 { margin: 0 0 6px; font-size: 18px; color: var(--text); font-weight: 600; }
@@ -137,18 +170,42 @@
   #jump {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
     display: none; border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer;
-    background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgb(0 0 0 / .2);
+    background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow); z-index: 2;
   }
   #jump.show { display: block; }
+  body.interpreting #jump { bottom: 200px; }
+
+  /* ---- Draft bar (interpret mode) */
+  #draft-bar {
+    border-top: 1px solid var(--border); background: var(--surface);
+    padding: 12px 16px 14px; display: none; gap: 8px; flex-direction: column;
+  }
+  body.interpreting #draft-bar { display: flex; }
+  .draft-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .draft-head strong { font-size: 13px; }
+  .draft-head .hint { color: var(--muted); font-size: 12px; }
+  .draft-head .warn { color: var(--warn); font-size: 12px; }
+  #draft {
+    width: 100%; min-height: 64px; max-height: 160px; resize: vertical;
+    padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg); font-size: var(--text-size); line-height: 1.45;
+  }
+  #draft:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .draft-actions { display: flex; gap: 8px; align-items: center; }
+  .primary { border: 0; border-radius: 8px; padding: 6px 14px; background: var(--accent); color: var(--on-accent); cursor: pointer; font-weight: 600; }
+  .primary:disabled { opacity: .45; cursor: not-allowed; }
+  .ghost { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: transparent; cursor: pointer; color: var(--muted); }
+  #speaking { color: var(--accent); font-size: 12px; font-weight: 600; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--muted); }
 
   @media (max-width: 720px) {
-    header { padding: 8px 16px; }
     .grid, body.view-original .grid, body.view-translation .grid { grid-template-columns: minmax(0, 1fr); }
     .colhead { display: none; }
     .meta { flex-direction: row; gap: 8px; padding-bottom: 0 !important; }
     .col-original { border-right: 0; padding-bottom: 4px !important; }
     .col-translation { padding-top: 0 !important; }
     .col-translation .text { color: var(--muted); }
+    #settings-panel { position: fixed; left: 16px; right: 16px; width: auto; top: 64px; }
   }
 </style>
 </head>
@@ -170,18 +227,46 @@
     <label class="switch" id="translate-switch" title="Translate English ⇄ Korean (T). Sends text to OpenRouter.">
       <input type="checkbox" id="translate">
       <span class="track"></span>
-      <span>Translate EN ⇄ KO</span>
+      <span>Translate</span>
     </label>
-    <div class="segmented" role="group" aria-label="View" title="View (V)">
+    <div class="segmented" id="view-buttons" role="group" aria-label="View" title="View (V)">
       <button data-view="both" aria-pressed="true">Both</button>
       <button data-view="original" aria-pressed="false">Original</button>
       <button data-view="translation" aria-pressed="false">Translation</button>
     </div>
-    <button class="icon-btn" id="smaller" title="Smaller text" aria-label="Smaller text">A−</button>
-    <button class="icon-btn" id="larger" title="Larger text" aria-label="Larger text">A+</button>
+    <div class="segmented voice" id="voice-buttons" role="group" aria-label="What the meeting hears" title="What the meeting hears (I)">
+      <button data-mode="direct" aria-pressed="true">My voice</button>
+      <button data-mode="interpret" aria-pressed="false">Interpret</button>
+    </div>
+    <div class="panel-wrap">
+      <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" title="Settings">Settings</button>
+      <div id="settings-panel" hidden>
+        <h3>Lines</h3>
+        <div class="setting">
+          <label for="max-line">Longest line <output id="max-line-out"></output></label>
+          <input type="range" id="max-line" min="4" max="20" step="1">
+          <p>Shorter shows text sooner; longer keeps sentences whole.</p>
+        </div>
+        <div class="setting">
+          <label for="pause">Pause that ends a line <output id="pause-out"></output></label>
+          <input type="range" id="pause" min="0.2" max="1.5" step="0.1">
+          <p>Shorter splits more often; longer waits for real pauses.</p>
+        </div>
+        <h3>Text</h3>
+        <div class="setting" style="display:flex; gap:8px; align-items:center;">
+          <button class="icon-btn" id="smaller" aria-label="Smaller text">A−</button>
+          <button class="icon-btn" id="larger" aria-label="Larger text">A+</button>
+          <span id="size-out" style="color:var(--muted)"></span>
+        </div>
+        <h3>Voice</h3>
+        <div class="setting"><p id="voice-info">—</p></div>
+      </div>
+    </div>
+    <button class="stop-btn" id="stop" title="Stop secondchair, save and summarize the meeting">Stop</button>
   </div>
 </header>
-<div id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
+<div class="banner" id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
+<div class="banner" id="stopped"></div>
 
 <main id="scroller">
   <div class="grid colhead">
@@ -198,17 +283,37 @@
 </main>
 <button id="jump">↓ New lines</button>
 
+<section id="draft-bar" aria-label="English to send">
+  <div class="draft-head">
+    <strong>To send in English</strong>
+    <span class="hint">Speak Korean, check the English, then <kbd>Enter</kbd> to say it. <kbd>Esc</kbd> discards.</span>
+    <span class="warn" id="draft-warn"></span>
+    <span class="spacer"></span>
+    <span id="speaking"></span>
+  </div>
+  <textarea id="draft" rows="2" placeholder="Your Korean, translated, appears here."></textarea>
+  <div class="draft-actions">
+    <button class="primary" id="speak" disabled>Speak</button>
+    <button class="ghost" id="discard">Discard</button>
+    <button class="ghost" id="load-latest" hidden>Load latest translation</button>
+  </div>
+</section>
+
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const rowsEl = $("rows"), scroller = $("scroller");
   const lines = new Map();          // line id -> translation cell element
-  let translateOn = false, translateAvailable = false, replaying = true;
+  let translateOn = false, translateAvailable = false, replaying = true, source = null;
+  let voice = { available: false, mode: "direct" }, micOn = false, serverDraft = "", draftDirty = false;
 
   const store = {
     get(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
     set(key, value) { try { localStorage.setItem(key, value); } catch {} },
   };
+  const post = (path, body = {}) => fetch(path, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
 
   // ---- Scrolling: follow new lines only while the reader is at the bottom.
   const atBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
@@ -227,6 +332,7 @@
     if (text !== undefined) node.textContent = text;
     return node;
   }
+  const SPEAKER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>';
 
   function addLine(e) {
     $("empty").style.display = "none";
@@ -259,11 +365,47 @@
     }
   }
 
+  function addSpoken(e) {
+    $("empty").style.display = "none";
+    const row = el("div", "grid row me");
+    const meta = el("div", "meta");
+    const tag = el("span", "voice-tag");
+    tag.innerHTML = SPEAKER;
+    tag.append("Me");
+    meta.append(tag, el("span", "", e.time || ""), el("span", "lang", "EN · VOICE"));
+    const original = el("div", "col-original");
+    original.append(el("div", "text", e.text));
+    const translation = el("div", "col-translation");
+    translation.append(el("div", "text none", "Said in the meeting"));
+    row.append(meta, original, translation);
+    rowsEl.append(row);
+    added();
+  }
+
   function addNote(text) {
     const row = el("div", "grid");
     row.append(el("div", "note", text));
     rowsEl.append(row);
     added();
+  }
+
+  // The summary is Markdown with "## " headings and "*"/"-" bullets; build it as text nodes.
+  function addSummary(markdown) {
+    const box = el("section", "summary");
+    box.append(el("h2", "", "Meeting summary"));
+    let list = null;
+    for (const raw of markdown.split("\n")) {
+      const line = raw.trim();
+      if (!line) { list = null; continue; }
+      const bullet = line.match(/^[*-]\s+(.*)$/);
+      if (line.startsWith("#")) { list = null; box.append(el("h4", "", line.replace(/^#+\s*/, ""))); }
+      else if (bullet) {
+        if (!list) { list = el("ul"); box.append(list); }
+        list.append(el("li", "", bullet[1].replace(/\*\*/g, "")));
+      } else { list = null; box.append(el("p", "", line.replace(/\*\*/g, ""))); }
+    }
+    rowsEl.append(box);
+    follow = true; added();
   }
 
   // ---- Status and settings
@@ -272,6 +414,7 @@
     speakers: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
   };
   function setStatus(e) {
+    micOn = e.mic;
     $("output-icon").innerHTML = ICONS[e.kind] || ICONS.speakers;
     $("output-text").textContent = e.output ? `Output: ${e.output}` : "Output: not switched";
     $("output-chip").className = "chip on";
@@ -279,6 +422,7 @@
     $("mic-chip").className = "chip " + (e.mic ? "on" : "off");
     $("mic-chip").title = e.mic ? "Your microphone is transcribed"
       : "On speakers the mic would pick up the meeting audio. Use headphones to include your own voice.";
+    updateDraftWarning();
   }
 
   function setSettings(e) {
@@ -289,45 +433,147 @@
     $("translate-switch").classList.toggle("disabled", !translateAvailable);
     $("empty-hint").textContent = translateAvailable ? ""
       : "Translation is off: OPENROUTER_API_KEY is not set in the terminal that runs app.py.";
+    if (document.activeElement !== $("max-line")) $("max-line").value = e.max_line_seconds;
+    if (document.activeElement !== $("pause")) $("pause").value = e.pause_seconds;
+    $("max-line-out").textContent = `${Number(e.max_line_seconds)} s`;
+    $("pause-out").textContent = `${Number(e.pause_seconds).toFixed(1)} s`;
+    updateDraftWarning();
   }
 
-  $("translate").addEventListener("change", () => {
-    fetch("/settings", { method: "POST", headers: { "Content-Type": "application/json" },
-                         body: JSON.stringify({ translate: $("translate").checked }) });
+  $("translate").addEventListener("change", () => post("/settings", { translate: $("translate").checked }));
+
+  for (const [id, key, digits] of [["max-line", "max_line_seconds", 0], ["pause", "pause_seconds", 1]]) {
+    $(id).addEventListener("input", () => { $(id + "-out").textContent = `${Number($(id).value).toFixed(digits)} s`; });
+    $(id).addEventListener("change", () => post("/settings", { [key]: Number($(id).value) }));
+  }
+
+  // ---- Voice: what the meeting hears
+  function setVoice(e) {
+    voice = e;
+    document.querySelectorAll("#voice-buttons button").forEach((b) => {
+      b.setAttribute("aria-pressed", b.dataset.mode === e.mode);
+      b.disabled = !e.available;
+    });
+    $("voice-buttons").title = e.available
+      ? `What the meeting hears (I). In Zoom or Teams, choose "${e.device}" as the microphone.`
+      : `${e.device} is not installed. Run: brew install --cask blackhole-16ch`;
+    $("voice-info").textContent = e.available
+      ? `Meeting microphone: choose "${e.device}" in Zoom or Teams. Speech voice: ${e.voice || "default"}. ` +
+        "Better voices: System Settings › Accessibility › Spoken Content › Manage Voices."
+      : `${e.device} is not installed, so Interpret is unavailable. Install with: brew install --cask blackhole-16ch`;
+    document.body.classList.toggle("interpreting", e.mode === "interpret");
+    updateDraftWarning();
+  }
+  document.querySelectorAll("#voice-buttons button").forEach((b) => b.onclick = () => post("/voice", { mode: b.dataset.mode }));
+
+  function updateDraftWarning() {
+    $("draft-warn").textContent =
+      !micOn ? "Mic is off on speakers: use headphones to interpret." :
+      !translateOn ? "Translation is off." : "";
+  }
+
+  function setDraft(text) {
+    serverDraft = text;
+    if (!draftDirty || !text) {
+      $("draft").value = text;
+      draftDirty = false;
+      $("load-latest").hidden = true;
+    } else {
+      $("load-latest").hidden = false;  // the user is editing: offer, do not overwrite
+    }
+    $("speak").disabled = !$("draft").value.trim();
+  }
+  $("draft").addEventListener("input", () => {
+    draftDirty = $("draft").value !== serverDraft;
+    $("speak").disabled = !$("draft").value.trim();
+  });
+  $("load-latest").onclick = () => { draftDirty = false; setDraft(serverDraft); };
+  function speak() {
+    const text = $("draft").value.trim();
+    if (!text) return;
+    post("/speak", { text });
+    draftDirty = false;
+    $("draft").value = "";
+    $("load-latest").hidden = true;
+    $("speak").disabled = true;
+  }
+  function discard() { post("/discard"); draftDirty = false; $("draft").value = ""; $("speak").disabled = true; }
+  $("speak").onclick = speak;
+  $("discard").onclick = discard;
+  $("draft").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); speak(); }
+    if (e.key === "Escape") { e.preventDefault(); discard(); }
   });
 
-  // ---- View and text size (remembered in this browser)
+  let speakingTimer = null;
+  function showSpeaking(seconds) {
+    $("speaking").textContent = "Speaking…";
+    clearTimeout(speakingTimer);
+    speakingTimer = setTimeout(() => { $("speaking").textContent = ""; }, seconds * 1000);
+  }
+
+  // ---- View, text size, settings panel, stop
   function setView(view) {
-    document.body.className = "view-" + view;
-    document.querySelectorAll(".segmented button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === view));
+    document.body.classList.remove("view-both", "view-original", "view-translation");
+    document.body.classList.add("view-" + view);
+    document.querySelectorAll("#view-buttons button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === view));
     store.set("view", view);
   }
-  document.querySelectorAll(".segmented button").forEach((b) => b.onclick = () => setView(b.dataset.view));
+  document.querySelectorAll("#view-buttons button").forEach((b) => b.onclick = () => setView(b.dataset.view));
   setView(store.get("view", "both"));
 
   let size = Number(store.get("size", 17));
   function setSize(px) {
     size = Math.min(28, Math.max(13, px));
     document.documentElement.style.setProperty("--text-size", size + "px");
+    $("size-out").textContent = `${size} px`;
     store.set("size", size);
   }
   $("smaller").onclick = () => setSize(size - 2);
   $("larger").onclick = () => setSize(size + 2);
   setSize(size);
 
+  function togglePanel(open) {
+    const panel = $("settings-panel");
+    open = open ?? panel.hidden;
+    panel.hidden = !open;
+    $("settings-btn").setAttribute("aria-expanded", open);
+  }
+  $("settings-btn").onclick = (e) => { e.stopPropagation(); togglePanel(); };
+  document.addEventListener("click", (e) => { if (!e.target.closest(".panel-wrap")) togglePanel(false); });
+
+  $("stop").onclick = () => {
+    if (confirm("Stop secondchair? The transcript is saved and the meeting is summarized.")) post("/stop");
+  };
+
   document.addEventListener("keydown", (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || e.target.tagName === "INPUT") return;
-    if (e.key === "t" && translateAvailable) { $("translate").click(); }
+    if (e.metaKey || e.ctrlKey || e.altKey || ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+    if (e.key === "Escape") togglePanel(false);
+    if (e.key === "t" && translateAvailable) $("translate").click();
+    if (e.key === "i" && voice.available) post("/voice", { mode: voice.mode === "interpret" ? "direct" : "interpret" });
+    if (e.key === "Enter" && voice.mode === "interpret" && $("draft").value.trim()) { e.preventDefault(); speak(); }
     if (e.key === "v") {
       const order = ["both", "original", "translation"];
-      const current = document.body.className.replace("view-", "");
+      const current = order.find((v) => document.body.classList.contains("view-" + v));
       setView(order[(order.indexOf(current) + 1) % order.length]);
     }
   });
 
   // ---- Live events. On every (re)connect the server replays the session, so start clean.
+  function stopped(e) {
+    source.close();
+    $("live").classList.remove("live");
+    $("banner").classList.remove("show");
+    $("stopped").textContent = e.saved
+      ? `secondchair stopped. Transcript saved: ${e.saved}`
+      : "secondchair stopped. Nothing was said, so nothing was saved.";
+    $("stopped").classList.add("show");
+    document.body.classList.remove("interpreting");
+    $("stop").disabled = true;
+  }
+
   function connect() {
-    const source = new EventSource("/events");
+    source = new EventSource("/events");
     source.onopen = () => {
       replaying = true;
       rowsEl.replaceChildren(); lines.clear();
@@ -341,12 +587,19 @@
     };
     source.onmessage = (message) => {
       const e = JSON.parse(message.data);
-      if (e.type === "line") addLine(e);
-      else if (e.type === "translation") setTranslation(e);
-      else if (e.type === "status") setStatus(e);
-      else if (e.type === "settings") setSettings(e);
-      else if (e.type === "info") addNote(e.text);
-      else if (e.type === "live") { replaying = false; follow = true; scroller.scrollTop = scroller.scrollHeight; }
+      switch (e.type) {
+        case "line": addLine(e); break;
+        case "translation": setTranslation(e); break;
+        case "status": setStatus(e); break;
+        case "settings": setSettings(e); break;
+        case "voice": setVoice(e); break;
+        case "draft": setDraft(e.text); break;
+        case "spoken": addSpoken(e); if (!replaying) showSpeaking(e.seconds); break;
+        case "summary": addSummary(e.text); break;
+        case "info": addNote(e.text); break;
+        case "stopped": stopped(e); break;
+        case "live": replaying = false; follow = true; scroller.scrollTop = scroller.scrollHeight; break;
+      }
     };
   }
   connect();
