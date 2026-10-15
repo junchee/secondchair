@@ -278,9 +278,9 @@
       <button data-view="original" aria-pressed="false">Original</button>
       <button data-view="translation" aria-pressed="false">Translation</button>
     </div>
-    <div class="segmented voice" id="voice-buttons" role="group" aria-label="What the meeting hears" title="What the meeting hears (I)">
+    <div class="segmented voice" id="voice-buttons" role="group" aria-label="What the meeting hears" title="What the meeting hears (I). My voice: your own voice, as you speak. English voice: your Korean, translated and spoken in English by the computer voice.">
       <button data-mode="direct" aria-pressed="true">My voice</button>
-      <button data-mode="interpret" aria-pressed="false">Interpret</button>
+      <button data-mode="interpret" aria-pressed="false">English voice</button>
     </div>
     <div class="panel-wrap">
       <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" title="Settings">Settings</button>
@@ -317,7 +317,7 @@
           <label class="switch" id="monitor-switch" style="justify-content:flex-start">
             <input type="checkbox" id="monitor">
             <span class="track"></span>
-            <span>Hear my interpreted voice</span>
+            <span>Hear the English voice too</span>
           </label>
           <p>Plays what the meeting hears in your headphones, so you know when it speaks.</p>
         </div>
@@ -365,7 +365,7 @@
     <span class="warn" id="draft-warn"></span>
     <span id="speaking"></span>
   </div>
-  <textarea id="draft" rows="2" placeholder="Type Korean below, or speak Korean in Interpret mode: the English appears here."></textarea>
+  <textarea id="draft" rows="2" placeholder="Type Korean below, or speak Korean in English-voice mode: the English appears here."></textarea>
   <div class="row-actions">
     <button class="primary" id="speak" disabled title="Say it in the meeting with a synthetic voice (Enter in the box above)">Speak</button>
     <button class="ghost" id="copy" disabled>Copy</button>
@@ -627,7 +627,7 @@
     $("voice-info").textContent = e.available
       ? `Meeting microphone: choose "${e.device}" in Zoom or Teams. ` +
         (premium ? "" : "No Premium voices are installed yet: add natural ones in System Settings › Accessibility › Spoken Content › System voice › Manage Voices.")
-      : `${e.device} is not installed, so Interpret is unavailable. Install with: brew install --cask blackhole-16ch`;
+      : `${e.device} is not installed, so the English voice is unavailable. Install with: brew install --cask blackhole-16ch`;
     document.body.classList.toggle("interpreting", e.mode === "interpret");
     $("monitor").checked = e.monitor;
     $("monitor").disabled = !e.available;
@@ -650,7 +650,7 @@
   function updateDraftWarning() {
     const interpreting = voice.mode === "interpret";
     $("draft-warn").textContent =
-      interpreting && !micOn ? "Mic is off on speakers: use headphones to interpret." :
+      interpreting && !micOn ? "Mic is off on speakers: use headphones for the English voice." :
       interpreting && !translateOn ? "Translation is off." : "";
     $("out-hint").textContent = interpreting
       ? "Say “오케이” to send it, “다시” to clear it, or say it again."
