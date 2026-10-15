@@ -307,7 +307,7 @@ def main():
     hub = Hub()
     recorder = Recorder()
     emit = fan_out(hub.emit, print_event, recorder)  # page, terminal, and the saved transcript
-    settings = Settings(translate=True)  # on when the OpenRouter key is set; the page can turn it off
+    settings = Settings(translate=True, persist=True)  # on when the OpenRouter key is set; the page can turn it off
     controls = {}  # filled by transcribe_stream.run (the voice output)
     summaries = Summaries(recorder, emit, settings.translate_available)
     typing = Typing(recorder, emit, settings.translate_available)

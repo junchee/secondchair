@@ -24,6 +24,8 @@ Every component reports through an `emit(event)` callable; the terminal and the 
 
 import os
 
+import prefs
+
 # Line cutting: a line ends after this much silence, or at the maximum length.
 LIMITS = {"max_line_seconds": (4.0, 20.0), "pause_seconds": (0.2, 1.5)}
 
@@ -33,28 +35,49 @@ MIC_FILTER_LEVELS = {"off": 0.0, "normal": 0.006, "strong": 0.015}
 
 
 class Settings:
-    """What the user can change while secondchair runs (read by other threads as it changes)."""
+    """What the user can change while secondchair runs (read by other threads as it changes).
 
-    def __init__(self, translate=False, max_line_seconds=10.0, pause_seconds=0.5):
+    With persist=True the values are loaded from user_settings.json at the start and saved
+    whenever the page changes one (see prefs.py).
+    """
+
+    def __init__(self, translate=False, max_line_seconds=10.0, pause_seconds=0.5, persist=False):
+        self.persist = persist
         self.translate_available = bool(os.environ.get("OPENROUTER_API_KEY"))
         self.translate = translate and self.translate_available
         self.max_line_seconds = max_line_seconds
         self.pause_seconds = pause_seconds
         self.mic_filter = "normal"
+        if persist:
+            self._apply(prefs.load())
 
     def mic_min_level(self):
         """Quietest speech-frame RMS that still counts as Jun speaking."""
         return MIC_FILTER_LEVELS[self.mic_filter]
 
-    def update(self, change):
-        """Apply a change from the page; values outside LIMITS are clamped."""
-        if "translate" in change:
-            self.translate = bool(change["translate"]) and self.translate_available
+    def _apply(self, change):
+        """Take over the values in `change`; unknown or bad ones are ignored, numbers clamped."""
+        if isinstance(change.get("translate"), bool):
+            self.translate = change["translate"] and self.translate_available
         if change.get("mic_filter") in MIC_FILTER_LEVELS:
             self.mic_filter = change["mic_filter"]
         for key, (low, high) in LIMITS.items():
             if key in change:
-                setattr(self, key, min(high, max(low, float(change[key]))))
+                try:
+                    setattr(self, key, min(high, max(low, float(change[key]))))
+                except (TypeError, ValueError):
+                    pass
+
+    def update(self, change):
+        """Apply a change from the page, and remember it for the next run."""
+        self._apply(change)
+        if self.persist:
+            prefs.save(
+                translate=self.translate if self.translate_available else prefs.load().get("translate", True),
+                max_line_seconds=self.max_line_seconds,
+                pause_seconds=self.pause_seconds,
+                mic_filter=self.mic_filter,
+            )
 
     def as_event(self):
         return {

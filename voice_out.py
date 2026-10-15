@@ -20,6 +20,7 @@ import time
 import wave
 
 import numpy as np
+import prefs
 import sounddevice as sd
 
 # Separate from BlackHole 2ch, which carries the meeting audio. Override with an env var to use
@@ -69,7 +70,6 @@ GENDER = {
     "Rocko": "male", "Tom": "male", "Alex": "male", "Evan": "male", "Nathan": "male", "Oliver": "male",
     "Lee": "male", "Gordon": "male", "Arthur": "male",
 }
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_settings.json")
 
 
 def list_voices():
@@ -96,19 +96,11 @@ def list_voices():
 
 
 def saved_voice():
-    try:
-        with open(SETTINGS_FILE) as f:
-            return json.load(f).get("voice")
-    except (OSError, ValueError):
-        return None
+    return prefs.load().get("voice")
 
 
 def save_voice(voice_id):
-    try:
-        with open(SETTINGS_FILE, "w") as f:
-            json.dump({"voice": voice_id}, f)
-    except OSError:
-        pass  # the choice still applies until secondchair stops
+    prefs.save(voice=voice_id)
 
 
 def pick_voice(voices):
@@ -159,8 +151,12 @@ class VoiceOut:
         self.last_line_time = 0.0  # when the draft's latest Korean line was said
         self.rendered = (None, None)  # (text, audio) rendered ahead of Enter
         # Monitor: Jun also hears what the meeting hears, quietly, on his real output device.
-        self.monitor = True
-        self.monitor_volume = 0.5
+        saved = prefs.load()
+        self.monitor = saved.get("monitor", True) is not False
+        try:
+            self.monitor_volume = min(1.0, max(0.0, float(saved.get("monitor_volume", 0.5))))
+        except (TypeError, ValueError):
+            self.monitor_volume = 0.5
         self.real_output = lambda: None  # name of the real output device; set by the transcriber
         self.stream = None
         if self.available:
@@ -241,6 +237,7 @@ class VoiceOut:
             self.monitor = bool(on)
         if volume is not None:
             self.monitor_volume = min(1.0, max(0.0, float(volume)))
+        prefs.save(monitor=self.monitor, monitor_volume=self.monitor_volume)
         self.emit(self.as_event())
 
     def _play_monitor(self, audio, force=False):
