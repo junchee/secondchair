@@ -11,6 +11,11 @@ Every component reports through an `emit(event)` callable; the terminal and the 
                  (see voice_out.py)
     draft        text (English waiting for Jun to confirm; "" when cleared)
     spoken       text, seconds (sent into the meeting by voice)
+    summarizing  final (a summary is being made)
+    summary      text (Markdown; "" when nothing was said yet), final (False while the meeting
+                 goes on), time ("HH:MM")
+    typing       id, source (text Jun typed; its translation is on the way)
+    typed        id, source, text (translation), target ("English"/"Korean"/None on failure)
     info         text
 """
 
@@ -71,6 +76,16 @@ def print_event(event):
         print(f"[draft: {event['text']}]" if event["text"] else "[draft cleared]", flush=True)
     elif kind == "spoken":
         print(f"[spoken ({event['seconds']} s): {event['text']}]", flush=True)
+    elif kind == "summarizing":
+        print("[summarizing the meeting…]" if event["final"] else "[summarizing so far…]", flush=True)
+    elif kind == "summary":
+        if not event["text"]:
+            print("[nothing to summarize yet]", flush=True)
+        else:
+            title = "Meeting summary" if event["final"] else f"Summary so far ({event['time']})"
+            print(f"\n== {title} ==\n{event['text']}\n", flush=True)
+    elif kind == "typed":
+        print(f"[typed: {event['source']} → {event['text']}]", flush=True)
     elif kind == "info":
         print(f"[{event['text']}]", flush=True)
 

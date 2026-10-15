@@ -109,6 +109,53 @@ def translate(text, target, context=(), following=None, client=None):
     return result
 
 
+def has_hangul(text):
+    return any("가" <= ch <= "힣" for ch in text)
+
+
+def translate_typed(text, conversation="", client=None):
+    """Something Jun typed, to say himself: Korean -> English he can read aloud, or English ->
+    Korean to check what his English means. `conversation` is the recent transcript, used only
+    for names, terms and what "it" or "that" refers to. Returns (target, translation)."""
+    target = "English" if has_hangul(text) else "Korean"
+    if target == "English":
+        style = (
+            "Jun typed this in Korean and will read your English aloud in the meeting himself. "
+            "Write short, natural spoken English that is easy to say."
+        )
+    else:
+        style = "Jun typed this English to check its meaning. Translate it into natural Korean."
+    script = " Write Korean in Hangul only; never use Chinese, Japanese or Cyrillic characters." if target == "Korean" else ""
+    parts = []
+    if conversation:
+        parts.append("Recent conversation (context only, do not translate):\n" + conversation)
+    parts.append("Text:\n" + text)
+
+    def request(model):
+        return {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"{style} Use the conversation only to get names, terms and "
+                    "references right. Keep the meaning; do not add anything." + script
+                    + " Reply with the translation only.",
+                },
+                {"role": "user", "content": "\n\n".join(parts)},
+            ],
+            "temperature": 0,
+            "max_tokens": 400,
+            "reasoning": {"enabled": False},
+            "provider": {"zdr": True, "data_collection": "deny", "sort": "latency"},
+        }
+
+    client = client or Client()
+    result = client.post(request(MODEL))
+    if target == "Korean" and has_foreign_script(result):
+        result = client.post(request(FALLBACK_MODEL))
+    return target, result
+
+
 class Translator:
     """Translates line events in a background thread, so transcription never waits for the network.
 

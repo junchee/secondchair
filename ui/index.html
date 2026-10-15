@@ -173,30 +173,63 @@
     background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow); z-index: 2;
   }
   #jump.show { display: block; }
-  body.interpreting #jump { bottom: 200px; }
+  #jump { bottom: 220px; }
 
-  /* ---- Draft bar (interpret mode) */
-  #draft-bar {
+  /* ---- Composer: English to say, from Jun's voice (Interpret) or from typing */
+  #composer {
     border-top: 1px solid var(--border); background: var(--surface);
-    padding: 12px 16px 14px; display: none; gap: 8px; flex-direction: column;
+    padding: 10px 16px 12px; display: flex; gap: 8px; flex-direction: column;
   }
-  body.interpreting #draft-bar { display: flex; }
-  .draft-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .draft-head strong { font-size: 13px; }
-  .draft-head .hint { color: var(--muted); font-size: 12px; }
-  .draft-head .warn { color: var(--warn); font-size: 12px; }
+  .out-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 18px; }
+  .out-head strong { font-size: 13px; }
+  #out-source { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .warn { color: var(--warn); font-size: 12px; }
   #draft {
-    width: 100%; min-height: 64px; max-height: 160px; resize: vertical;
+    width: 100%; min-height: 56px; max-height: 160px; resize: vertical;
     padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
-    background: var(--bg); font-size: var(--text-size); line-height: 1.45;
+    background: var(--bg); font-size: calc(var(--text-size) + 2px); line-height: 1.45; font-weight: 500;
   }
   #draft:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .draft-actions { display: flex; gap: 8px; align-items: center; }
+  #draft.translating { color: var(--faint); }
+  .row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .primary { border: 0; border-radius: 8px; padding: 6px 14px; background: var(--accent); color: var(--on-accent); cursor: pointer; font-weight: 600; }
   .primary:disabled { opacity: .45; cursor: not-allowed; }
   .ghost { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: transparent; cursor: pointer; color: var(--muted); }
+  .ghost:hover { color: var(--text); }
+  .ghost:disabled { opacity: .45; cursor: not-allowed; }
   #speaking { color: var(--accent); font-size: 12px; font-weight: 600; }
   kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--muted); }
+  #type-form { display: flex; gap: 8px; }
+  #type-input {
+    flex: 1; min-width: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg);
+  }
+  #type-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  #history { display: flex; gap: 6px; flex-wrap: wrap; }
+  #history button {
+    max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; background: transparent;
+    color: var(--muted); font-size: 12px; cursor: pointer;
+  }
+  #history button:hover { color: var(--text); }
+
+  /* ---- Summary panel (over the right side; the meeting keeps going underneath) */
+  #summary-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw);
+    background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow);
+    display: flex; flex-direction: column; z-index: 6;
+  }
+  .sp-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .sp-head strong { font-size: 15px; }
+  #sp-body { flex: 1; overflow-y: auto; padding: 4px 20px 16px; }
+  #sp-body h4 { margin: 16px 0 4px; font-size: 14px; }
+  #sp-body ul { margin: 0; padding-left: 20px; }
+  #sp-body li { margin: 3px 0; }
+  #sp-body p { margin: 4px 0; }
+  #sp-body .waiting { color: var(--muted); padding-top: 16px; }
+  .sp-foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+  .note button { border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; text-decoration: underline; }
 
   @media (max-width: 720px) {
     .grid, body.view-original .grid, body.view-translation .grid { grid-template-columns: minmax(0, 1fr); }
@@ -274,6 +307,7 @@
         <div class="setting"><p id="voice-info">—</p></div>
       </div>
     </div>
+    <button class="icon-btn" id="summary-btn" title="Summarize the meeting so far (S). The meeting keeps going.">Summary</button>
     <button class="stop-btn" id="stop" title="Stop secondchair, save and summarize the meeting">Stop</button>
   </div>
 </header>
@@ -295,21 +329,41 @@
 </main>
 <button id="jump">↓ New lines</button>
 
-<section id="draft-bar" aria-label="English to send">
-  <div class="draft-head">
-    <strong>To send in English</strong>
-    <span class="hint">Speak Korean and check the English. Say “오케이” to send it, “다시” to clear it, or just say it again. <kbd>Enter</kbd> / <kbd>Esc</kbd> also work.</span>
-    <span class="warn" id="draft-warn"></span>
+<section id="composer" aria-label="English to say">
+  <div class="out-head">
+    <strong id="out-title">English to say</strong>
+    <span id="out-source"></span>
     <span class="spacer"></span>
+    <span class="warn" id="draft-warn"></span>
     <span id="speaking"></span>
   </div>
-  <textarea id="draft" rows="2" placeholder="Speak Korean: the English to send appears here."></textarea>
-  <div class="draft-actions">
-    <button class="primary" id="speak" disabled>Speak</button>
-    <button class="ghost" id="discard">Discard</button>
-    <button class="ghost" id="load-latest" hidden>Load latest translation</button>
+  <textarea id="draft" rows="2" placeholder="Type Korean below, or speak Korean in Interpret mode: the English appears here."></textarea>
+  <div class="row-actions">
+    <button class="primary" id="speak" disabled title="Say it in the meeting with a synthetic voice (Enter in the box above)">Speak</button>
+    <button class="ghost" id="copy" disabled>Copy</button>
+    <button class="ghost" id="discard" title="Esc">Clear</button>
+    <button class="ghost" id="load-latest" hidden>Load new voice draft</button>
+    <span class="hint" id="out-hint"></span>
   </div>
+  <form id="type-form" autocomplete="off">
+    <input id="type-input" placeholder="Type Korean to get English you can say (/)" aria-label="Type Korean to translate">
+    <button class="ghost" type="submit">Translate</button>
+  </form>
+  <div id="history" aria-label="Earlier typed translations"></div>
 </section>
+
+<aside id="summary-panel" hidden aria-label="Summary">
+  <div class="sp-head">
+    <strong id="sp-title">Summary</strong>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="sp-close" aria-label="Close summary">✕</button>
+  </div>
+  <div id="sp-body"></div>
+  <div class="sp-foot">
+    <button class="primary" id="sp-again">Summarize again</button>
+    <span class="hint">Covers everything said so far. The meeting keeps going.</span>
+  </div>
+</aside>
 
 <script>
 (() => {
@@ -401,24 +455,55 @@
     added();
   }
 
-  // The summary is Markdown with "## " headings and "*"/"-" bullets; build it as text nodes.
-  function addSummary(markdown) {
-    const box = el("section", "summary");
-    box.append(el("h2", "", "Meeting summary"));
+  // ---- Summary panel. A summary is Markdown with "## " headings and "*"/"-" bullets,
+  // built here as text nodes. Each summary also leaves a note in the transcript to reopen it.
+  function renderSummary(container, markdown) {
+    container.replaceChildren();
     let list = null;
     for (const raw of markdown.split("\n")) {
       const line = raw.trim();
       if (!line) { list = null; continue; }
       const bullet = line.match(/^[*-]\s+(.*)$/);
-      if (line.startsWith("#")) { list = null; box.append(el("h4", "", line.replace(/^#+\s*/, ""))); }
+      if (line.startsWith("#")) { list = null; container.append(el("h4", "", line.replace(/^#+\s*/, ""))); }
       else if (bullet) {
-        if (!list) { list = el("ul"); box.append(list); }
+        if (!list) { list = el("ul"); container.append(list); }
         list.append(el("li", "", bullet[1].replace(/\*\*/g, "")));
-      } else { list = null; box.append(el("p", "", line.replace(/\*\*/g, ""))); }
+      } else { list = null; container.append(el("p", "", line.replace(/\*\*/g, ""))); }
     }
-    rowsEl.append(box);
-    follow = true; added();
   }
+  function summaryTitle(e) { return e.final ? `Meeting summary · ${e.time}` : `Summary so far · ${e.time}`; }
+  function openSummaryPanel(title, markdown, message) {
+    $("sp-title").textContent = title;
+    if (markdown) renderSummary($("sp-body"), markdown);
+    else $("sp-body").replaceChildren(el("p", "waiting", message));
+    $("summary-panel").hidden = false;
+  }
+  function requestSummary() {
+    if (!translateAvailable) return;
+    post("/summarize");
+    openSummaryPanel("Summary so far", null, "Summarizing everything said so far… The meeting keeps going.");
+  }
+  function onSummarizing(e) {
+    if (!replaying && e.final) openSummaryPanel("Meeting summary", null, "Summarizing the meeting…");
+  }
+  function onSummary(e) {
+    if (!e.text) {
+      if (!replaying) openSummaryPanel("Summary so far", null, "Nothing has been said yet.");
+      return;
+    }
+    const row = el("div", "grid");
+    const note = el("div", "note");
+    const button = el("button", "", e.final ? `Meeting summary (${e.time})` : `Summary at ${e.time}`);
+    button.onclick = () => openSummaryPanel(summaryTitle(e), e.text);
+    note.append(button);
+    row.append(note);
+    rowsEl.append(row);
+    added();
+    if (!replaying) openSummaryPanel(summaryTitle(e), e.text);
+  }
+  $("summary-btn").onclick = requestSummary;
+  $("sp-again").onclick = requestSummary;
+  $("sp-close").onclick = () => { $("summary-panel").hidden = true; };
 
   // ---- Status and settings
   const ICONS = {
@@ -481,6 +566,7 @@
     $("monitor-volume").disabled = !e.available || !e.monitor;
     $("monitor-volume-out").textContent = `${Math.round(e.monitor_volume * 100)}%`;
     updateDraftWarning();
+    updateButtons();
   }
   $("monitor").addEventListener("change", () => post("/voice", { monitor: $("monitor").checked }));
   $("monitor-volume").addEventListener("input", () => {
@@ -490,43 +576,118 @@
   document.querySelectorAll("#voice-buttons button").forEach((b) => b.onclick = () => post("/voice", { mode: b.dataset.mode }));
 
   function updateDraftWarning() {
+    const interpreting = voice.mode === "interpret";
     $("draft-warn").textContent =
-      !micOn ? "Mic is off on speakers: use headphones to interpret." :
-      !translateOn ? "Translation is off." : "";
+      interpreting && !micOn ? "Mic is off on speakers: use headphones to interpret." :
+      interpreting && !translateOn ? "Translation is off." : "";
+    $("out-hint").textContent = interpreting
+      ? "Say “오케이” to send it, “다시” to clear it, or say it again."
+      : voice.available ? "Read it out yourself, or Speak to send it in a synthetic voice."
+      : "Read it out yourself.";
   }
 
-  function setDraft(text) {
-    serverDraft = text;
-    if (!draftDirty || !text) {
-      $("draft").value = text;
-      draftDirty = false;
-      $("load-latest").hidden = true;
-    } else {
-      $("load-latest").hidden = false;  // the user is editing: offer, do not overwrite
-    }
-    $("speak").disabled = !$("draft").value.trim();
+  // ---- Composer: one box for the English to say. It is filled by Jun's voice in Interpret
+  // mode (the server's draft) or by a typed translation. Typed text is never recorded.
+  let origin = null;          // "voice" | "typed" | null: where the box's text came from
+  let target = "English";     // language of the box's text
+  let latestTyped = 0;        // id of the newest typing request, so older answers do not overwrite
+  const history = [];         // earlier typed translations, newest first
+
+  function updateButtons() {
+    const has = !!$("draft").value.trim() && !$("draft").classList.contains("translating");
+    $("speak").disabled = !has || !voice.available || target !== "English";
+    $("copy").disabled = !has;
   }
+  function setOutput(text, from, label, language = "English") {
+    $("draft").classList.remove("translating");
+    $("draft").value = text;
+    origin = text ? from : null;
+    target = language;
+    draftDirty = false;
+    $("out-title").textContent = language === "English" ? "English to say" : "Meaning in Korean";
+    $("out-source").textContent = text ? label : "";
+    $("load-latest").hidden = true;
+    updateButtons();
+  }
+  function clearOutput() { setOutput("", null, ""); }
+
+  function setDraft(text) {      // the server's voice draft (Interpret mode)
+    serverDraft = text;
+    const busy = (origin === "typed" || draftDirty) && $("draft").value.trim();
+    if (text && busy) { $("load-latest").hidden = false; return; }  // do not overwrite: offer it
+    if (text) setOutput(text, "voice", "From your Korean, spoken");
+    else if (origin === "voice") clearOutput();
+  }
+  $("load-latest").onclick = () => setOutput(serverDraft, "voice", "From your Korean, spoken");
   $("draft").addEventListener("input", () => {
-    draftDirty = $("draft").value !== serverDraft;
-    $("speak").disabled = !$("draft").value.trim();
+    draftDirty = origin !== "voice" || $("draft").value !== serverDraft;
+    updateButtons();
   });
-  $("load-latest").onclick = () => { draftDirty = false; setDraft(serverDraft); };
+
   function speak() {
     const text = $("draft").value.trim();
-    if (!text) return;
+    if (!text || $("speak").disabled) return;
     post("/speak", { text });
-    draftDirty = false;
-    $("draft").value = "";
-    $("load-latest").hidden = true;
-    $("speak").disabled = true;
+    clearOutput();
   }
-  function discard() { post("/discard"); draftDirty = false; $("draft").value = ""; $("speak").disabled = true; }
+  function discard() {
+    if (origin === "voice" || serverDraft) post("/discard");
+    clearOutput();
+  }
+  async function copy() {
+    const text = $("draft").value.trim();
+    try { await navigator.clipboard.writeText(text); }
+    catch { $("draft").select(); document.execCommand("copy"); }
+    $("copy").textContent = "Copied";
+    setTimeout(() => { $("copy").textContent = "Copy"; }, 1200);
+  }
   $("speak").onclick = speak;
   $("discard").onclick = discard;
+  $("copy").onclick = copy;
   $("draft").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); speak(); }
     if (e.key === "Escape") { e.preventDefault(); discard(); }
   });
+
+  // Typing: Korean -> English to read out (or English -> Korean to check the meaning).
+  $("type-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = $("type-input").value.trim();
+    if (!text || !translateAvailable) return;
+    post("/type", { text });
+    $("type-input").value = "";
+  });
+  function onTyping(e) {
+    latestTyped = Math.max(latestTyped, e.id);
+    if (replaying) return;
+    $("draft").classList.add("translating");
+    $("draft").value = "Translating…";
+    $("out-source").textContent = `“${e.source}”`;
+    origin = "typed";
+    updateButtons();
+  }
+  function onTyped(e) {
+    if (e.target) {
+      history.unshift(e);
+      history.length = Math.min(history.length, 5);
+      renderHistory();
+    }
+    if (replaying || e.id !== latestTyped) return;
+    if (!e.target) {
+      setOutput("", null, "");
+      $("out-source").textContent = e.text;
+      return;
+    }
+    setOutput(e.text, "typed", `“${e.source}”`, e.target);
+  }
+  function renderHistory() {
+    $("history").replaceChildren(...history.map((item) => {
+      const chip = el("button", "", item.source);
+      chip.title = `${item.source} → ${item.text}`;
+      chip.onclick = () => setOutput(item.text, "typed", `“${item.source}”`, item.target);
+      return chip;
+    }));
+  }
 
   let speakingTimer = null;
   function showSpeaking(seconds) {
@@ -571,10 +732,12 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
-    if (e.key === "Escape") togglePanel(false);
+    if (e.key === "Escape") { togglePanel(false); $("summary-panel").hidden = true; }
+    if (e.key === "/") { e.preventDefault(); $("type-input").focus(); }
+    if (e.key === "s") requestSummary();
     if (e.key === "t" && translateAvailable) $("translate").click();
     if (e.key === "i" && voice.available) post("/voice", { mode: voice.mode === "interpret" ? "direct" : "interpret" });
-    if (e.key === "Enter" && voice.mode === "interpret" && $("draft").value.trim()) { e.preventDefault(); speak(); }
+    if (e.key === "Enter" && !$("speak").disabled) { e.preventDefault(); speak(); }
     if (e.key === "v") {
       const order = ["both", "original", "translation"];
       const current = order.find((v) => document.body.classList.contains("view-" + v));
@@ -592,7 +755,7 @@
       : "secondchair stopped. Nothing was said, so nothing was saved.";
     $("stopped").classList.add("show");
     document.body.classList.remove("interpreting");
-    $("stop").disabled = true;
+    for (const id of ["stop", "summary-btn", "sp-again", "speak", "type-input"]) $(id).disabled = true;
   }
 
   function connect() {
@@ -618,7 +781,10 @@
         case "voice": setVoice(e); break;
         case "draft": setDraft(e.text); break;
         case "spoken": addSpoken(e); if (!replaying) showSpeaking(e.seconds); break;
-        case "summary": addSummary(e.text); break;
+        case "summarizing": onSummarizing(e); break;
+        case "summary": onSummary(e); break;
+        case "typing": onTyping(e); break;
+        case "typed": onTyped(e); break;
         case "info": addNote(e.text); break;
         case "stopped": stopped(e); break;
         case "live": replaying = false; follow = true; scroller.scrollTop = scroller.scrollHeight; break;

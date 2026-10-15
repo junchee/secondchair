@@ -14,6 +14,7 @@ spoken into the meeting through the virtual mic "BlackHole 16ch".
 """
 
 import argparse
+import itertools
 import json
 import os
 import queue
@@ -27,6 +28,7 @@ import transcribe_stream
 from events import Settings, fan_out, print_event
 from record import Recorder
 from summary import summarize
+from translate import translate_typed
 
 MODELS = {
     "small": "mlx-community/whisper-small-mlx",
@@ -67,7 +69,79 @@ class Hub:
             self.clients.discard(client)
 
 
-def make_handler(hub, settings, emit, controls):
+class Summaries:
+    """Summaries of the conversation so far: on request while the meeting goes on, and at the end."""
+
+    def __init__(self, recorder, emit, available):
+        self.recorder = recorder
+        self.emit = emit
+        self.available = available
+        self.busy = threading.Lock()  # one summary at a time
+
+    def make(self, final=False):
+        """Summarize everything said so far, report it as a summary event, and return the text."""
+        conversation = self.recorder.plain_text()
+        if not conversation:
+            self.emit({"type": "summary", "text": "", "final": final, "time": time.strftime("%H:%M")})
+            return None
+        self.emit({"type": "summarizing", "final": final})
+        try:
+            text = summarize(conversation)
+        except Exception as error:  # the transcript is kept either way
+            self.emit({"type": "info", "text": f"summary failed: {error}"})
+            return None
+        self.emit({"type": "summary", "text": text, "final": final, "time": time.strftime("%H:%M")})
+        return text
+
+    def request(self):
+        """From the page's Summary button: summarize in the background, the meeting continues."""
+        if not self.available:
+            self.emit({"type": "info", "text": "summary needs OPENROUTER_API_KEY"})
+        elif self.busy.acquire(blocking=False):
+
+            def work():
+                try:
+                    self.make()
+                finally:
+                    self.busy.release()
+
+            threading.Thread(target=work, daemon=True).start()
+
+
+class Typing:
+    """Text Jun types on the page, translated for him to say himself (or to send by voice).
+    It is not part of the transcript: it was not said in the meeting."""
+
+    CONTEXT_LINES = 8  # recent transcript lines sent along for names and references
+
+    def __init__(self, recorder, emit, available):
+        self.recorder = recorder
+        self.emit = emit
+        self.available = available
+        self.ids = itertools.count(1)
+
+    def request(self, text):
+        text = text.strip()
+        if not text:
+            return
+        if not self.available:
+            self.emit({"type": "info", "text": "typed translation needs OPENROUTER_API_KEY"})
+            return
+        typed_id = next(self.ids)
+        self.emit({"type": "typing", "id": typed_id, "source": text})
+
+        def work():
+            event = {"type": "typed", "id": typed_id, "source": text}
+            try:
+                event["target"], event["text"] = translate_typed(text, self.recorder.plain_text(last=self.CONTEXT_LINES))
+            except Exception as error:
+                event["target"], event["text"] = None, f"(translation failed: {error})"
+            self.emit(event)
+
+        threading.Thread(target=work, daemon=True).start()
+
+
+def make_handler(hub, settings, emit, controls, summaries, typing):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             pass  # keep the terminal for transcript lines
@@ -112,6 +186,10 @@ def make_handler(hub, settings, emit, controls):
                 voice.speak(str(body.get("text", "")))
             elif self.path == "/discard" and voice:
                 voice.discard()
+            elif self.path == "/summarize":
+                summaries.request()
+            elif self.path == "/type":
+                typing.request(str(body.get("text", "")))
             elif self.path == "/stop":
                 # Same clean shutdown as Ctrl+C: the main thread turns SIGTERM into KeyboardInterrupt.
                 os.kill(os.getpid(), signal.SIGTERM)
@@ -155,7 +233,9 @@ def main():
     emit = fan_out(hub.emit, print_event, recorder)  # page, terminal, and the saved transcript
     settings = Settings(translate=True)  # on when the OpenRouter key is set; the page can turn it off
     controls = {}  # filled by transcribe_stream.run (the voice output)
-    handler = make_handler(hub, settings, emit, controls)
+    summaries = Summaries(recorder, emit, settings.translate_available)
+    typing = Typing(recorder, emit, settings.translate_available)
+    handler = make_handler(hub, settings, emit, controls, summaries, typing)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -174,15 +254,9 @@ def main():
         controls=controls,
     )
     summary = None
-    conversation = recorder.plain_text()
-    if conversation and settings.translate_available:
-        emit({"type": "info", "text": "summarizing the meeting…"})
-        try:
-            summary = summarize(conversation)
-            hub.emit({"type": "summary", "text": summary})
-            print("\n" + summary + "\n")
-        except Exception as error:  # the transcript is still saved without it
-            emit({"type": "info", "text": f"summary failed: {error}"})
+    if settings.translate_available:
+        with summaries.busy:  # wait for a summary the page asked for just before Stop
+            summary = summaries.make(final=True)
     saved = recorder.close(summary)
     if saved:
         print(f"Transcript saved: {saved}")
