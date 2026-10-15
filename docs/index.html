@@ -29,9 +29,6 @@
   header { padding: 8px 0 20px; }
   h1 { margin: 0; font-size: 24px; letter-spacing: -0.01em; }
   .sub { color: var(--muted); margin: 4px 0 0; font-size: 15px; }
-  .todo { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger);
-          border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border)); border-radius: 10px;
-          padding: 10px 14px; margin-bottom: 16px; font-size: 14px; }
 
   /* progress */
   .progress { display: flex; align-items: center; gap: 6px; margin: 4px 0 18px; }
@@ -85,7 +82,6 @@
     <h1>secondchair 설치 안내</h1>
     <p class="sub">회의를 번역하고, 요약하고, 영어로 대신 말해 주는 프로그램. 천천히 한 단계씩 따라 하세요.</p>
   </header>
-  <div class="todo" id="todo" hidden>※ 배포 전에 이 파일 맨 아래 <code>const REPO</code>의 <code>OWNER</code>를 GitHub 이름으로 바꾸세요. (설치 명령의 주소에 들어갑니다)</div>
 
   <div class="count" id="count"></div>
   <div class="progress" id="progress" aria-label="진행 단계"></div>
@@ -256,8 +252,8 @@
 </nav>
 
 <script>
-// 배포할 때 OWNER를 GitHub 이름으로 바꾸세요 (설치 명령의 주소가 여기서 만들어집니다).
-const REPO = "OWNER/secondchair";
+// 설치 명령의 주소가 여기서 만들어집니다. 저장소 주소가 바뀌면 이 줄만 고치세요.
+const REPO = "junchee/secondchair";
 
 (() => {
   const steps = [...document.querySelectorAll(".step")];
@@ -295,7 +291,6 @@ const REPO = "OWNER/secondchair";
   // 설치 명령
   const rawUrl = `https://raw.githubusercontent.com/${REPO}/main/install.sh`;
   document.getElementById("install-cmd").textContent = `/bin/bash -c "$(curl -fsSL ${rawUrl})"`;
-  if (REPO.startsWith("OWNER/")) document.getElementById("todo").hidden = false;
 
   // 번역 키 명령: 입력한 키로 명령을 만들어 보여 준다 (이 페이지 밖으로 나가지 않음)
   const keyInput = document.getElementById("key-input");

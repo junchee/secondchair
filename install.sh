@@ -1,7 +1,7 @@
 #!/bin/bash
 # secondchair 설치 스크립트: 터미널에 한 줄을 붙여 넣으면 필요한 것을 모두 설치합니다.
 #
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/OWNER/secondchair/main/install.sh)"
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/junchee/secondchair/main/install.sh)"
 #
 # 다시 실행해도 안전합니다: 이미 설치된 것은 건너뛰고, 프로그램은 최신으로 맞춥니다.
 # 무엇을 할지만 보려면:  SECONDCHAIR_DRY_RUN=1 bash install.sh
@@ -9,7 +9,7 @@
 # 순서: Xcode 도구 확인 > Homebrew > Python > 소리 드라이버(BlackHole) > 프로그램 내려받기
 #       > 실행 환경 > 번역 키 > 바탕화면 시작 아이콘
 
-REPO_URL="${SECONDCHAIR_REPO:-https://github.com/OWNER/secondchair.git}"
+REPO_URL="${SECONDCHAIR_REPO:-https://github.com/junchee/secondchair.git}"
 DEST="${SECONDCHAIR_DEST:-$HOME/secondchair}"
 DRY_RUN="${SECONDCHAIR_DRY_RUN:-}"
 LAUNCHER="$HOME/Desktop/secondchair 시작.command"
