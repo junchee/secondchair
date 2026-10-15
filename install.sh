@@ -128,7 +128,7 @@ if grep -qs 'OPENROUTER_API_KEY' "$HOME/.zshrc"; then
 elif [ -n "$DRY_RUN" ]; then
   echo "  (미리보기) 번역 키(OpenRouter)를 물어봅니다"
 else
-  echo "  번역과 요약에는 OpenRouter 키가 필요합니다 (안내 페이지의 '번역 키 받기'를 보세요)."
+  echo "  번역과 요약에는 번역 키가 필요합니다. 이 프로그램을 알려 준 사람에게 받은 키를 넣으세요."
   echo "  지금 키를 붙여 넣고 Enter를 누르세요. 화면에는 보이지 않습니다. 나중에 하려면 그냥 Enter."
   read -r -s -p "  키: " api_key < /dev/tty
   echo

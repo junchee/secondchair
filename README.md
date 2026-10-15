@@ -15,7 +15,7 @@
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/junchee/secondchair/main/install.sh)"
 ```
 
-필요한 것: Apple 칩(M1 이상) Mac, 인터넷, 이어폰. 번역·요약에는 [OpenRouter](https://openrouter.ai) 키가 필요합니다.
+필요한 것: Apple 칩(M1 이상) Mac, 인터넷, 이어폰. 번역·요약에는 번역 키(OpenRouter)가 필요하고, 프로그램을 준 사람이 따로 알려 줍니다. **키는 이 저장소에 없습니다.**
 
 ## 주의
 
