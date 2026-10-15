@@ -15,8 +15,8 @@ from collections import deque
 # line on ZDR providers (Oct 2026). qwen/qwen3.5-35b-a3b was similar in speed, slightly
 # better wording, about 6x the output price.
 MODEL = "qwen/qwen3.5-9b"
-# The small model sometimes writes Chinese characters in Korean ("毛毛비" for drizzle) even when
-# told not to; such lines are redone once with this one.
+# The small model sometimes slips other scripts into Korean ("毛毛비" for drizzle, a Japanese
+# clause, "아нди") even when told not to; such lines are redone once with this one.
 FALLBACK_MODEL = "qwen/qwen3.5-35b-a3b"
 HOST = "openrouter.ai"
 PATH = "/api/v1/chat/completions"
@@ -29,8 +29,12 @@ def ends_sentence(text):
     return text.endswith((".", "?", "!")) and not text.endswith("...")
 
 
-def has_chinese_characters(text):
-    return any("一" <= ch <= "鿿" for ch in text)
+# Scripts that do not belong in a Korean translation: kana, CJK ideographs, Cyrillic.
+FOREIGN_SCRIPTS = (("぀", "ヿ"), ("㐀", "䶿"), ("一", "鿿"), ("Ѐ", "ӿ"))
+
+
+def has_foreign_script(text):
+    return any(low <= ch <= high for ch in text for low, high in FOREIGN_SCRIPTS)
 
 
 def build_request(text, target, context=(), following=None, model=MODEL):
@@ -42,7 +46,7 @@ def build_request(text, target, context=(), following=None, model=MODEL):
     parts.append("Line to translate:\n" + text)
     if following:
         parts.append("Next line (context only, do not translate):\n" + following)
-    script = " Write Korean in Hangul only; never use Chinese characters." if target == "Korean" else ""
+    script = " Write Korean in Hangul only; never use Chinese, Japanese or Cyrillic characters." if target == "Korean" else ""
     return {
         "model": model,
         "messages": [
@@ -100,7 +104,7 @@ class Client:
 def translate(text, target, context=(), following=None, client=None):
     client = client or Client()
     result = client.post(build_request(text, target, context, following))
-    if target == "Korean" and has_chinese_characters(result):
+    if target == "Korean" and has_foreign_script(result):
         result = client.post(build_request(text, target, context, following, FALLBACK_MODEL))
     return result
 

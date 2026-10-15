@@ -2,8 +2,10 @@
 
 In Zoom or Teams, choose VOICE_DEVICE ("BlackHole 16ch") as the microphone. secondchair sends:
     direct     Jun's real mic, unchanged: the others hear Jun's own voice
-    interpret  no live mic. Jun's Korean is translated to English and collected as a draft;
-               when Jun confirms it (Enter on the page), it is spoken with a macOS voice.
+    interpret  no live mic. Jun's Korean is translated to English and collected as a draft,
+               shown on the page. Jun confirms it by saying "오케이" (or Enter on the page),
+               and it is spoken with a macOS voice. "다시" clears it; saying the Korean again
+               after a pause replaces it.
 The other side's speech is never voiced; it is only translated on the page.
 """
 
@@ -22,6 +24,24 @@ import sounddevice as sd
 # another virtual device.
 VOICE_DEVICE = os.environ.get("SECONDCHAIR_VOICE_DEVICE", "BlackHole 16ch")
 RATE = 48000
+
+# Spoken commands in interpret mode: a line made only of these words is a command, not speech.
+SEND_WORDS = {"오케이", "okay", "ok", "보내", "보내줘", "전송"}
+CLEAR_WORDS = {"다시", "취소", "cancel"}
+# A Korean line this long after the draft's last line starts a new draft (Jun said it again);
+# a quicker one continues the same statement.
+NEW_DRAFT_AFTER_SECONDS = 3.0
+WAIT_FOR_TRANSLATION_SECONDS = 3.0  # "오케이" right after speaking: let the last line translate
+
+
+def command_of(text):
+    """'send', 'clear' or None. Whisper may write "오케이." or "OK, OK." for the same word."""
+    words = re.findall(r"[0-9a-z가-힣]+", text.lower())
+    if words and all(word in SEND_WORDS for word in words):
+        return "send"
+    if words and all(word in CLEAR_WORDS for word in words):
+        return "clear"
+    return None
 
 
 def find_output(name):
@@ -77,6 +97,7 @@ class VoiceOut:
         self.position = 0
         self.korean_mic_lines = set()  # ids of Jun's Korean lines since the draft was cleared
         self.parts = {}  # line id -> English translation, for the draft
+        self.last_line_time = 0.0  # when the draft's latest Korean line was said
         self.rendered = (None, None)  # (text, audio) rendered ahead of Enter
         self.stream = None
         if self.available:
@@ -145,15 +166,35 @@ class VoiceOut:
             self.rendered = (text, audio)
 
     def observe(self, event):
-        """Watch the event stream for Jun's Korean lines and their translations."""
+        """Watch the event stream for Jun's Korean lines, their translations and spoken commands."""
         if self.mode != "interpret":
             return
-        if event["type"] == "line" and event["source"] == "MIC" and event["lang"] == "ko":
-            self.korean_mic_lines.add(event["id"])
+        if event["type"] == "line" and event["source"] == "MIC":
+            command = command_of(event["text"])
+            if command == "send":
+                self._send_when_translated()
+            elif command == "clear":
+                self.discard()
+            elif event["lang"] == "ko":
+                if self.korean_mic_lines and time.time() - self.last_line_time > NEW_DRAFT_AFTER_SECONDS:
+                    self.discard()  # Jun said it again: the new version replaces the draft
+                self.korean_mic_lines.add(event["id"])
+                self.last_line_time = time.time()
         elif event["type"] == "translation" and event["id"] in self.korean_mic_lines:
             if not event["text"].startswith("(translation failed"):
                 self.parts[event["id"]] = event["text"]
                 self._draft_changed()
+
+    def _send_when_translated(self):
+        """Speak the draft once every line in it has its translation (or after a short wait)."""
+
+        def work():
+            deadline = time.time() + WAIT_FOR_TRANSLATION_SECONDS
+            while time.time() < deadline and not self.korean_mic_lines <= set(self.parts):
+                time.sleep(0.1)
+            self.speak(self.draft())
+
+        threading.Thread(target=work, daemon=True).start()
 
     def speak(self, text):
         """Speak `text` (the draft, possibly edited on the page) and clear the draft."""
@@ -175,6 +216,7 @@ class VoiceOut:
 
     def discard(self):
         self.korean_mic_lines.clear()
+        self.last_line_time = 0.0
         had_draft = bool(self.parts)
         self.parts.clear()
         self.rendered = (None, None)
