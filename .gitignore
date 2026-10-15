@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.DS_Store
+
+# Built from native/*.swift on first use
+native/route
+native/audiotap
