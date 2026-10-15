@@ -53,7 +53,11 @@ MIN_SPEECH_RMS = 0.003  # and never quieter than this
 
 
 class Segmenter:
-    """Collects 16 kHz audio and returns complete segments, cut at pauses."""
+    """Collects 16 kHz audio and returns complete segments, cut at pauses.
+
+    Each segment comes with its level: the RMS over its speech frames. A cough, a key click
+    or a fan makes a segment too, but a quiet one: Whisper turns those into "Thank you."
+    """
 
     def __init__(self, settings):
         self.settings = settings
@@ -66,6 +70,7 @@ class Segmenter:
         self.leftover = np.zeros(0, dtype=np.float32)
         self.speech_seconds = 0.0
         self.silence_seconds = 0.0
+        self.speech_energy = 0.0  # sum of squared RMS over the speech frames
 
     def _is_speech(self, frame):
         rms = float(np.sqrt(np.mean(np.square(frame))))
@@ -74,7 +79,10 @@ class Segmenter:
             self.noise_floor = rms
         else:
             self.noise_floor = 0.999 * self.noise_floor + 0.001 * rms
-        return rms > max(self.noise_floor * SPEECH_RATIO, MIN_SPEECH_RMS)
+        speech = rms > max(self.noise_floor * SPEECH_RATIO, MIN_SPEECH_RMS)
+        if speech:
+            self.speech_energy += rms * rms
+        return speech
 
     def feed(self, audio):
         audio = np.concatenate([self.leftover, audio])
@@ -100,10 +108,13 @@ class Segmenter:
             pause, longest = self.settings.pause_seconds, self.settings.max_line_seconds
             if self.silence_seconds >= pause or length >= longest:
                 if self.speech_seconds >= MIN_SPEECH_SECONDS:
-                    segments.append(np.concatenate(self.frames))
+                    frames_of_speech = self.speech_seconds / FRAME_SECONDS
+                    level = float(np.sqrt(self.speech_energy / frames_of_speech))
+                    segments.append((np.concatenate(self.frames), level))
                 self.frames = []
                 self.speech_seconds = 0.0
                 self.silence_seconds = 0.0
+                self.speech_energy = 0.0
         return segments
 
 
@@ -258,7 +269,9 @@ def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event
                 audio = to_whisper_rate(source.take(), source.rate)
                 if source is mic and not mic_on:
                     continue
-                for segment in source.segmenter.feed(audio):
+                for segment, level in source.segmenter.feed(audio):
+                    if source is mic and level < settings.mic_min_level():
+                        continue  # a click or room noise, not Jun: skip it before Whisper
                     translating = translator is not None and settings.translate
                     language = detect_language(segment, model) if translating else "en"
                     text = transcribe(segment, model, language)
@@ -272,6 +285,8 @@ def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event
                         "text": text,
                         "time": time.strftime("%H:%M:%S"),
                     }
+                    if source is mic:
+                        line["level"] = round(level, 4)  # saved with the line, to tune mic_filter
                     emit(line)
                     if translating:
                         translator.submit(line)

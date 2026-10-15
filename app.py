@@ -210,7 +210,7 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking):
         def handle_action(self, body):
             voice = controls.get("voice")
             if self.path == "/settings":
-                settings.update(body)
+                settings.update(body)  # translate, line lengths, mic_filter
                 emit(settings.as_event())
             elif self.path == "/voice" and voice:
                 if body.get("mode") == "interpret" and not settings.translate:
