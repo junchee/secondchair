@@ -6,3 +6,4 @@ __pycache__/
 native/route
 native/audiotap
 transcripts/
+user_settings.json

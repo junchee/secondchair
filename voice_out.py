@@ -9,6 +9,7 @@ In Zoom or Teams, choose VOICE_DEVICE ("BlackHole 16ch") as the microphone. seco
 The other side's speech is never voiced; it is only translated on the page.
 """
 
+import json
 import os
 import re
 import subprocess
@@ -53,17 +54,72 @@ def find_output(name):
     return None
 
 
-def pick_voice():
-    """Best installed English voice: Premium, then Enhanced, then Samantha.
-    Better voices: System Settings > Accessibility > Spoken Content > System voice > Manage Voices."""
+# Voices that are jokes or very robotic: not offered for a meeting.
+NOVELTY_VOICES = {
+    "Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos", "Fred", "Good News",
+    "Jester", "Junior", "Kathy", "Organ", "Ralph", "Superstar", "Trinoids", "Whisper", "Wobble", "Zarvox",
+}
+# macOS does not report gender through `say`; these are its well-known English voices.
+GENDER = {
+    "Samantha": "female", "Karen": "female", "Moira": "female", "Tessa": "female", "Tara": "female",
+    "Flo": "female", "Grandma": "female", "Sandy": "female", "Shelley": "female",
+    "Ava": "female", "Allison": "female", "Susan": "female", "Zoe": "female", "Serena": "female",
+    "Stephanie": "female", "Kate": "female", "Fiona": "female", "Nicky": "female",
+    "Daniel": "male", "Rishi": "male", "Aman": "male", "Eddy": "male", "Grandpa": "male", "Reed": "male",
+    "Rocko": "male", "Tom": "male", "Alex": "male", "Evan": "male", "Nathan": "male", "Oliver": "male",
+    "Lee": "male", "Gordon": "male", "Arthur": "male",
+}
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_settings.json")
+
+
+def list_voices():
+    """English voices installed on this Mac, best first, as dicts: id (what `say -v` takes),
+    name, language, gender ("female"/"male"/None), quality ("premium"/"enhanced"/"standard").
+
+    More and better voices: System Settings > Accessibility > Spoken Content > System voice >
+    Manage Voices.
+    """
     listing = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
-    voices = re.findall(r"^(.+?)\s{2,}(en_\w+)", listing, flags=re.M)
-    names = [name.strip() for name, _ in voices]
-    for mark in ("(Premium)", "(Enhanced)"):
-        for name in names:
-            if mark in name:
-                return name
-    return "Samantha" if "Samantha" in names else (names[0] if names else None)
+    voices = []
+    for voice_id, language in re.findall(r"^(.+?)\s{2,}(en_\w+)", listing, flags=re.M):
+        voice_id = voice_id.strip()
+        base = voice_id.split(" (")[0]
+        if base in NOVELTY_VOICES:
+            continue
+        quality = "premium" if "(Premium)" in voice_id else "enhanced" if "(Enhanced)" in voice_id else "standard"
+        voices.append({
+            "id": voice_id, "name": base, "language": language.replace("_", "-"),
+            "gender": GENDER.get(base), "quality": quality,
+        })
+    rank = {"premium": 0, "enhanced": 1, "standard": 2}
+    return sorted(voices, key=lambda v: (rank[v["quality"]], v["name"]))
+
+
+def saved_voice():
+    try:
+        with open(SETTINGS_FILE) as f:
+            return json.load(f).get("voice")
+    except (OSError, ValueError):
+        return None
+
+
+def save_voice(voice_id):
+    try:
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump({"voice": voice_id}, f)
+    except OSError:
+        pass  # the choice still applies until secondchair stops
+
+
+def pick_voice(voices):
+    """The saved choice if still installed, else the best installed voice (Premium, Enhanced,
+    then Samantha)."""
+    ids = [v["id"] for v in voices]
+    if saved_voice() in ids:
+        return saved_voice()
+    if voices and voices[0]["quality"] != "standard":
+        return voices[0]["id"]
+    return "Samantha" if "Samantha" in ids else (ids[0] if ids else None)
 
 
 def synthesize(text, voice):
@@ -93,7 +149,8 @@ class VoiceOut:
         self.device = find_output(VOICE_DEVICE)
         self.available = self.device is not None
         self.mode = "direct"
-        self.voice = pick_voice()
+        self.voices = list_voices()
+        self.voice = pick_voice(self.voices)
         self.lock = threading.Lock()
         self.playing = None  # float32 speech being played
         self.position = 0
@@ -149,9 +206,29 @@ class VoiceOut:
             "mode": self.mode,
             "device": VOICE_DEVICE,
             "voice": self.voice,
+            "voices": self.voices,
             "monitor": self.monitor,
             "monitor_volume": self.monitor_volume,
         }
+
+    def set_voice(self, voice_id):
+        if voice_id in [v["id"] for v in self.voices]:
+            self.voice = voice_id
+            save_voice(voice_id)
+            self.rendered = (None, None)  # a draft rendered ahead used the old voice
+            self.emit(self.as_event())
+            if self.parts:
+                self._draft_changed()
+
+    def preview(self, voice_id=None):
+        """Say a short sample in the chosen voice, only in Jun's headphones: never into the meeting."""
+        voice_id = voice_id or self.voice
+
+        def work():
+            audio = synthesize("Hello, this is how I will sound in the meeting.", voice_id)
+            self._play_monitor(audio, force=True)
+
+        threading.Thread(target=work, daemon=True).start()
 
     def set_mode(self, mode):
         if mode in ("direct", "interpret") and self.available:
@@ -166,14 +243,16 @@ class VoiceOut:
             self.monitor_volume = min(1.0, max(0.0, float(volume)))
         self.emit(self.as_event())
 
-    def _play_monitor(self, audio):
-        """Play `audio` on the real output device, in a separate process (see monitor_play.py)."""
+    def _play_monitor(self, audio, force=False):
+        """Play `audio` on the real output device, in a separate process (see monitor_play.py).
+        `force` plays even with the monitor switched off (a voice preview), at least quietly."""
         device = self.real_output()
-        if not (self.monitor and device and self.monitor_volume > 0):
+        volume = max(self.monitor_volume, 0.4) if force else self.monitor_volume
+        if not device or volume <= 0 or not (self.monitor or force):
             return
         handle, path = tempfile.mkstemp(suffix=".wav")
         os.close(handle)
-        scaled = np.clip(audio * self.monitor_volume, -1, 1)
+        scaled = np.clip(audio * volume, -1, 1)
         with wave.open(path, "wb") as w:
             w.setnchannels(1)
             w.setsampwidth(2)

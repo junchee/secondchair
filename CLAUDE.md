@@ -1,6 +1,6 @@
 # Meeting Copilot (Jun)
 
-Mac app that listens to Zoom/Teams/Meet audio and shows, in two columns, a live transcript and context-aware suggestions (related prep material, what to say next). Prep material and meeting goals can be uploaded before the meeting.
+Mac app (product name: secondchair; Jun named the current beta "hajung") that listens to Zoom/Teams/Meet audio and shows, in two columns, a live transcript and context-aware suggestions (related prep material, what to say next). Prep material and meeting goals can be uploaded before the meeting.
 
 ## Decisions
 - v1: Python backend + browser UI on localhost. Later port to a native Swift app (per-app audio capture via ScreenCaptureKit, overlay window hidden from screen share, menu bar).
@@ -38,7 +38,10 @@ Step 4b built (2026-10-15), Jun's request: the other side is only translated on 
 - Composer (one box at the bottom, Jun's approved design): "English to say", filled by the Interpret voice draft or by typing. Typing (`/`): Korean -> short spoken English to read out (Speak can also voice it); English -> Korean to check meaning. Uses the last 8 transcript lines as context (`translate.translate_typed`). Typed text is not recorded or summarized: it was not said. Last 5 typed results as chips. A voice draft never overwrites typed or edited text; "Load new voice draft" offers it.
 - Summary during the meeting (Jun's approved design): right-side panel, always the whole conversation so far, one request at a time, no automatic summaries. Each leaves a "Summary at HH:MM" note in the transcript to reopen it, and is saved in the `.md` where it was made ("중간 요약").
 - `record.py`: every session saved in `transcripts/` (gitignored): `.jsonl` as it happens, `.md` at stop with final translations. `summary.py`: Korean summary (핵심 요약, 결정 사항, 할 일, 열린 질문) with `qwen/qwen3.5-35b-a3b`; the final one goes on top of the `.md`.
-- Tested: voice path with BlackHole 2ch standing in (Whisper heard the spoken draft exactly); draft from Jun's real Korean mic line; Stop -> summary -> saved -> output restored; Interpret by "오케이" live with BlackHole 16ch (installed 2026-10-15). Summary panel and typing tested on an audio-free test server (port 8799, fake voice). Not yet tested: a real Zoom/Teams call.
+- Ask about the meeting (Jun's approved design): the bottom line has Translate | Ask (or start with `?`, key `?`). The answer comes in the right panel's Ask tab, in Korean, only from the whole conversation so far (`summary.answer`, `qwen3.5-35b-a3b`, last 3 Q&A kept for follow-ups). Says "대화에서 찾을 수 없습니다" when the transcript lacks it. Questions and answers are not recorded.
+- Voice picker (Jun's approved design): Settings > "Voice in the meeting" lists the English voices installed (`voice_out.list_voices`: novelty/robotic ones left out; gender from a known-names table because `say` does not report it). Choosing one previews it in Jun's headphones only; the choice is saved in `user_settings.json` (gitignored). Default: best Premium/Enhanced voice, else Samantha. Only standard voices are installed so far; Jun can add Premium ones in System Settings > Accessibility > Spoken Content > Manage Voices. Premium/cloud voices are a commercial idea (see memory).
+- Beta name "hajung" is shown on the page (header tag, tab title) and at startup.
+- Tested: voice path with BlackHole 2ch standing in (Whisper heard the spoken draft exactly); draft from Jun's real Korean mic line; Stop -> summary -> saved -> output restored; Interpret by "오케이" live with BlackHole 16ch (installed 2026-10-15). Summary, typing, Ask (with follow-up and a not-in-transcript question) and the voice picker (choice, save, preview request) tested on an audio-free test server (port 8799, fake voice). Not yet tested: a real Zoom/Teams call; hearing a preview.
 
 ## Working style
 Guide step by step; Jun runs each step and reports results. Keep explanations short.

@@ -27,8 +27,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import transcribe_stream
 from events import Settings, fan_out, print_event
 from record import Recorder
-from summary import summarize
-from translate import translate_typed
+from summary import answer, summarize
+from translate import Client, translate_typed
 
 MODELS = {
     "small": "mlx-community/whisper-small-mlx",
@@ -141,7 +141,45 @@ class Typing:
         threading.Thread(target=work, daemon=True).start()
 
 
-def make_handler(hub, settings, emit, controls, summaries, typing):
+class Asking:
+    """Jun's questions about the meeting, answered from the whole conversation so far.
+    Questions and answers are not recorded: they were not said in the meeting."""
+
+    def __init__(self, recorder, emit, available):
+        self.recorder = recorder
+        self.emit = emit
+        self.available = available
+        self.ids = itertools.count(1)
+        self.earlier = []  # last few (question, answer) pairs, for follow-ups
+        self.client = Client(timeout=60)
+        self.lock = threading.Lock()  # one connection: answers are made one at a time, in order
+
+    def request(self, question):
+        question = question.strip()
+        if not question:
+            return
+        if not self.available:
+            self.emit({"type": "info", "text": "asking needs OPENROUTER_API_KEY"})
+            return
+        ask_id = next(self.ids)
+        self.emit({"type": "asking", "id": ask_id, "question": question})
+
+        def work():
+            event = {"type": "answer", "id": ask_id, "question": question}
+            with self.lock:
+                try:
+                    event["text"] = answer(
+                        question, self.recorder.plain_text(), self.earlier[-3:], self.client
+                    )
+                    self.earlier.append((question, event["text"]))
+                except Exception as error:
+                    event["text"] = f"(answer failed: {error})"
+            self.emit(event)
+
+        threading.Thread(target=work, daemon=True).start()
+
+
+def make_handler(hub, settings, emit, controls, summaries, typing, asking):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             pass  # keep the terminal for transcript lines
@@ -182,6 +220,10 @@ def make_handler(hub, settings, emit, controls, summaries, typing):
                     voice.set_mode(body["mode"])
                 if "monitor" in body or "monitor_volume" in body:
                     voice.set_monitor(body.get("monitor"), body.get("monitor_volume"))
+                if "voice" in body:
+                    voice.set_voice(str(body["voice"]))
+                if body.get("preview"):
+                    voice.preview(body.get("voice"))
             elif self.path == "/speak" and voice:
                 voice.speak(str(body.get("text", "")))
             elif self.path == "/discard" and voice:
@@ -190,6 +232,8 @@ def make_handler(hub, settings, emit, controls, summaries, typing):
                 summaries.request()
             elif self.path == "/type":
                 typing.request(str(body.get("text", "")))
+            elif self.path == "/ask":
+                asking.request(str(body.get("question", "")))
             elif self.path == "/stop":
                 # Same clean shutdown as Ctrl+C: the main thread turns SIGTERM into KeyboardInterrupt.
                 os.kill(os.getpid(), signal.SIGTERM)
@@ -235,13 +279,14 @@ def main():
     controls = {}  # filled by transcribe_stream.run (the voice output)
     summaries = Summaries(recorder, emit, settings.translate_available)
     typing = Typing(recorder, emit, settings.translate_available)
-    handler = make_handler(hub, settings, emit, controls, summaries, typing)
+    asking = Asking(recorder, emit, settings.translate_available)
+    handler = make_handler(hub, settings, emit, controls, summaries, typing, asking)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
     url = f"http://127.0.0.1:{args.port}"
-    print(f"secondchair: {url}")
+    print(f"secondchair (hajung beta): {url}")
     if not args.no_browser:
         webbrowser.open(url)
 
