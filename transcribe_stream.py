@@ -199,6 +199,7 @@ def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event
     """
     lock = claim_single_instance()  # noqa: F841 (held for the life of the process)
     signal.signal(signal.SIGTERM, stop_on_sigterm)
+    signal.signal(signal.SIGHUP, stop_on_sigterm)  # closing the Terminal window: stop cleanly too
     settings = settings or Settings()
 
     system_index = find_input(SYSTEM_NAME)
