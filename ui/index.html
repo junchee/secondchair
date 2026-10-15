@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>secondchair</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --surface-me: #eef4ff;
+    --border: #e4e4e0;
+    --text: #1d1d1b;
+    --muted: #74746f;
+    --faint: #a5a5a0;
+    --accent: #2f6fde;
+    --ok: #1f9d55;
+    --warn: #b7791f;
+    --danger: #c53030;
+    --flash: #fff4c2;
+    --text-size: 17px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141414;
+      --surface: #1c1c1c;
+      --surface-me: #1a2433;
+      --border: #2c2c2c;
+      --text: #ececea;
+      --muted: #9a9a95;
+      --faint: #66665f;
+      --accent: #6b9cf5;
+      --ok: #3fbf74;
+      --warn: #d9a441;
+      --danger: #f07070;
+      --flash: #3a3417;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  button { font: inherit; color: inherit; }
+
+  /* Top bar */
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -0.01em; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .dot.live { background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 50%, transparent); }
+                     70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+  }
+  .chip svg { width: 14px; height: 14px; }
+  .chip.on { color: var(--text); }
+  .chip.off { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+  .spacer { flex: 1; }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .track { width: 34px; height: 20px; border-radius: 999px; background: var(--border); position: relative; transition: background .15s; }
+  .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+                  background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s; }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(14px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .switch.disabled { opacity: .5; cursor: not-allowed; }
+
+  .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .segmented button { border: 0; background: transparent; padding: 4px 10px; cursor: pointer; color: var(--muted); }
+  .segmented button + button { border-left: 1px solid var(--border); }
+  .segmented button[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 600; }
+  .icon-btn { border: 1px solid var(--border); background: transparent; border-radius: 8px; padding: 4px 8px; cursor: pointer; color: var(--muted); }
+  .icon-btn:hover, .segmented button:hover { color: var(--text); }
+
+  /* Banner */
+  #banner { display: none; padding: 8px 16px; background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+            color: var(--danger); border-bottom: 1px solid var(--border); }
+  #banner.show { display: block; }
+
+  /* Transcript */
+  main { flex: 1; overflow-y: auto; position: relative; }
+  .grid { display: grid; grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr); }
+  body.view-original .grid, body.view-translation .grid { grid-template-columns: 92px minmax(0, 1fr); }
+  body.view-original .col-translation, body.view-translation .col-original { display: none; }
+
+  .colhead {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--bg); border-bottom: 1px solid var(--border);
+    color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .colhead > div { padding: 8px 16px; }
+
+  .row { border-bottom: 1px solid var(--border); background: var(--surface); }
+  .row.me { background: var(--surface-me); }
+  .row > div { padding: 10px 16px; }
+  .meta { color: var(--muted); font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .who { font-weight: 650; color: var(--text); }
+  .row.me .who { color: var(--accent); }
+  .lang { font-size: 10px; letter-spacing: .05em; color: var(--faint); }
+  .text { font-size: var(--text-size); line-height: 1.5; overflow-wrap: anywhere; }
+  .col-translation .text { color: var(--text); }
+  .col-original { border-right: 1px solid var(--border); }
+  body.view-original .col-original { border-right: 0; }
+  .pending { color: var(--faint); }
+  .pending::after { content: "…"; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .none { color: var(--faint); }
+  .failed { color: var(--danger); font-size: 13px; }
+  .flash { animation: flash 1.4s ease-out; }
+  @keyframes flash { from { background: var(--flash); } to { background: transparent; } }
+
+  .note { grid-column: 1 / -1; text-align: center; color: var(--faint); font-size: 12px; padding: 6px 16px; }
+
+  .empty { padding: 64px 24px; text-align: center; color: var(--muted); }
+  .empty h2 { margin: 0 0 6px; font-size: 18px; color: var(--text); font-weight: 600; }
+  .empty p { margin: 4px 0; }
+
+  #jump {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    display: none; border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer;
+    background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgb(0 0 0 / .2);
+  }
+  #jump.show { display: block; }
+
+  @media (max-width: 720px) {
+    header { padding: 8px 16px; }
+    .grid, body.view-original .grid, body.view-translation .grid { grid-template-columns: minmax(0, 1fr); }
+    .colhead { display: none; }
+    .meta { flex-direction: row; gap: 8px; padding-bottom: 0 !important; }
+    .col-original { border-right: 0; padding-bottom: 4px !important; }
+    .col-translation { padding-top: 0 !important; }
+    .col-translation .text { color: var(--muted); }
+  }
+</style>
+</head>
+<body class="view-both">
+<header>
+  <div class="brand"><span class="dot" id="live"></span>secondchair</div>
+  <div class="chips">
+    <span class="chip" id="output-chip" title="Where the meeting audio plays">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="output-icon"></svg>
+      <span id="output-text">Output: waiting</span>
+    </span>
+    <span class="chip" id="mic-chip" title="Your microphone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>
+      <span id="mic-text">Mic: waiting</span>
+    </span>
+  </div>
+  <div class="spacer"></div>
+  <div class="controls">
+    <label class="switch" id="translate-switch" title="Translate English ⇄ Korean (T). Sends text to OpenRouter.">
+      <input type="checkbox" id="translate">
+      <span class="track"></span>
+      <span>Translate EN ⇄ KO</span>
+    </label>
+    <div class="segmented" role="group" aria-label="View" title="View (V)">
+      <button data-view="both" aria-pressed="true">Both</button>
+      <button data-view="original" aria-pressed="false">Original</button>
+      <button data-view="translation" aria-pressed="false">Translation</button>
+    </div>
+    <button class="icon-btn" id="smaller" title="Smaller text" aria-label="Smaller text">A−</button>
+    <button class="icon-btn" id="larger" title="Larger text" aria-label="Larger text">A+</button>
+  </div>
+</header>
+<div id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
+
+<main id="scroller">
+  <div class="grid colhead">
+    <div></div>
+    <div class="col-original">Transcript</div>
+    <div class="col-translation">Translation</div>
+  </div>
+  <div id="rows"></div>
+  <div class="empty" id="empty">
+    <h2>Listening</h2>
+    <p>Lines appear here when someone speaks.</p>
+    <p id="empty-hint"></p>
+  </div>
+</main>
+<button id="jump">↓ New lines</button>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const rowsEl = $("rows"), scroller = $("scroller");
+  const lines = new Map();          // line id -> translation cell element
+  let translateOn = false, translateAvailable = false, replaying = true;
+
+  const store = {
+    get(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch {} },
+  };
+
+  // ---- Scrolling: follow new lines only while the reader is at the bottom.
+  const atBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
+  let follow = true;
+  scroller.addEventListener("scroll", () => { follow = atBottom(); if (follow) $("jump").classList.remove("show"); });
+  function added() {
+    if (follow) scroller.scrollTop = scroller.scrollHeight;
+    else $("jump").classList.add("show");
+  }
+  $("jump").onclick = () => { follow = true; scroller.scrollTop = scroller.scrollHeight; $("jump").classList.remove("show"); };
+
+  // ---- Rows
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function addLine(e) {
+    $("empty").style.display = "none";
+    const me = e.source === "MIC";
+    const row = el("div", "grid row" + (me ? " me" : ""));
+    const meta = el("div", "meta");
+    meta.append(el("span", "who", me ? "Me" : "Them"), el("span", "", e.time), el("span", "lang", e.lang.toUpperCase()));
+    const original = el("div", "col-original");
+    original.append(el("div", "text", e.text));
+    const translation = el("div", "col-translation");
+    const cell = translateOn ? el("div", "text pending") : el("div", "text none", "—");
+    translation.append(cell);
+    row.append(meta, original, translation);
+    rowsEl.append(row);
+    lines.set(e.id, cell);
+    added();
+  }
+
+  function setTranslation(e) {
+    const cell = lines.get(e.id);
+    if (!cell) return;
+    const failed = e.text.startsWith("(translation failed");
+    cell.className = "text" + (failed ? " failed" : "");
+    cell.textContent = e.text;
+    if (e.revised && !replaying) {
+      cell.parentElement.classList.remove("flash");
+      void cell.parentElement.offsetWidth;  // restart the animation
+      cell.parentElement.classList.add("flash");
+      cell.title = "Revised with the next line";
+    }
+  }
+
+  function addNote(text) {
+    const row = el("div", "grid");
+    row.append(el("div", "note", text));
+    rowsEl.append(row);
+    added();
+  }
+
+  // ---- Status and settings
+  const ICONS = {
+    headphones: '<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/>',
+    speakers: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+  };
+  function setStatus(e) {
+    $("output-icon").innerHTML = ICONS[e.kind] || ICONS.speakers;
+    $("output-text").textContent = e.output ? `Output: ${e.output}` : "Output: not switched";
+    $("output-chip").className = "chip on";
+    $("mic-text").textContent = e.mic ? "Mic: on" : (e.kind === "speakers" ? "Mic: off (speakers)" : "Mic: off");
+    $("mic-chip").className = "chip " + (e.mic ? "on" : "off");
+    $("mic-chip").title = e.mic ? "Your microphone is transcribed"
+      : "On speakers the mic would pick up the meeting audio. Use headphones to include your own voice.";
+  }
+
+  function setSettings(e) {
+    translateOn = e.translate;
+    translateAvailable = e.translate_available;
+    $("translate").checked = translateOn;
+    $("translate").disabled = !translateAvailable;
+    $("translate-switch").classList.toggle("disabled", !translateAvailable);
+    $("empty-hint").textContent = translateAvailable ? ""
+      : "Translation is off: OPENROUTER_API_KEY is not set in the terminal that runs app.py.";
+  }
+
+  $("translate").addEventListener("change", () => {
+    fetch("/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify({ translate: $("translate").checked }) });
+  });
+
+  // ---- View and text size (remembered in this browser)
+  function setView(view) {
+    document.body.className = "view-" + view;
+    document.querySelectorAll(".segmented button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === view));
+    store.set("view", view);
+  }
+  document.querySelectorAll(".segmented button").forEach((b) => b.onclick = () => setView(b.dataset.view));
+  setView(store.get("view", "both"));
+
+  let size = Number(store.get("size", 17));
+  function setSize(px) {
+    size = Math.min(28, Math.max(13, px));
+    document.documentElement.style.setProperty("--text-size", size + "px");
+    store.set("size", size);
+  }
+  $("smaller").onclick = () => setSize(size - 2);
+  $("larger").onclick = () => setSize(size + 2);
+  setSize(size);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.target.tagName === "INPUT") return;
+    if (e.key === "t" && translateAvailable) { $("translate").click(); }
+    if (e.key === "v") {
+      const order = ["both", "original", "translation"];
+      const current = document.body.className.replace("view-", "");
+      setView(order[(order.indexOf(current) + 1) % order.length]);
+    }
+  });
+
+  // ---- Live events. On every (re)connect the server replays the session, so start clean.
+  function connect() {
+    const source = new EventSource("/events");
+    source.onopen = () => {
+      replaying = true;
+      rowsEl.replaceChildren(); lines.clear();
+      $("empty").style.display = "";
+      $("banner").classList.remove("show");
+      $("live").classList.add("live");
+    };
+    source.onerror = () => {
+      $("banner").classList.add("show");
+      $("live").classList.remove("live");
+    };
+    source.onmessage = (message) => {
+      const e = JSON.parse(message.data);
+      if (e.type === "line") addLine(e);
+      else if (e.type === "translation") setTranslation(e);
+      else if (e.type === "status") setStatus(e);
+      else if (e.type === "settings") setSettings(e);
+      else if (e.type === "info") addNote(e.text);
+      else if (e.type === "live") { replaying = false; follow = true; scroller.scrollTop = scroller.scrollHeight; }
+    };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>

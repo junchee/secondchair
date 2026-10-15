@@ -1,8 +1,9 @@
-"""Step 2: streaming transcription with Whisper (MLX), speaker = system audio vs mic.
+"""Streaming transcription with Whisper (MLX), speaker = system audio vs mic.
 
-Shared code only. Run one of the model versions instead, with the venv active:
+Shared code only. Run the browser app (python app.py) or a terminal version, with the venv active:
     python transcribe_small.py    (whisper-small, about 1 s per Whisper call on M1)
     python transcribe_turbo.py    (whisper-large-v3-turbo, about 5 s per call, more accurate)
+Results are reported as events (see events.py).
 While running, the system output plays on the user's real device and on BlackHole 2ch
 (temporary device from native/route, removed on exit). The mic is off while on speakers.
 Options: --no-mic (never use the mic), --no-switch (leave the output device alone),
@@ -15,6 +16,8 @@ The first run of each version downloads its model. Press Ctrl+C to stop.
 """
 
 import argparse
+import fcntl
+import itertools
 import re
 import signal
 import sys
@@ -30,6 +33,7 @@ from mlx_whisper.transcribe import ModelHolder
 
 import audio_output
 from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
+from events import Settings, print_event
 from translate import Translator
 
 WHISPER_RATE = 16000
@@ -167,18 +171,35 @@ def transcribe(audio, model, language="en"):
     return drop_repeats(result["text"].strip())
 
 
+LOCK_PATH = "/tmp/secondchair.lock"
+
+
 def stop_on_sigterm(signum, frame):
     raise KeyboardInterrupt  # same clean shutdown as Ctrl+C
 
 
-def run(model, use_mic=True, switch_output=True, translate=False):
+def claim_single_instance():
+    """Exit if secondchair already runs: two route helpers would delete each other's device."""
+    lock = open(LOCK_PATH, "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("secondchair is already running (app.py or transcribe_*.py). Stop it first.")
+        sys.exit(1)
+    return lock  # keep it open: the lock lasts until this process ends
+
+
+def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event):
+    """Transcribe until Ctrl+C or SIGTERM. `settings` may be changed by another thread."""
+    lock = claim_single_instance()  # noqa: F841 (held for the life of the process)
     signal.signal(signal.SIGTERM, stop_on_sigterm)
-    translator = Translator() if translate else None
+    settings = settings or Settings()
+    translator = Translator(emit) if settings.translate_available else None
+
     system_index = find_input(SYSTEM_NAME)
     if system_index is None:
         print(f"Could not find an input named '{SYSTEM_NAME}'. Run audio_test.py first.")
         sys.exit(1)
-
     mic_index = find_mic()
     if mic_index is None:
         print(f"Could not find '{MIC_NAME}' or another non-BlackHole input. Run audio_test.py.")
@@ -189,37 +210,53 @@ def run(model, use_mic=True, switch_output=True, translate=False):
     print(f"System audio: {sd.query_devices(system_index)['name']}")
     print(f"Microphone:   {sd.query_devices(mic_index)['name']}")
     print(f"Model: {model}")
-    if translator:
-        print("Translation: on (English <-> Korean, text is sent to OpenRouter)")
     print("First run downloads the model, so the first line can take a while.")
     print("Ctrl+C to stop.\n")
+    emit(settings.as_event())
 
-    route = audio_output.Route() if switch_output else None
+    route = audio_output.Route(emit) if switch_output else None
     for source in sources:
         source.stream.start()
 
-    mic_was_on = None
+    line_ids = itertools.count(1)
+    last_status = None
     try:
         while True:
             # With speakers the mic re-records the system audio, so only listen with headphones.
             mic_on = use_mic and not (route and route.on_speakers())
-            if mic_on != mic_was_on:
-                print(f"[mic {'on' if mic_on else 'off'}]", flush=True)
-                mic.segmenter.reset()
-                mic_was_on = mic_on
+            status = {
+                "type": "status",
+                "output": route.device if route else None,
+                "kind": route.kind if route else None,
+                "mic": mic_on,
+            }
+            if status != last_status:
+                if not last_status or mic_on != last_status["mic"]:
+                    mic.segmenter.reset()
+                emit(status)
+                last_status = status
             time.sleep(POLL_SECONDS)
             for source in sources:
                 audio = to_whisper_rate(source.take(), source.rate)
                 if source is mic and not mic_on:
                     continue
                 for segment in source.segmenter.feed(audio):
-                    language = detect_language(segment, model) if translator else "en"
+                    translating = translator is not None and settings.translate
+                    language = detect_language(segment, model) if translating else "en"
                     text = transcribe(segment, model, language)
-                    if text:
-                        stamp = time.strftime("%H:%M:%S")
-                        print(f"[{stamp}] {source.label}: {text}", flush=True)
-                        if translator:
-                            translator.submit(source.label, text, language)
+                    if not text:
+                        continue
+                    line = {
+                        "type": "line",
+                        "id": next(line_ids),
+                        "source": source.label,
+                        "lang": language,
+                        "text": text,
+                        "time": time.strftime("%H:%M:%S"),
+                    }
+                    emit(line)
+                    if translating:
+                        translator.submit(line)
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
@@ -228,7 +265,7 @@ def run(model, use_mic=True, switch_output=True, translate=False):
             source.stream.close()
         if route:
             route.stop()
-            time.sleep(0.1)  # let the reader thread print the "restored" line
+            time.sleep(0.1)  # let the reader thread report the "restored" line
 
 
 def main(model):
@@ -249,9 +286,7 @@ def main(model):
         help="translate each line English <-> Korean (sends the text to OpenRouter)",
     )
     args = parser.parse_args()
-    run(
-        model,
-        use_mic=not args.no_mic,
-        switch_output=not args.no_switch,
-        translate=args.translate,
-    )
+    settings = Settings(translate=args.translate)
+    if args.translate and not settings.translate_available:
+        print("OPENROUTER_API_KEY is not set, so translation is off. Run: source ~/.zshrc")
+    run(model, use_mic=not args.no_mic, switch_output=not args.no_switch, settings=settings)

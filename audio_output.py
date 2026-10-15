@@ -10,6 +10,8 @@ import os
 import subprocess
 import threading
 
+from events import print_event
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCE = os.path.join(HERE, "native", "route.swift")
 HELPER = os.path.join(HERE, "native", "route")
@@ -25,8 +27,9 @@ def build_if_needed():
 class Route:
     """The running helper. `kind` is "headphones" or "speakers" for the current real device."""
 
-    def __init__(self):
+    def __init__(self, emit=print_event):
         build_if_needed()
+        self.emit = emit
         self.kind = None
         self.device = None
         self.ready = threading.Event()
@@ -40,11 +43,11 @@ class Route:
         for line in self.process.stdout:
             word, _, rest = line.strip().partition(" ")
             if word == "route":
+                # The transcriber's main loop reports the new device and kind as a status event.
                 self.kind, _, self.device = rest.partition(" ")
-                print(f"[output -> {self.device} + BlackHole, {self.kind}]", flush=True)
                 self.ready.set()
             elif word == "restored":
-                print(f"[output restored to {rest}]", flush=True)
+                self.emit({"type": "info", "text": f"output restored to {rest}"})
 
     def on_speakers(self):
         return self.kind == "speakers"
