@@ -687,6 +687,10 @@
   function speak() {
     const text = $("draft").value.trim();
     if (!text || $("speak").disabled) return;
+    if (/[가-힣]/.test(text)) {   // an English voice cannot say Korean: translate it first
+      post("/type", { text });
+      return;
+    }
     post("/speak", { text });
     clearOutput();
   }
@@ -827,7 +831,11 @@
   };
 
   document.addEventListener("keydown", (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+    // Shortcuts are for when nothing is being typed or picked. Typing a letter in the voice list
+    // would otherwise start a summary, and Enter on it would speak the draft.
+    const tag = e.target.tagName;
+    if (e.metaKey || e.ctrlKey || e.altKey || ["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+    if (tag === "BUTTON" && (e.key === "Enter" || e.key === " ")) return;
     if (e.key === "Escape") { togglePanel(false); $("summary-panel").hidden = true; }
     if (e.key === "/") { e.preventDefault(); $("type-input").focus(); }
     if (e.key === "?") { e.preventDefault(); setTypeKind("ask"); $("type-input").focus(); }

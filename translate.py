@@ -24,9 +24,19 @@ TARGET = {"en": "Korean", "ko": "English"}
 CONTEXT_LINES = 2  # earlier lines sent along, so a line cut mid-sentence is understood
 
 
+# Whisper rarely puts a full stop on Korean, so a Korean line also counts as finished when it
+# ends in a common sentence ending ("-다", "-요", "-죠", "-까", "-자" ...). Without this nearly
+# every Korean line would be translated twice, and the second time can come out worse.
+KOREAN_ENDINGS = "다요죠까네야어지자나군래"
+
+
 def ends_sentence(text):
     text = text.rstrip()
-    return text.endswith((".", "?", "!")) and not text.endswith("...")
+    if text.endswith("...") or text.endswith("…"):
+        return False
+    if text.endswith((".", "?", "!", "。", "？", "！")):
+        return True
+    return bool(text) and text[-1] in KOREAN_ENDINGS
 
 
 # Scripts that do not belong in a Korean translation: kana, CJK ideographs, Cyrillic.

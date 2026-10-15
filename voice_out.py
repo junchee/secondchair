@@ -311,10 +311,17 @@ class VoiceOut:
         self.discard()
         if not text or not self.available:
             return
+        if re.search(r"[가-힣]", text):
+            # An English voice makes no sound for Korean; do not send silence into the meeting.
+            self.emit({"type": "info", "text": "not spoken: the text is Korean (translate it first)"})
+            return
 
         def work():
             cached_text, cached_audio = self.rendered
             audio = cached_audio if cached_text == text else synthesize(text, self.voice)
+            if not len(audio):
+                self.emit({"type": "info", "text": "not spoken: the voice produced no sound"})
+                return
             self._play_monitor(audio)  # starts first: the helper process needs a moment to load
             with self.lock:
                 self.playing = audio
