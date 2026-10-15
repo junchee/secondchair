@@ -186,7 +186,6 @@ class VoiceOut:
     def start(self):
         if self.stream:
             self.stream.start()
-        self.emit(self.as_event())
 
     def stop(self):
         if self.stream:

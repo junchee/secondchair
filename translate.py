@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import unicodedata
 from collections import deque
 
 # Cheapest Qwen that translated well in tests: $0.10/M in, $0.15/M out, about 0.45-0.6 s per
@@ -39,12 +40,16 @@ def ends_sentence(text):
     return bool(text) and text[-1] in KOREAN_ENDINGS
 
 
-# Scripts that do not belong in a Korean translation: kana, CJK ideographs, Cyrillic.
-FOREIGN_SCRIPTS = (("぀", "ヿ"), ("㐀", "䶿"), ("一", "鿿"), ("Ѐ", "ӿ"))
-
-
 def has_foreign_script(text):
-    return any(low <= ch <= high for ch in text for low, high in FOREIGN_SCRIPTS)
+    """True if `text` has a letter that is neither Hangul nor Latin (kana, Chinese, Cyrillic, Thai ...).
+    A Korean translation may keep Latin names ("BBC"), but the small model sometimes slips other
+    scripts into it ("毛毛비", a Japanese clause, "코르นว얼")."""
+    for ch in text:
+        if ch.isalpha():
+            name = unicodedata.name(ch, "")
+            if not (name.startswith("HANGUL") or name.startswith("LATIN")):
+                return True
+    return False
 
 
 def build_request(text, target, context=(), following=None, model=MODEL):
@@ -179,12 +184,14 @@ class Translator:
         self.jobs = queue.Queue()
         self.recent = deque(maxlen=CONTEXT_LINES)  # "LABEL: text" of the latest lines
         self.last = {}  # source -> (line, context) of that speaker's latest line
+        self.shown = {}  # line id -> the translation the page shows now
         threading.Thread(target=self._work, daemon=True).start()
 
     def reset(self):
         """A new meeting starts: its first lines must not borrow context from the last one."""
         self.recent.clear()
         self.last.clear()
+        self.shown.clear()
 
     def submit(self, line):
         source = line["source"]
@@ -205,4 +212,7 @@ class Translator:
                 text = translate(line["text"], target, context, following, self.client)
             except Exception as error:  # network or API error: show it, keep going
                 text = f"(translation failed: {error})"
+            if revised and self.shown.get(line["id"]) == text:
+                continue  # the same words again: nothing to update on the page
+            self.shown[line["id"]] = text
             self.emit({"type": "translation", "id": line["id"], "text": text, "revised": revised})
