@@ -12,6 +12,7 @@ The other side's speech is never voiced; it is only translated on the page.
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -24,6 +25,7 @@ import sounddevice as sd
 # another virtual device.
 VOICE_DEVICE = os.environ.get("SECONDCHAIR_VOICE_DEVICE", "BlackHole 16ch")
 RATE = 48000
+MONITOR_PLAYER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "monitor_play.py")
 
 # Spoken commands in interpret mode: a line made only of these words is a command, not speech.
 SEND_WORDS = {"오케이", "okay", "ok", "보내", "보내줘", "전송"}
@@ -99,6 +101,10 @@ class VoiceOut:
         self.parts = {}  # line id -> English translation, for the draft
         self.last_line_time = 0.0  # when the draft's latest Korean line was said
         self.rendered = (None, None)  # (text, audio) rendered ahead of Enter
+        # Monitor: Jun also hears what the meeting hears, quietly, on his real output device.
+        self.monitor = True
+        self.monitor_volume = 0.5
+        self.real_output = lambda: None  # name of the real output device; set by the transcriber
         self.stream = None
         if self.available:
             self.stream = sd.Stream(
@@ -143,6 +149,8 @@ class VoiceOut:
             "mode": self.mode,
             "device": VOICE_DEVICE,
             "voice": self.voice,
+            "monitor": self.monitor,
+            "monitor_volume": self.monitor_volume,
         }
 
     def set_mode(self, mode):
@@ -150,6 +158,28 @@ class VoiceOut:
             self.mode = mode
             self.discard()
             self.emit(self.as_event())
+
+    def set_monitor(self, on=None, volume=None):
+        if on is not None:
+            self.monitor = bool(on)
+        if volume is not None:
+            self.monitor_volume = min(1.0, max(0.0, float(volume)))
+        self.emit(self.as_event())
+
+    def _play_monitor(self, audio):
+        """Play `audio` on the real output device, in a separate process (see monitor_play.py)."""
+        device = self.real_output()
+        if not (self.monitor and device and self.monitor_volume > 0):
+            return
+        handle, path = tempfile.mkstemp(suffix=".wav")
+        os.close(handle)
+        scaled = np.clip(audio * self.monitor_volume, -1, 1)
+        with wave.open(path, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(RATE)
+            w.writeframes((scaled * 32767).astype(np.int16).tobytes())
+        subprocess.Popen([sys.executable, MONITOR_PLAYER, device, path])
 
     def draft(self):
         return " ".join(self.parts[i] for i in sorted(self.parts))
@@ -206,6 +236,7 @@ class VoiceOut:
         def work():
             cached_text, cached_audio = self.rendered
             audio = cached_audio if cached_text == text else synthesize(text, self.voice)
+            self._play_monitor(audio)  # starts first: the helper process needs a moment to load
             with self.lock:
                 self.playing = audio
                 self.position = 0

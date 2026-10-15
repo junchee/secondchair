@@ -7,7 +7,8 @@ Every component reports through an `emit(event)` callable; the terminal and the 
     translation  id (of the line), text, revised (True when redone with the next line)
     status       output (device name or None), kind ("headphones"/"speakers"/None), mic (bool)
     settings     translate, translate_available, max_line_seconds, pause_seconds
-    voice        available, mode ("direct"/"interpret"), device, voice (see voice_out.py)
+    voice        available, mode ("direct"/"interpret"), device, voice, monitor, monitor_volume
+                 (see voice_out.py)
     draft        text (English waiting for Jun to confirm; "" when cleared)
     spoken       text, seconds (sent into the meeting by voice)
     info         text

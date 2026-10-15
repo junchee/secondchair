@@ -104,7 +104,10 @@ def make_handler(hub, settings, emit, controls):
                 if body.get("mode") == "interpret" and not settings.translate:
                     settings.update({"translate": True})  # interpreting needs translation
                     emit(settings.as_event())
-                voice.set_mode(body.get("mode"))
+                if "mode" in body:
+                    voice.set_mode(body["mode"])
+                if "monitor" in body or "monitor_volume" in body:
+                    voice.set_monitor(body.get("monitor"), body.get("monitor_volume"))
             elif self.path == "/speak" and voice:
                 voice.speak(str(body.get("text", "")))
             elif self.path == "/discard" and voice:

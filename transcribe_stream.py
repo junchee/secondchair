@@ -230,6 +230,9 @@ def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event
     for source in sources:
         source.stream.start()
     if voice_out:
+        if route:
+            # The monitor plays on the real device; the default output also feeds BlackHole 2ch.
+            voice_out.real_output = lambda: route.device
         voice_out.start()
 
     line_ids = itertools.count(1)
