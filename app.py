@@ -18,7 +18,6 @@ import itertools
 import json
 import os
 import queue
-import signal
 import threading
 import time
 import webbrowser
@@ -26,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import transcribe_stream
 from events import Settings, fan_out, print_event
+from transcribe_stream import Hooks
 from record import Recorder
 from summary import answer, summarize
 from translate import Client, translate_typed
@@ -54,6 +54,11 @@ class Hub:
             self.history.append(event)
             for client in self.clients:
                 client.put(event)
+
+    def reset(self):
+        """A new meeting starts: a page that connects from now on sees only this one."""
+        with self.lock:
+            self.history.clear()
 
     def subscribe(self):
         client = queue.Queue()
@@ -179,6 +184,32 @@ class Asking:
         threading.Thread(target=work, daemon=True).start()
 
 
+class Meeting(Hooks):
+    """Joins the engine to the recorder, the page and the summary for each meeting."""
+
+    def __init__(self, hub, recorder, summaries, asking, settings):
+        self.hub = hub
+        self.recorder = recorder
+        self.summaries = summaries
+        self.asking = asking
+        self.settings = settings
+
+    def begin(self):
+        self.recorder.begin()  # new files for this meeting
+        self.hub.reset()  # the page shows only this meeting
+        self.asking.earlier.clear()  # follow-up questions do not reach back to the last meeting
+
+    def finish(self):
+        summary = None
+        if self.settings.translate_available:
+            with self.summaries.busy:  # wait for a summary the page asked for just before End
+                summary = self.summaries.make(final=True)
+        saved = self.recorder.close(summary)
+        if saved:
+            print(f"Transcript saved: {saved}")
+        return saved
+
+
 def make_handler(hub, settings, emit, controls, summaries, typing, asking):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
@@ -234,9 +265,10 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking):
                 typing.request(str(body.get("text", "")))
             elif self.path == "/ask":
                 asking.request(str(body.get("question", "")))
-            elif self.path == "/stop":
-                # Same clean shutdown as Ctrl+C: the main thread turns SIGTERM into KeyboardInterrupt.
-                os.kill(os.getpid(), signal.SIGTERM)
+            elif self.path == "/session" and controls.get("engine"):
+                controls["engine"].command(str(body.get("action", "")))  # start, pause, resume, end
+            elif self.path in ("/quit", "/stop") and controls.get("engine"):
+                controls["engine"].request_quit()  # ends a running meeting properly, then exits
             else:
                 return False
             return True
@@ -290,21 +322,16 @@ def main():
     if not args.no_browser:
         webbrowser.open(url)
 
-    transcribe_stream.run(
+    meeting = Meeting(hub, recorder, summaries, asking, settings)
+    saved = transcribe_stream.run(
         MODELS[args.model],
         switch_output=not args.no_switch,
         settings=settings,
         emit=emit,
         voice=True,
         controls=controls,
+        hooks=meeting,
     )
-    summary = None
-    if settings.translate_available:
-        with summaries.busy:  # wait for a summary the page asked for just before Stop
-            summary = summaries.make(final=True)
-    saved = recorder.close(summary)
-    if saved:
-        print(f"Transcript saved: {saved}")
     hub.emit({"type": "stopped", "saved": saved})  # the page says so instead of reconnecting
     time.sleep(0.5)
     server.shutdown()

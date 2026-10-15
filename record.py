@@ -22,22 +22,36 @@ WHO = {"SYSTEM": "Them", "MIC": "Me"}
 
 
 class Recorder:
+    """Saves one meeting at a time. begin() starts a new meeting's files, close() ends it.
+
+    After close() the finished meeting stays in memory, so Summary and Ask still work on it
+    until the next begin().
+    """
+
     def __init__(self):
         os.makedirs(FOLDER, exist_ok=True)
-        self.started = time.localtime()
-        base = os.path.join(FOLDER, time.strftime("%Y-%m-%d_%H%M%S", self.started))
-        self.jsonl_path = base + ".jsonl"
-        self.md_path = base + ".md"
         self.lock = threading.Lock()
-        self.file = open(self.jsonl_path, "a", encoding="utf-8")
+        self.file = None
         self.entries = []  # lines, spoken text and mid-meeting summaries, in order
         self.translations = {}  # line id -> latest translation
+
+    def begin(self):
+        with self.lock:
+            self.started = time.localtime()
+            base = os.path.join(FOLDER, time.strftime("%Y-%m-%d_%H%M%S", self.started))
+            self.jsonl_path = base + ".jsonl"
+            self.md_path = base + ".md"
+            self.file = open(self.jsonl_path, "a", encoding="utf-8")
+            self.entries = []
+            self.translations = {}
 
     def __call__(self, event):
         """An emit consumer: keep the events that belong in a transcript."""
         if event["type"] not in KEPT or (event["type"] == "summary" and (event["final"] or not event["text"])):
             return  # the final summary goes on top of the .md (close), not in the stream
         with self.lock:
+            if self.file is None:
+                return  # no meeting is being recorded
             self.file.write(json.dumps(event, ensure_ascii=False) + "\n")
             self.file.flush()
             if event["type"] == "translation":
@@ -61,7 +75,10 @@ class Recorder:
         """Write the readable transcript, with `summary` on top if given.
         Returns its path, or None if nothing was said."""
         with self.lock:
+            if self.file is None:
+                return None
             self.file.close()
+            self.file = None
             if not any(entry["type"] != "summary" for entry in self.entries):
                 os.remove(self.jsonl_path)
                 return None

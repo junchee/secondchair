@@ -102,6 +102,10 @@
   .icon-btn:hover, .segmented button:not(:disabled):hover { color: var(--text); }
   .stop-btn { border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); color: var(--danger);
               background: transparent; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+  .segmented.session button:disabled { opacity: .4; }
+  .segmented.session .go:not(:disabled) { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .segmented.session .stop:not(:disabled) { color: var(--danger); }
+  #paused { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); color: var(--warn); font-weight: 600; }
   .stop-btn:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
   /* ---- Settings panel */
@@ -320,13 +324,23 @@
           <button class="icon-btn" id="larger" aria-label="Larger text">A+</button>
           <span id="size-out" style="color:var(--muted)"></span>
         </div>
+        <h3>Program</h3>
+        <div class="setting">
+          <button class="stop-btn" id="quit" type="button" title="Close secondchair completely (a running meeting is ended and saved first)">Quit secondchair</button>
+          <p>To use it again, double-click the secondchair icon.</p>
+        </div>
       </div>
     </div>
     <button class="icon-btn" id="summary-btn" title="Summarize the meeting so far (S). The meeting keeps going.">Summary</button>
-    <button class="stop-btn" id="stop" title="Stop secondchair, save and summarize the meeting">Stop</button>
+    <div class="segmented session" id="session-buttons" role="group" aria-label="Meeting">
+      <button id="btn-start" class="go" data-action="start" title="Start a new meeting">Start</button>
+      <button id="btn-pause" data-action="pause" title="Stop listening for a moment (P). The sound stays connected.">Pause</button>
+      <button id="btn-end" class="stop" data-action="end" title="End the meeting: summarize, save and give the sound back">End</button>
+    </div>
   </div>
 </header>
 <div class="banner" id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
+<div class="banner" id="paused">Paused: nothing is being listened to or recorded. Press Resume to continue.</div>
 <div class="banner" id="stopped"></div>
 
 <main id="scroller">
@@ -852,8 +866,41 @@
   $("settings-btn").onclick = (e) => { e.stopPropagation(); togglePanel(); };
   document.addEventListener("click", (e) => { if (!e.target.closest(".panel-wrap")) togglePanel(false); });
 
-  $("stop").onclick = () => {
-    if (confirm("Stop secondchair? The transcript is saved and the meeting is summarized.")) post("/stop");
+  // ---- The meeting: Start | Pause / Resume | End. Quit (in Settings) closes the program.
+  let sessionState = "running";
+  function onSession(e) {
+    sessionState = e.state;
+    const running = e.state === "running", paused = e.state === "paused";
+    $("btn-start").disabled = e.state !== "idle";
+    $("btn-pause").disabled = !(running || paused);
+    $("btn-pause").textContent = paused ? "Resume" : "Pause";
+    $("btn-pause").dataset.action = paused ? "resume" : "pause";
+    $("btn-pause").title = paused ? "Listen again (P)" : "Stop listening for a moment (P). The sound stays connected.";
+    $("btn-end").disabled = !(running || paused);
+    $("btn-end").textContent = e.state === "ending" ? "Ending…" : "End";
+    $("paused").classList.toggle("show", paused);
+    $("live").classList.toggle("live", running);
+    if (e.new) {                       // a new meeting: start with an empty page
+      rowsEl.replaceChildren(); lines.clear();
+      $("ask-body").replaceChildren(); asks.clear();
+      $("summary-panel").hidden = true;
+      $("empty").style.display = "";
+      clearOutput();
+      $("stopped").classList.remove("show");
+    }
+    if (e.state === "idle") {
+      $("stopped").textContent = e.saved
+        ? `Meeting ended. Saved: ${e.saved}. Press Start for a new meeting.`
+        : "Meeting ended. Nothing was said, so nothing was saved. Press Start for a new meeting.";
+      $("stopped").classList.add("show");
+    }
+  }
+  document.querySelectorAll("#session-buttons button").forEach((b) => b.onclick = () => {
+    if (b.dataset.action === "end" && !confirm("End the meeting? The summary is made and the transcript saved.")) return;
+    post("/session", { action: b.dataset.action });
+  });
+  $("quit").onclick = () => {
+    if (confirm("Quit secondchair? A running meeting is ended and saved first.")) post("/quit");
   };
 
   document.addEventListener("keydown", (e) => {
@@ -866,6 +913,7 @@
     if (e.key === "/") { e.preventDefault(); $("type-input").focus(); }
     if (e.key === "?") { e.preventDefault(); setTypeKind("ask"); $("type-input").focus(); }
     if (e.key === "s") requestSummary();
+    if (e.key === "p" && !$("btn-pause").disabled) $("btn-pause").click();
     if (e.key === "t" && translateAvailable) $("translate").click();
     if (e.key === "Enter" && !$("speak").disabled) { e.preventDefault(); speak(); }
     if (e.key === "v") {
@@ -881,11 +929,12 @@
     $("live").classList.remove("live");
     $("banner").classList.remove("show");
     $("stopped").textContent = e.saved
-      ? `secondchair stopped. Transcript saved: ${e.saved}`
-      : "secondchair stopped. Nothing was said, so nothing was saved.";
+      ? `secondchair closed. Transcript saved: ${e.saved}`
+      : "secondchair closed. Nothing was said, so nothing was saved.";
     $("stopped").classList.add("show");
     document.body.classList.remove("interpreting");
-    for (const id of ["stop", "summary-btn", "sp-again", "speak", "type-input"]) $(id).disabled = true;
+    for (const id of ["btn-start", "btn-pause", "btn-end", "summary-btn", "sp-again", "speak", "type-input"]) $(id).disabled = true;
+    $("paused").classList.remove("show");
   }
 
   function connect() {
@@ -909,6 +958,7 @@
         case "translation": setTranslation(e); break;
         case "status": setStatus(e); break;
         case "settings": setSettings(e); break;
+        case "session": onSession(e); break;
         case "voice": setVoice(e); break;
         case "draft": setDraft(e.text); break;
         case "spoken": addSpoken(e); if (!replaying) showSpeaking(e.seconds); break;

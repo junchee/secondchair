@@ -181,6 +181,11 @@ class Translator:
         self.last = {}  # source -> (line, context) of that speaker's latest line
         threading.Thread(target=self._work, daemon=True).start()
 
+    def reset(self):
+        """A new meeting starts: its first lines must not borrow context from the last one."""
+        self.recent.clear()
+        self.last.clear()
+
     def submit(self, line):
         source = line["source"]
         previous = self.last.get(source)

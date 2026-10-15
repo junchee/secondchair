@@ -18,6 +18,7 @@ The first run of each version downloads its model. Press Ctrl+C to stop.
 import argparse
 import fcntl
 import itertools
+import queue
 import re
 import signal
 import sys
@@ -202,105 +203,238 @@ def claim_single_instance():
     return lock  # keep it open: the lock lasts until this process ends
 
 
-def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event, voice=False, controls=None):
-    """Transcribe until Ctrl+C or SIGTERM. `settings` may be changed by another thread.
+class Hooks:
+    """Where the host (app.py) joins the start and end of a meeting. The terminal versions use this."""
 
-    With `voice`, Jun's speech can be sent into the meeting through the virtual mic
-    (voice_out.py); the VoiceOut object is put in `controls["voice"]` for the page to drive.
+    def begin(self):
+        """A new meeting starts: open its files, clear what the page shows."""
+
+    def finish(self):
+        """The meeting ended: make the final summary and save. Returns where it was saved, or None."""
+        return None
+
+
+class Engine:
+    """One run of the program holds many meetings.
+
+        idle --start--> running <--pause/resume--> paused --end--> ending --> idle
+
+    A meeting owns the capture streams and the output route: End restores the sound output and
+    lets go of them, Start makes them again. Pause keeps the output connected (so the sound does
+    not drop and come back) and only stops listening: nothing is transcribed or recorded.
+    What lives for the whole run: the model, the translator, and the virtual microphone
+    (voice_out.py), which keeps passing Jun's real voice to Zoom while the program is open.
     """
+
+    def __init__(self, model, use_mic=True, switch_output=True, settings=None, emit=print_event,
+                 voice=False, controls=None, hooks=None):
+        self.model = model
+        self.use_mic = use_mic
+        self.switch_output = switch_output
+        self.settings = settings or Settings()
+        self.hooks = hooks or Hooks()
+        self.state = "idle"
+        self.last_saved = None
+        self.commands = queue.Queue()
+        self.quit_requested = False
+        self.route = None
+        self.sources = []
+        self.mic = None
+        self.line_ids = itertools.count(1)
+        self.last_status = None
+
+        self.system_index = find_input(SYSTEM_NAME)
+        if self.system_index is None:
+            print(f"Could not find an input named '{SYSTEM_NAME}'. Run audio_test.py first.")
+            sys.exit(1)
+        self.mic_index = find_mic()
+        if self.mic_index is None:
+            print(f"Could not find '{MIC_NAME}' or another non-BlackHole input. Run audio_test.py.")
+            sys.exit(1)
+
+        self.voice_out = VoiceOut(self.mic_index, emit) if voice else None
+        if self.voice_out:
+            emit = fan_out(emit, self.voice_out.observe)  # it collects Jun's translated Korean lines
+            if controls is not None:
+                controls["voice"] = self.voice_out
+        self.emit = emit
+        self.translator = Translator(emit) if self.settings.translate_available else None
+        if controls is not None:
+            controls["engine"] = self
+
+        print(f"System audio: {sd.query_devices(self.system_index)['name']}")
+        print(f"Microphone:   {sd.query_devices(self.mic_index)['name']}")
+        print(f"Model: {model}")
+        print("First run downloads the model, so the first line can take a while.")
+        print("Ctrl+C to stop.\n")
+
+    # ---- commands (from any thread; carried out by the loop in serve())
+
+    def command(self, action):
+        if action in ("start", "pause", "resume", "end"):
+            self.commands.put(action)
+
+    def request_quit(self):
+        self.quit_requested = True
+
+    def _handle_commands(self):
+        while True:
+            try:
+                action = self.commands.get_nowait()
+            except queue.Empty:
+                return
+            if action == "start" and self.state == "idle":
+                self._start()
+            elif action == "pause" and self.state == "running":
+                self._pause()
+            elif action == "resume" and self.state == "paused":
+                self._resume()
+            elif action == "end" and self.state in ("running", "paused"):
+                self._end()
+
+    # ---- the meeting's life
+
+    def _set_state(self, state, **extra):
+        self.state = state
+        self.emit({"type": "session", "state": state, **extra})
+
+    def _start(self):
+        self.hooks.begin()
+        self.line_ids = itertools.count(1)
+        self.last_status = None
+        if self.translator:
+            self.translator.reset()
+        try:
+            self.route = audio_output.Route(self.emit) if self.switch_output else None
+        except SystemExit as error:  # the sound helper did not start
+            self.emit({"type": "info", "text": str(error)})
+            self.hooks.finish()
+            return
+        self.mic = Source("MIC", self.mic_index, self.settings)
+        self.sources = [Source("SYSTEM", self.system_index, self.settings), self.mic]
+        for source in self.sources:
+            source.stream.start()
+        if self.voice_out:
+            # The monitor plays on the real device; the default output also feeds BlackHole 2ch.
+            route = self.route
+            self.voice_out.real_output = (lambda: route.device) if route else (lambda: None)
+        # The page was cleared by hooks.begin(): send it what it needs to draw itself again.
+        self.emit(self.settings.as_event())
+        if self.voice_out:
+            self.emit(self.voice_out.as_event())
+        self._set_state("running", new=True)
+
+    def _drop_audio(self):
+        for source in self.sources:
+            source.take()
+            source.segmenter.reset()
+
+    def _pause(self):
+        self._drop_audio()
+        self._set_state("paused")
+
+    def _resume(self):
+        self._drop_audio()  # what was heard while paused is not transcribed
+        self._set_state("running")
+
+    def _end(self):
+        self._set_state("ending")
+        for source in self.sources:
+            source.stream.stop()
+            source.stream.close()
+        self.sources, self.mic = [], None
+        if self.voice_out:
+            self.voice_out.discard()
+            self.voice_out.real_output = lambda: None
+        if self.route:
+            self.route.stop()
+            time.sleep(0.1)  # let the reader thread report the "restored" line
+            self.route = None
+        saved = self.hooks.finish()  # the summary can take a few seconds; the sound is already back
+        self.last_saved = saved or self.last_saved
+        self._set_state("idle", saved=saved)
+
+    # ---- listening
+
+    def _listen(self):
+        """One tick of a running meeting: report the status, then transcribe what was said."""
+        route, mic, settings = self.route, self.mic, self.settings
+        # With speakers the mic re-records the system audio, so only listen with headphones.
+        mic_on = self.use_mic and not (route and route.on_speakers())
+        status = {
+            "type": "status",
+            "output": route.device if route else None,
+            "kind": route.kind if route else None,
+            "mic": mic_on,
+        }
+        if status != self.last_status:
+            if not self.last_status or mic_on != self.last_status["mic"]:
+                mic.segmenter.reset()
+            self.emit(status)
+            self.last_status = status
+        time.sleep(POLL_SECONDS)
+        for source in self.sources:
+            audio = to_whisper_rate(source.take(), source.rate)
+            if source is mic and not mic_on:
+                continue
+            for segment, level in source.segmenter.feed(audio):
+                if self.state != "running":
+                    return  # paused or ended while we were busy: do not transcribe the rest
+                if source is mic and level < settings.mic_min_level():
+                    continue  # a click or room noise, not Jun: skip it before Whisper
+                translating = self.translator is not None and settings.translate
+                language = detect_language(segment, self.model) if translating else "en"
+                text = transcribe(segment, self.model, language)
+                if not text:
+                    continue
+                line = {
+                    "type": "line",
+                    "id": next(self.line_ids),
+                    "source": source.label,
+                    "lang": language,
+                    "text": text,
+                    "time": time.strftime("%H:%M:%S"),
+                }
+                if source is mic:
+                    line["level"] = round(level, 4)  # saved with the line, to tune mic_filter
+                self.emit(line)
+                if translating:
+                    self.translator.submit(line)
+
+    def serve(self, autostart=True):
+        """Run until Ctrl+C, SIGTERM or request_quit(). A meeting running at the end is ended
+        properly (summary and save). Returns where the last meeting was saved."""
+        if self.voice_out:
+            self.voice_out.start()
+        try:
+            if autostart:
+                self._start()
+            while not self.quit_requested:
+                self._handle_commands()
+                if self.state == "running":
+                    self._listen()
+                else:
+                    if self.state == "paused":
+                        self._drop_audio()  # nothing is kept while paused
+                    time.sleep(POLL_SECONDS)
+        except KeyboardInterrupt:
+            print("\nStopped.")
+        finally:
+            if self.state in ("running", "paused"):
+                self._end()
+            if self.voice_out:
+                self.voice_out.stop()
+        return self.last_saved
+
+
+def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event, voice=False,
+        controls=None, hooks=None):
+    """Run one program: meetings start and end inside it. See Engine."""
     lock = claim_single_instance()  # noqa: F841 (held for the life of the process)
     signal.signal(signal.SIGTERM, stop_on_sigterm)
     signal.signal(signal.SIGHUP, stop_on_sigterm)  # closing the Terminal window: stop cleanly too
-    settings = settings or Settings()
-
-    system_index = find_input(SYSTEM_NAME)
-    if system_index is None:
-        print(f"Could not find an input named '{SYSTEM_NAME}'. Run audio_test.py first.")
-        sys.exit(1)
-    mic_index = find_mic()
-    if mic_index is None:
-        print(f"Could not find '{MIC_NAME}' or another non-BlackHole input. Run audio_test.py.")
-        sys.exit(1)
-
-    voice_out = VoiceOut(mic_index, emit) if voice else None
-    if voice_out:
-        emit = fan_out(emit, voice_out.observe)  # it collects Jun's translated Korean lines
-        if controls is not None:
-            controls["voice"] = voice_out
-    translator = Translator(emit) if settings.translate_available else None
-
-    mic = Source("MIC", mic_index, settings)
-    sources = [Source("SYSTEM", system_index, settings), mic]
-    print(f"System audio: {sd.query_devices(system_index)['name']}")
-    print(f"Microphone:   {sd.query_devices(mic_index)['name']}")
-    print(f"Model: {model}")
-    print("First run downloads the model, so the first line can take a while.")
-    print("Ctrl+C to stop.\n")
-    emit(settings.as_event())
-
-    route = audio_output.Route(emit) if switch_output else None
-    for source in sources:
-        source.stream.start()
-    if voice_out:
-        if route:
-            # The monitor plays on the real device; the default output also feeds BlackHole 2ch.
-            voice_out.real_output = lambda: route.device
-        voice_out.start()
-
-    line_ids = itertools.count(1)
-    last_status = None
-    try:
-        while True:
-            # With speakers the mic re-records the system audio, so only listen with headphones.
-            mic_on = use_mic and not (route and route.on_speakers())
-            status = {
-                "type": "status",
-                "output": route.device if route else None,
-                "kind": route.kind if route else None,
-                "mic": mic_on,
-            }
-            if status != last_status:
-                if not last_status or mic_on != last_status["mic"]:
-                    mic.segmenter.reset()
-                emit(status)
-                last_status = status
-            time.sleep(POLL_SECONDS)
-            for source in sources:
-                audio = to_whisper_rate(source.take(), source.rate)
-                if source is mic and not mic_on:
-                    continue
-                for segment, level in source.segmenter.feed(audio):
-                    if source is mic and level < settings.mic_min_level():
-                        continue  # a click or room noise, not Jun: skip it before Whisper
-                    translating = translator is not None and settings.translate
-                    language = detect_language(segment, model) if translating else "en"
-                    text = transcribe(segment, model, language)
-                    if not text:
-                        continue
-                    line = {
-                        "type": "line",
-                        "id": next(line_ids),
-                        "source": source.label,
-                        "lang": language,
-                        "text": text,
-                        "time": time.strftime("%H:%M:%S"),
-                    }
-                    if source is mic:
-                        line["level"] = round(level, 4)  # saved with the line, to tune mic_filter
-                    emit(line)
-                    if translating:
-                        translator.submit(line)
-    except KeyboardInterrupt:
-        print("\nStopped.")
-    finally:
-        for source in sources:
-            source.stream.stop()
-            source.stream.close()
-        if voice_out:
-            voice_out.stop()
-        if route:
-            route.stop()
-            time.sleep(0.1)  # let the reader thread report the "restored" line
+    engine = Engine(model, use_mic, switch_output, settings, emit, voice, controls, hooks)
+    return engine.serve()
 
 
 def main(model):
