@@ -175,9 +175,20 @@
     background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow); z-index: 2;
   }
   #jump.show { display: block; }
+  /* ---- Beta footer: everything about the computer voice, small, at the very bottom */
+  #beta { border-top: 1px solid var(--border); background: var(--surface); padding: 2px 16px 6px; font-size: 12px; color: var(--muted); }
+  #beta summary { cursor: pointer; padding: 6px 0; }
+  #beta .beta-body { padding: 4px 0 10px; display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+  #beta .beta-row { display: flex; align-items: center; gap: 8px; }
+  #beta .beta-row select { flex: 1; min-width: 0; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  #beta .beta-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  #beta p { margin: 0; }
+  #speak { display: none; }
+  body.interpreting #speak { display: inline-block; }
+
   #jump { bottom: 220px; }
 
-  /* ---- Composer: English to say, from Jun's voice (Interpret) or from typing */
+  /* ---- Composer: English to say, from what Jun says in Korean or types */
   #composer {
     border-top: 1px solid var(--border); background: var(--surface);
     padding: 10px 16px 12px; display: flex; gap: 8px; flex-direction: column;
@@ -261,6 +272,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="output-icon"></svg>
       <span id="output-text">Output: waiting</span>
     </span>
+    <span class="chip on" id="avatar-chip" hidden title="The meeting hears the computer's English voice, not your own voice">Avatar voice on</span>
     <span class="chip" id="mic-chip" title="Your microphone">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>
       <span id="mic-text">Mic: waiting</span>
@@ -277,10 +289,6 @@
       <button data-view="both" aria-pressed="true">Both</button>
       <button data-view="original" aria-pressed="false">Original</button>
       <button data-view="translation" aria-pressed="false">Translation</button>
-    </div>
-    <div class="segmented voice" id="voice-buttons" role="group" aria-label="What the meeting hears" title="What the meeting hears (I). My voice: your own voice, as you speak. English voice: your Korean, translated and spoken in English by the computer voice.">
-      <button data-mode="direct" aria-pressed="true">My voice</button>
-      <button data-mode="interpret" aria-pressed="false">English voice</button>
     </div>
     <div class="panel-wrap">
       <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" title="Settings">Settings</button>
@@ -312,27 +320,6 @@
           <button class="icon-btn" id="larger" aria-label="Larger text">A+</button>
           <span id="size-out" style="color:var(--muted)"></span>
         </div>
-        <h3>Voice</h3>
-        <div class="setting">
-          <label class="switch" id="monitor-switch" style="justify-content:flex-start">
-            <input type="checkbox" id="monitor">
-            <span class="track"></span>
-            <span>Hear the English voice too</span>
-          </label>
-          <p>Plays what the meeting hears in your headphones, so you know when it speaks.</p>
-        </div>
-        <div class="setting">
-          <label for="monitor-volume">Monitor volume <output id="monitor-volume-out"></output></label>
-          <input type="range" id="monitor-volume" min="0" max="1" step="0.05">
-        </div>
-        <div class="setting">
-          <label for="voice-select">Voice in the meeting</label>
-          <div style="display:flex; gap:8px;">
-            <select id="voice-select" style="flex:1; min-width:0; padding:6px 8px; border-radius:8px; border:1px solid var(--border); background:var(--bg);"></select>
-            <button class="ghost" id="voice-preview" type="button" title="Hear it in your headphones only">Preview</button>
-          </div>
-        </div>
-        <div class="setting"><p id="voice-info">—</p></div>
       </div>
     </div>
     <button class="icon-btn" id="summary-btn" title="Summarize the meeting so far (S). The meeting keeps going.">Summary</button>
@@ -365,9 +352,9 @@
     <span class="warn" id="draft-warn"></span>
     <span id="speaking"></span>
   </div>
-  <textarea id="draft" rows="2" placeholder="Type Korean below, or speak Korean in English-voice mode: the English appears here."></textarea>
+  <textarea id="draft" rows="2" placeholder="Type Korean below, or speak Korean: the English appears here to read out."></textarea>
   <div class="row-actions">
-    <button class="primary" id="speak" disabled title="Say it in the meeting with a synthetic voice (Enter in the box above)">Speak</button>
+    <button class="primary" id="speak" disabled title="Say it in the meeting with the Avatar voice">Speak</button>
     <button class="ghost" id="copy" disabled>Copy</button>
     <button class="ghost" id="discard" title="Esc">Clear</button>
     <button class="ghost" id="load-latest" hidden>Load new voice draft</button>
@@ -383,6 +370,35 @@
   </form>
   <div id="history" aria-label="Earlier typed translations"></div>
 </section>
+
+<footer id="beta">
+  <details>
+    <summary>Beta · Avatar voice: the computer says my English in the meeting</summary>
+    <div class="beta-body">
+      <label class="switch" id="avatar-switch" style="justify-content:flex-start">
+        <input type="checkbox" id="avatar">
+        <span class="track"></span>
+        <span>Avatar voice</span>
+      </label>
+      <p class="small">Off: the meeting hears your own voice. On: the meeting hears only the computer's English voice, and your Korean stays private. Say “오케이” or press Speak to send the English.</p>
+      <div class="beta-row">
+        <label for="voice-select">Voice</label>
+        <select id="voice-select"></select>
+        <button class="ghost" id="voice-preview" type="button" title="Hear it in your headphones only">Preview</button>
+      </div>
+      <div class="beta-row">
+        <label class="switch" id="monitor-switch">
+          <input type="checkbox" id="monitor">
+          <span class="track"></span>
+          <span>Hear it too</span>
+        </label>
+        <input type="range" id="monitor-volume" min="0" max="1" step="0.05" aria-label="Volume">
+        <output id="monitor-volume-out"></output>
+      </div>
+      <p class="small" id="voice-info">—</p>
+    </div>
+  </details>
+</footer>
 
 <aside id="summary-panel" hidden aria-label="Summary and questions">
   <div class="sp-head">
@@ -599,16 +615,15 @@
     $(id).addEventListener("change", () => post("/settings", { [key]: Number($(id).value) }));
   }
 
-  // ---- Voice: what the meeting hears
+  // ---- Avatar voice (beta): the computer says Jun's English in the meeting
   function setVoice(e) {
     voice = e;
-    document.querySelectorAll("#voice-buttons button").forEach((b) => {
-      b.setAttribute("aria-pressed", b.dataset.mode === e.mode);
-      b.disabled = !e.available;
-    });
-    $("voice-buttons").title = e.available
-      ? `What the meeting hears (I). In Zoom or Teams, choose "${e.device}" as the microphone.`
-      : `${e.device} is not installed. Run: brew install --cask blackhole-16ch`;
+    const on = e.mode === "interpret";
+    $("avatar").checked = on;
+    $("avatar").disabled = !e.available;
+    $("avatar-switch").classList.toggle("disabled", !e.available);
+    $("avatar-chip").hidden = !on;
+    document.body.classList.toggle("interpreting", on);
     const select = $("voice-select");
     const key = JSON.stringify([e.voices.map((v) => v.id), e.voice]);
     if (select.dataset.key !== key) {         // rebuild only when the list or the choice changed
@@ -625,10 +640,9 @@
     $("voice-preview").disabled = select.disabled;
     const premium = e.voices.some((v) => v.quality !== "standard");
     $("voice-info").textContent = e.available
-      ? `Meeting microphone: choose "${e.device}" in Zoom or Teams. ` +
+      ? `In Zoom or Teams, choose "${e.device}" as the microphone: with Avatar voice off it passes your own voice through, with it on the meeting hears the computer voice. ` +
         (premium ? "" : "No Premium voices are installed yet: add natural ones in System Settings › Accessibility › Spoken Content › System voice › Manage Voices.")
-      : `${e.device} is not installed, so the English voice is unavailable. Install with: brew install --cask blackhole-16ch`;
-    document.body.classList.toggle("interpreting", e.mode === "interpret");
+      : `${e.device} is not installed, so the Avatar voice is unavailable. Install with: brew install --cask blackhole-16ch`;
     $("monitor").checked = e.monitor;
     $("monitor").disabled = !e.available;
     $("monitor-switch").classList.toggle("disabled", !e.available);
@@ -638,6 +652,7 @@
     updateDraftWarning();
     updateButtons();
   }
+  $("avatar").addEventListener("change", () => post("/voice", { mode: $("avatar").checked ? "interpret" : "direct" }));
   $("voice-select").addEventListener("change", () => post("/voice", { voice: $("voice-select").value, preview: true }));
   $("voice-preview").addEventListener("click", () => post("/voice", { voice: $("voice-select").value, preview: true }));
   $("monitor").addEventListener("change", () => post("/voice", { monitor: $("monitor").checked }));
@@ -645,20 +660,18 @@
     $("monitor-volume-out").textContent = `${Math.round($("monitor-volume").value * 100)}%`;
   });
   $("monitor-volume").addEventListener("change", () => post("/voice", { monitor_volume: Number($("monitor-volume").value) }));
-  document.querySelectorAll("#voice-buttons button").forEach((b) => b.onclick = () => post("/voice", { mode: b.dataset.mode }));
 
   function updateDraftWarning() {
-    const interpreting = voice.mode === "interpret";
+    const avatar = voice.mode === "interpret";
     $("draft-warn").textContent =
-      interpreting && !micOn ? "Mic is off on speakers: use headphones for the English voice." :
-      interpreting && !translateOn ? "Translation is off." : "";
-    $("out-hint").textContent = interpreting
-      ? "Say “오케이” to send it, “다시” to clear it, or say it again."
-      : voice.available ? "Read it out yourself, or Speak to send it in a synthetic voice."
-      : "Read it out yourself.";
+      !translateOn ? "Translation is off: turn it on to get English." :
+      avatar && !micOn ? "Mic is off on speakers: use headphones for the Avatar voice." : "";
+    $("out-hint").textContent = avatar
+      ? "Say “오케이” to send it with the Avatar voice, “다시” to clear it."
+      : "Read it out yourself. Say “다시” to clear it, or just speak Korean again.";
   }
 
-  // ---- Composer: one box for the English to say. It is filled by Jun's voice in Interpret
+  // ---- Composer: one box for the English to say. It is filled by what Jun says in Korean
   // mode (the server's draft) or by a typed translation. Typed text is never recorded.
   let origin = null;          // "voice" | "typed" | null: where the box's text came from
   let target = "English";     // language of the box's text
@@ -683,20 +696,21 @@
   }
   function clearOutput() { setOutput("", null, ""); }
 
-  function setDraft(text) {      // the server's voice draft (Interpret mode)
+  function setDraft(text) {      // the server's draft from Jun's spoken Korean
     serverDraft = text;
     const busy = (origin === "typed" || draftDirty) && $("draft").value.trim();
     if (text && busy) { $("load-latest").hidden = false; return; }  // do not overwrite: offer it
-    if (text) setOutput(text, "voice", "From your Korean, spoken");
+    if (text) setOutput(text, "voice", "From your Korean");
     else if (origin === "voice") clearOutput();
   }
-  $("load-latest").onclick = () => setOutput(serverDraft, "voice", "From your Korean, spoken");
+  $("load-latest").onclick = () => setOutput(serverDraft, "voice", "From your Korean");
   $("draft").addEventListener("input", () => {
     draftDirty = origin !== "voice" || $("draft").value !== serverDraft;
     updateButtons();
   });
 
   function speak() {
+    if (voice.mode !== "interpret") return;   // Speak and Enter are for the Avatar voice only
     const text = $("draft").value.trim();
     if (!text || $("speak").disabled) return;
     if (/[가-힣]/.test(text)) {   // an English voice cannot say Korean: translate it first
@@ -853,7 +867,6 @@
     if (e.key === "?") { e.preventDefault(); setTypeKind("ask"); $("type-input").focus(); }
     if (e.key === "s") requestSummary();
     if (e.key === "t" && translateAvailable) $("translate").click();
-    if (e.key === "i" && voice.available) post("/voice", { mode: voice.mode === "interpret" ? "direct" : "interpret" });
     if (e.key === "Enter" && !$("speak").disabled) { e.preventDefault(); speak(); }
     if (e.key === "v") {
       const order = ["both", "original", "translation"];

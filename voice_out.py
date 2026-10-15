@@ -2,10 +2,10 @@
 
 In Zoom or Teams, choose VOICE_DEVICE ("BlackHole 16ch") as the microphone. secondchair sends:
     direct     Jun's real mic, unchanged: the others hear Jun's own voice
-    interpret  no live mic. Jun's Korean is translated to English and collected as a draft,
-               shown on the page. Jun confirms it by saying "오케이" (or Enter on the page),
-               and it is spoken with a macOS voice. "다시" clears it; saying the Korean again
-               after a pause replaces it.
+    interpret  the Avatar voice (beta): no live mic. What Jun confirms ("오케이" or Enter on the
+               page) is spoken with a macOS voice. In every mode Jun's Korean is translated and
+               collected as a draft shown on the page, for him to read out himself;
+               "다시" clears it and saying the Korean again after a pause replaces it.
 The other side's speech is never voiced; it is only translated on the page.
 """
 
@@ -266,7 +266,7 @@ class VoiceOut:
     def _draft_changed(self):
         text = self.draft()
         self.emit({"type": "draft", "text": text})
-        if text:
+        if text and self.mode == "interpret" and self.available:  # only the Avatar voice needs audio
             threading.Thread(target=self._render_ahead, args=(text,), daemon=True).start()
 
     def _render_ahead(self, text):
@@ -275,13 +275,16 @@ class VoiceOut:
             self.rendered = (text, audio)
 
     def observe(self, event):
-        """Watch the event stream for Jun's Korean lines, their translations and spoken commands."""
-        if self.mode != "interpret":
-            return
+        """Watch the event stream for Jun's Korean lines, their translations and spoken commands.
+
+        The draft is built in every mode: Jun speaks Korean, reads the English that appears, and
+        says it himself. Only with the Avatar voice on does "오케이" send it by computer voice.
+        """
         if event["type"] == "line" and event["source"] == "MIC":
             command = command_of(event["text"])
             if command == "send":
-                self._send_when_translated()
+                if self.mode == "interpret":
+                    self._send_when_translated()
             elif command == "clear":
                 self.discard()
             elif event["lang"] == "ko":
