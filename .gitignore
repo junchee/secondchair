@@ -7,3 +7,4 @@ native/route
 native/audiotap
 transcripts/
 user_settings.json
+private/
