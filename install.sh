@@ -38,6 +38,11 @@ step 1 "내 Mac 확인"
 [ "$(uname -s)" = "Darwin" ] || die "이 프로그램은 Mac에서만 동작합니다."
 [ "$(uname -m)" = "arm64" ] || die "M1 이후의 Mac(Apple 칩)에서만 동작합니다. 이 Mac은 Intel 칩입니다."
 ok "Apple 칩 Mac입니다 (macOS $(sw_vers -productVersion))"
+FREE_GB=$(( $(df -k "$HOME" | awk 'NR==2 {print $4}') / 1024 / 1024 ))
+if [ "$FREE_GB" -lt 5 ]; then
+  die "저장 공간이 부족합니다 (남은 공간 약 ${FREE_GB}GB, 5GB 이상 필요). 파일을 정리한 뒤 다시 실행하세요."
+fi
+ok "저장 공간이 충분합니다 (약 ${FREE_GB}GB 남음)"
 
 # ---------------------------------------------------------------- 2. Xcode 명령줄 도구
 step 2 "Xcode 명령줄 도구 확인"
@@ -112,7 +117,18 @@ if [ -n "$DRY_RUN" ] && [ ! -d "$DEST" ]; then
   echo "  (미리보기) pip install -r requirements.txt"
   echo "  (미리보기) swiftc native/route.swift"
 else
-  [ -d "$DEST/.venv" ] || run "$PYTHON" -m venv "$DEST/.venv" || die "실행 환경을 만들지 못했습니다."
+  if [ -d "$DEST/.venv" ] && [ ! -x "$DEST/.venv/bin/pip" ]; then
+    note "지난번에 만들다 멈춘 실행 환경이 있어서 지우고 다시 만듭니다."
+    run rm -rf "$DEST/.venv"
+  fi
+  if [ ! -d "$DEST/.venv" ] && ! run "$PYTHON" -m venv "$DEST/.venv"; then
+    run rm -rf "$DEST/.venv"  # do not leave a half-made one behind for the next run
+    echo
+    echo "  남은 저장 공간: $(df -h "$HOME" | awk 'NR==2 {print $4}')"
+    echo "  원인을 보려면 아래 줄을 터미널에 붙여 넣고, 나오는 글자를 모두 복사해서 보내 주세요:"
+    echo "    $PYTHON -m venv /tmp/secondchair-test && echo OK"
+    die "실행 환경을 만들지 못했습니다. 같은 설치 명령을 한 번 더 붙여 넣어 보세요."
+  fi
   run "$DEST/.venv/bin/pip" install --quiet --disable-pip-version-check -r "$DEST/requirements.txt" \
     || die "필요한 부품 설치에 실패했습니다."
   ok "필요한 부품을 설치했습니다"
