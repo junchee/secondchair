@@ -123,11 +123,18 @@ else
   fi
   if [ ! -d "$DEST/.venv" ] && ! run "$PYTHON" -m venv "$DEST/.venv"; then
     run rm -rf "$DEST/.venv"  # do not leave a half-made one behind for the next run
+    # `python -m venv` hides why pip failed to install. Repeat the steps where the reason shows.
     echo
+    echo "  ---- 원인 확인 (이 아래 글자를 모두 복사해서 보내 주세요) ----"
+    echo "  macOS $(sw_vers -productVersion), Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])' 2>&1)"
     echo "  남은 저장 공간: $(df -h "$HOME" | awk 'NR==2 {print $4}')"
-    echo "  원인을 보려면 아래 줄을 터미널에 붙여 넣고, 나오는 글자를 모두 복사해서 보내 주세요:"
-    echo "    $PYTHON -m venv /tmp/secondchair-test && echo OK"
-    die "실행 환경을 만들지 못했습니다. 같은 설치 명령을 한 번 더 붙여 넣어 보세요."
+    "$PYTHON" -c "import pyexpat, ssl, zlib; print('  modules ok')" 2>&1 | tail -5
+    probe="$(mktemp -d)/venv"
+    "$PYTHON" -m venv --without-pip "$probe" 2>&1 | tail -5
+    "$probe/bin/python3" -m ensurepip --default-pip 2>&1 | tail -15
+    rm -rf "$(dirname "$probe")"
+    echo "  ---- 원인 확인 끝 ----"
+    die "실행 환경을 만들지 못했습니다. 위의 '원인 확인' 글자를 보내 주세요."
   fi
   run "$DEST/.venv/bin/pip" install --quiet --disable-pip-version-check -r "$DEST/requirements.txt" \
     || die "필요한 부품 설치에 실패했습니다."
