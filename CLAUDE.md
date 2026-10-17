@@ -49,6 +49,8 @@ Step 4b built (2026-10-15), Jun's request: the other side is only translated on 
 - Tested: voice path with BlackHole 2ch standing in (Whisper heard the spoken draft exactly); draft from Jun's real Korean mic line; Stop -> summary -> saved -> output restored; Interpret by "오케이" live with BlackHole 16ch (installed 2026-10-15). Summary, typing, Ask (with follow-up and a not-in-transcript question) and the voice picker (choice, save, preview request) tested on an audio-free test server (port 8799, fake voice). Not yet tested: a real Zoom/Teams call; hearing a preview.
 
 ## Later (commercial)
+- Show progress for long waits (Whisper model download on first run, installer steps, first translation), Jun's request 2026-10-17.
+- Installer: make the Python environment with `uv` instead of Homebrew Python (Homebrew's 3.13.16 failed on macOS 26.2: pyexpat needs a newer system libexpat). Jun's wife's Mac was fixed by hand with `uv venv --seed --python 3.13 .venv`; waiting for Jun's OK to change install.sh.
 - Quality feedback with consent from free users (delays, translation quality): metrics-only vs opt-in content examples; see the memory note secondchair-commercial-ideas. Not now.
 - Premium voices (macOS -> cloud TTS -> own-voice clone), direct Qwen API vs ZDR, a proxy that holds the API key (see Distribution above).
 

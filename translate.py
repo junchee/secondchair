@@ -10,6 +10,7 @@ import os
 import queue
 import threading
 import unicodedata
+import ssl
 from collections import deque
 
 # Cheapest Qwen that translated well in tests: $0.10/M in, $0.15/M out, about 0.45-0.6 s per
@@ -19,6 +20,15 @@ MODEL = "qwen/qwen3.5-9b"
 # The small model sometimes slips other scripts into Korean ("毛毛비" for drizzle, a Japanese
 # clause, "아нди") even when told not to; such lines are redone once with this one.
 FALLBACK_MODEL = "qwen/qwen3.5-35b-a3b"
+# Trust the certifi certificate list, not the Python build's own setting. Some Python builds
+# (the standalone ones `uv` installs) have no system certificates, and the request then fails
+# with CERTIFICATE_VERIFY_FAILED. certifi comes with requests, which mlx-whisper needs anyway.
+try:
+    import certifi
+
+    TLS = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    TLS = ssl.create_default_context()
 HOST = "openrouter.ai"
 PATH = "/api/v1/chat/completions"
 TARGET = {"en": "Korean", "ko": "English"}
@@ -100,7 +110,7 @@ class Client:
         }
         for attempt in (1, 2):  # the server may have closed an idle connection: reconnect once
             if self.connection is None:
-                self.connection = http.client.HTTPSConnection(HOST, timeout=self.timeout)
+                self.connection = http.client.HTTPSConnection(HOST, timeout=self.timeout, context=TLS)
             try:
                 self.connection.request("POST", PATH, payload, headers)
                 response = self.connection.getresponse()
