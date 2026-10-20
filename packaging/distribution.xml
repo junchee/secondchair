@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>secondchair 베타 (hajung) 설치</title>
+    <welcome file="welcome.html"/>
+    <license file="license.txt"/>
+    <conclusion file="conclusion.html"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <options customize="never" require-scripts="true" hostArchitectures="arm64"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="14.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default"/>
+    </choices-outline>
+    <choice id="default" title="secondchair 베타" start_selected="true">
+        <pkg-ref id="io.github.junchee.secondchair.beta"/>
+    </choice>
+    <pkg-ref id="io.github.junchee.secondchair.beta" version="0.1.0" onConclusion="RequireRestart">secondchair-component.pkg</pkg-ref>
+</installer-gui-script>

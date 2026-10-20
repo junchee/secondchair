@@ -8,3 +8,7 @@ native/audiotap
 transcripts/
 user_settings.json
 private/
+
+# Built installer
+dist/
+build/

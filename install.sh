@@ -176,6 +176,9 @@ EOF
   ok "바탕화면에 'secondchair 시작' 아이콘을 만들었습니다"
 fi
 
+# The "secondchair 설치 계속" icon (from the pkg installer) has done its job.
+[ -z "$DRY_RUN" ] && rm -f "$HOME/Desktop/secondchair 설치 계속.command"
+
 # ---------------------------------------------------------------- 끝
 echo
 echo "${green}${bold}설치가 끝났습니다.${reset}"

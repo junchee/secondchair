@@ -1,0 +1,16 @@
+secondchair 베타 설치 프로그램: 제3자 소프트웨어
+
+BlackHole 2ch / 16ch  0.7.1
+  제작: Existential Audio Inc.   https://existential.audio/blackhole/
+  소스 코드(GPL-3.0): https://github.com/ExistentialAudio/BlackHole
+  이 설치 프로그램에는 들어 있지 않습니다. 설치하는 동안 아래 주소에서 직접 내려받고,
+  고정된 SHA-256 체크섬과 Existential Audio의 Developer ID 서명(Team ID Q5C99V536K)을
+  확인한 뒤에만 설치합니다.
+    https://existential.audio/downloads/BlackHole2ch-0.7.1.pkg
+      sha256 57b540f27a3e29c37e310e01bee0fdfab76733087e47f997ef9dccf851400dcf
+    https://existential.audio/downloads/BlackHole16ch-0.7.1.pkg
+      sha256 57254e2f76cd40db7f3f715238b1a2cb2bd08819d38abf4087f2944f71a3641a
+  라이선스 전문: 설치된 드라이버 안의
+    /Library/Audio/Plug-Ins/HAL/BlackHole2ch.driver/Contents/Resources/LICENSE
+
+설치 기록: /var/log/secondchair-install.log

@@ -1,0 +1,105 @@
+#!/bin/bash
+# secondchair beta installer: runs as root, after the pkg is placed.
+#
+# Installs the BlackHole 2ch and 16ch audio drivers by DOWNLOADING the official installers from
+# Existential Audio's own site during installation. They are not part of this pkg: their license
+# reserves the rights to the official binaries (see /Library/Application Support/secondchair/
+# THIRD_PARTY.txt). Each download is checked against a pinned SHA-256 and against the
+# Developer ID signature of Existential Audio before anything is installed.
+#
+# Then puts "secondchair 설치 계속.command" on the Desktop of the user who is installing; it runs
+# the rest of the setup (install.sh) after the restart.
+#
+# Whatever goes wrong here, the pkg still finishes: install.sh installs missing drivers with
+# Homebrew as a second chance. Everything is written to /var/log/secondchair-install.log.
+#
+# For tests only: SC_TEST=1 plus SC_BASE, SC_SHA_2CH, SC_SHA_16CH, SC_HOME, SC_LOG.
+
+set -u
+VERSION="0.7.1"
+BASE="https://existential.audio/downloads"
+SHA_2CH="57b540f27a3e29c37e310e01bee0fdfab76733087e47f997ef9dccf851400dcf"
+SHA_16CH="57254e2f76cd40db7f3f715238b1a2cb2bd08819d38abf4087f2944f71a3641a"
+TEAM_ID="Q5C99V536K"
+LOG="/var/log/secondchair-install.log"
+TEST=""
+if [ "${SC_TEST:-}" = "1" ]; then
+  TEST=1
+  BASE="${SC_BASE:-$BASE}"; SHA_2CH="${SC_SHA_2CH:-$SHA_2CH}"; SHA_16CH="${SC_SHA_16CH:-$SHA_16CH}"
+  LOG="${SC_LOG:-$LOG}"
+fi
+
+TARGET="${3:-/}"                      # the volume the installer is installing to
+ROOT=""; [ "$TARGET" != "/" ] && ROOT="${TARGET%/}"
+HAL="$ROOT/Library/Audio/Plug-Ins/HAL"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG" 2>/dev/null; }
+log "=== secondchair beta postinstall (target $TARGET) ==="
+
+install_driver() {   # $1 = 2ch or 16ch, $2 = expected sha256
+  local ch="$1" want="$2" name="BlackHole${1}"
+  if [ -d "$HAL/$name.driver" ]; then log "$name already installed: skipped"; return 0; fi
+  local file="$WORK/$name-$VERSION.pkg"
+  log "$name: downloading $BASE/$name-$VERSION.pkg"
+  /usr/bin/curl -fsSL --retry 3 --connect-timeout 20 --max-time 300 -o "$file" "$BASE/$name-$VERSION.pkg" \
+    || { log "$name: download failed"; return 1; }
+  local got; got="$(/usr/bin/shasum -a 256 "$file" | /usr/bin/awk '{print $1}')"
+  [ "$got" = "$want" ] || { log "$name: checksum does not match (got $got): NOT installed"; return 1; }
+  /usr/sbin/pkgutil --check-signature "$file" 2>&1 | /usr/bin/grep -q "Existential Audio Inc. ($TEAM_ID)" \
+    || { log "$name: not signed by Existential Audio: NOT installed"; return 1; }
+  log "$name: checksum and signature are right"
+  # First choice: the official installer itself.
+  if [ -z "$TEST" ] && /usr/sbin/installer -pkg "$file" -target "$TARGET" >> "$LOG" 2>&1; then
+    log "$name: installed with the official installer"; return 0
+  fi
+  # Second choice (an installer cannot always be started from inside another installer):
+  # place the driver where the official installer would, with the same permissions.
+  log "$name: placing the driver directly"
+  /usr/sbin/pkgutil --expand-full "$file" "$WORK/x$ch" >> "$LOG" 2>&1 || { log "$name: could not open the package"; return 1; }
+  local driver; driver="$(/usr/bin/find "$WORK/x$ch" -maxdepth 5 -type d -name "$name.driver" | /usr/bin/head -1)"
+  [ -n "$driver" ] || { log "$name: driver not found in the package"; return 1; }
+  /bin/mkdir -p "$HAL" && /bin/rm -rf "$HAL/$name.driver" && /bin/cp -R "$driver" "$HAL/" \
+    || { log "$name: copy failed"; return 1; }
+  /usr/bin/find "$HAL/$name.driver" -type d -exec /bin/chmod 755 {} \;
+  /usr/bin/find "$HAL/$name.driver" -type f -exec /bin/chmod 644 {} \;
+  /usr/bin/find "$HAL/$name.driver/Contents/MacOS" -type f -exec /bin/chmod 755 {} \;
+  [ "$(/usr/bin/id -u)" = "0" ] && /usr/sbin/chown -R root:wheel "$HAL/$name.driver"
+  log "$name: placed"; return 0
+}
+
+install_driver 2ch "$SHA_2CH"
+install_driver 16ch "$SHA_16CH"
+
+# The Desktop helper, for whoever is installing (not root).
+if [ -n "$TEST" ]; then
+  USER_NAME="tester"; USER_HOME="${SC_HOME:-$WORK/home}"
+else
+  USER_NAME="$(/usr/bin/stat -f%Su /dev/console 2>/dev/null)"
+  USER_HOME="$(/usr/bin/dscl . -read "/Users/$USER_NAME" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')"
+fi
+if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ] && [ -d "$USER_HOME" ]; then
+  /bin/mkdir -p "$USER_HOME/Desktop"
+  HELPER="$USER_HOME/Desktop/secondchair 설치 계속.command"
+  /bin/cat > "$HELPER" <<'HELPER_EOF'
+#!/bin/zsh
+# secondchair 설치를 이어서 합니다. (Mac을 재시동한 뒤에 두 번 클릭하세요.)
+clear
+echo "secondchair 설치를 이어서 합니다."
+echo "인터넷에 연결되어 있어야 하고, 10~20분 걸릴 수 있습니다."
+echo "중간에 Mac 암호를 물으면 입력하세요. 입력해도 화면에 보이지 않는 것이 정상입니다."
+echo
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/junchee/secondchair/main/install.sh)"
+echo
+echo "이 창은 닫아도 됩니다."
+HELPER_EOF
+  /bin/chmod 755 "$HELPER"
+  [ "$(/usr/bin/id -u)" = "0" ] && /usr/sbin/chown "$USER_NAME" "$HELPER"
+  log "Desktop helper written for $USER_NAME"
+else
+  log "no desktop user found: no helper written (run the install command from the guide instead)"
+fi
+
+log "=== done ==="
+exit 0   # never fail the whole installation: install.sh repairs what is missing
