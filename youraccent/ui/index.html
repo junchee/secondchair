@@ -444,13 +444,25 @@ async function renderMaterial(id) {
 
 // ---------------------------------------------------------------- recording in the browser
 const Rec = { stream: null, ctx: null, node: null, chunks: [], active: false, level: 0, max: 0, t0: 0, peeking: false, label: "" };
-async function openAudio(deviceId) {                    // the chosen microphone, or the system's default
+// Virtual microphones carry no voice of their own (BlackHole 16ch is silent unless secondchair is running).
+const VIRTUAL_MIC = /blackhole|aggregate|virtual|teams audio|zoom|camo|loopback|soundflower|multi-output/i;
+async function openAudio(deviceId) {                    // the chosen microphone, or else a real one
   const base = { echoCancellation: false, noiseSuppression: false };
+  const ask = (extra) => navigator.mediaDevices.getUserMedia({ audio: { ...base, ...extra } });
   if (deviceId) {
-    try { return await navigator.mediaDevices.getUserMedia({ audio: { ...base, deviceId: { exact: deviceId } } }); }
+    try { return await ask({ deviceId: { exact: deviceId } }); }
     catch (e) { /* that microphone is not there any more: use the default */ }
   }
-  return navigator.mediaDevices.getUserMedia({ audio: base });
+  const stream = await ask({});
+  if (VIRTUAL_MIC.test((stream.getAudioTracks()[0] || {}).label || "")) {   // the browser picked a virtual one
+    try {
+      const real = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput" && d.label
+        && d.deviceId !== "default" && d.deviceId !== "communications" && !VIRTUAL_MIC.test(d.label));
+      const better = real.find((d) => /macbook|built-in|내장/i.test(d.label)) || real[0];
+      if (better) { const again = await ask({ deviceId: { exact: better.deviceId } }); stream.getTracks().forEach((t) => t.stop()); return again; }
+    } catch (e) { /* keep the first one */ }
+  }
+  return stream;
 }
 async function startRecording() {
   Rec.stream = await openAudio(SET.mic);
@@ -789,7 +801,8 @@ async function micTest() {                              // 5 seconds: shows the 
     if (performance.now() - t0 < 5000 && $("settings").open) requestAnimationFrame(tick); else resolve();
   })());
   stream.getTracks().forEach((t) => t.stop()); ctx.close();
-  info.textContent = `마이크: ${label} · 가장 큰 소리 ${peak.toFixed(3)} — ` + (peak < 0.008 ? "너무 작아요. 마이크에 가까이 말하거나, 시스템 설정 > 소리 > 입력에서 입력 음량을 올려 보세요." : peak < 0.02 ? "조금 작아요. 더 가까이서 말해 보세요." : "좋아요.");
+  const virtual = VIRTUAL_MIC.test(label) ? " (가상 마이크라 소리가 안 들어올 수 있어요. 목록에서 MacBook 마이크를 고르세요)" : "";
+  info.textContent = `마이크: ${label}${virtual} · 가장 큰 소리 ${peak.toFixed(3)} — ` + (peak < 0.008 ? "너무 작아요. 마이크에 가까이 말하거나, 시스템 설정 > 소리 > 입력에서 입력 음량을 올려 보세요." : peak < 0.02 ? "조금 작아요. 더 가까이서 말해 보세요." : "좋아요.");
   renderMics();
 }
 $("open-settings").onclick = () => { renderSettings(); renderMics(); $("test-meter").hidden = true; $("mic-info").textContent = ""; $("settings").showModal(); };
