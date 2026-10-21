@@ -601,10 +601,16 @@ function compareHtml() {
   const better = words.filter((w) => !bad(last(w))).map((w) => w.word), hard = words.filter((w) => bad(last(w))).map((w) => w.word);
   const head = done.map((t) => `<th>시도 ${t.n}</th>`).join("");
   const body = words.map((w) => `<tr><td><b>${esc(w.word)}</b></td>${w.marks.map((r) => `<td class="m ${r.status}" title="${STATUS_TEXT[r.status]}">${SYMBOL[r.status]}</td>`).join("")}</tr>`).join("");
-  return `<section class="panel"><h3 style="margin:0 0 6px">내가 아는 것</h3>
+  return `<details class="panel" open><summary style="cursor:pointer"><b>내가 아는 것</b> <span class="muted">(시도 ${done.length}번 비교)</span></summary>
     ${better.length ? `<div class="feedback ok">좋아진 단어: <b>${esc(better.join(", "))}</b></div>` : ""}
     ${hard.length ? `<div class="feedback no">아직 어려운 단어: <b>${esc(hard.join(", "))}</b></div>` : '<div class="feedback ok">마지막 시도에는 틀린 단어가 없어요.</div>'}
-    ${words.length ? `<table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table><div class="muted">✓ 잘 읽음 · ? 애매 · ✗ 틀림 · – 안 들림</div>` : ""}</section>`;
+    ${words.length ? `<table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table><div class="muted">✓ 잘 읽음 · ? 애매 · ✗ 틀림 · – 안 들림</div>` : ""}</details>`;
+}
+
+function newestFirst() {                                 // newest try, then the summary, then older tries (newest first)
+  const order = SP.tries.map((t, ti) => ti).reverse();
+  if (!order.length) return "";
+  return tryHtml(SP.tries[order[0]], order[0]) + compareHtml() + order.slice(1).map((ti) => tryHtml(SP.tries[ti], ti)).join("");
 }
 
 function renderSentence() {
@@ -624,8 +630,7 @@ function renderSentence() {
     </div>
     ${recArea}
     <p class="muted" id="status">${esc(SP.status)}</p>
-    ${SP.tries.map(tryHtml).join("")}
-    ${compareHtml()}
+    ${newestFirst()}
     <div class="row">
       <button id="save-sentence">문장 저장</button>
       ${multi ? `<button id="prev" ${SP.idx === 0 ? "disabled" : ""}>← 이전 문장</button><button id="next" ${SP.idx === SP.list.length - 1 ? "disabled" : ""}>다음 문장 →</button>` : ""}
@@ -708,8 +713,7 @@ async function submitRecording(blob) {
     SP.selected = first ? { t: SP.tries.length - 1, i: first.i } : null;
     SP.busy = false; SP.status = ""; SP.live = "";
     renderSentence();
-    const sections = view.querySelectorAll("[data-try]");
-    if (sections.length && !MUTE) sections[sections.length - 1].scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (!MUTE) window.scrollTo({ top: 0, behavior: "smooth" });
     refreshDue();
   } catch (e) { SP.busy = false; SP.status = "분석하지 못했습니다. 프로그램이 켜져 있는지 확인하세요."; renderSentence(); }
 }
