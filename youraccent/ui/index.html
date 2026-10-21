@@ -118,6 +118,10 @@
   .h.ok, .s.ok { color: var(--muted); }
   .h.doubt, .s.doubt { color: var(--warn); }
   .h.wrong, .h.missed, .s.wrong, .s.missed { color: var(--bad); font-weight: 600; }
+  .pct { font-size: 22px; font-weight: 700; color: var(--accent); margin: 0 4px; }
+  .pctbar { height: 8px; max-width: 360px; background: var(--dot); border-radius: 4px; overflow: hidden; margin: 2px 0 8px; }
+  .pctbar i { display: block; height: 100%; background: var(--good); }
+  tr.pctrow td { border-bottom: 2px solid var(--line); }
   table.cmp { border-collapse: collapse; margin: 8px 0; }
   table.cmp th, table.cmp td { padding: 4px 14px; text-align: center; border-bottom: 1px solid var(--line); }
   table.cmp td:first-child { text-align: left; }
@@ -551,6 +555,14 @@ function counts(data) {
            unsure: e.rows.filter((r) => r.status === "doubt").length, incomplete: e.incomplete };
 }
 
+// How much of the sentence came out as written: ok counts 1, doubt counts half. Not for a reading that did not cover it.
+function matchPct(data) {
+  const e = primaryOf(data);
+  if (e.incomplete || !e.rows.length) return null;
+  const score = e.rows.reduce((sum, r) => sum + (r.status === "ok" ? 1 : r.status === "doubt" ? 0.5 : 0), 0);
+  return Math.round((100 * score) / e.rows.length);
+}
+
 // The script and what was heard, word by word, one above the other.
 function gridHtml(t, ti) {
   const d = t.data, ph = d.engines.phoneme, wh = d.engines.whisper;
@@ -558,27 +570,27 @@ function gridHtml(t, ti) {
     const rp = ph && ph.rows[i], rw = wh && wh.rows[i], main = rp || rw;
     const sel = SP.selected && SP.selected.t === ti && SP.selected.i === i;
     const heard = rw ? (rw.status === "missed" ? "—" : rw.heard_as) : "";
-    const sound = rp ? (rp.status === "ok" ? "✓" : `${rp.expected} → ${rp.heard_as || "∅"}`) : "";
     return `<button class="col ${sel ? "sel" : ""}" data-t="${ti}" data-i="${i}" aria-label="${esc(r.word)}: ${STATUS_TEXT[main.status]}">
       <span class="w ${main.status}">${esc(r.word)}</span>
-      ${rw ? `<span class="h ${rw.status}">${esc(heard)}</span>` : ""}
-      ${rp ? `<span class="s ${rp.status}">${esc(sound)}</span>` : ""}</button>`;
+      ${rw ? `<span class="h ${rw.status}">${esc(heard)}</span>` : ""}</button>`;
   }).join("") + "</div>";
 }
 
 function tryHtml(t, ti) {
   const d = t.data, c = counts(d), wh = d.engines.whisper;
   const prev = SP.tries.slice(0, ti).reverse().find((x) => !counts(x.data).incomplete);
+  const pct = matchPct(d), prevPct = prev ? matchPct(prev.data) : null;
   let delta = "";
-  if (prev && !c.incomplete) {
-    const diff = c.bad - counts(prev.data).bad;
-    delta = diff < 0 ? `<span class="badge">↓ 틀린 단어 ${-diff}개 줄었어요</span>` : diff > 0 ? `<span class="badge due">↑ ${diff}개 늘었어요</span>` : '<span class="badge due">변화 없음</span>';
+  if (pct !== null && prevPct !== null) {
+    const diff = pct - prevPct;
+    delta = diff > 0 ? `<span class="badge">↑ ${diff}%p 좋아졌어요</span>` : diff < 0 ? `<span class="badge due">↓ ${-diff}%p 낮아졌어요</span>` : '<span class="badge due">변화 없음</span>';
   }
   const head = c.incomplete ? "끝까지 읽지 않은 것 같아요 (복습에 저장 안 함)"
     : (c.bad ? `틀린 단어 ${c.bad}개` : "틀린 단어 없음") + (c.unsure ? ` · 애매 ${c.unsure}개` : "");
   const errs = Object.keys(d.errors || {}).map((n) => `<div class="feedback warn">${esc(n === "phoneme" ? "소리 기준" : "단어 기준")} 판정을 쓰지 못했어요.</div>`).join("");
-  const legend = d.engines.phoneme && wh ? "위: 원고 · 가운데: 들린 말(Whisper) · 아래: 소리 차이" : d.engines.phoneme ? "위: 원고 · 아래: 소리 차이" : "위: 원고 · 아래: 들린 말(Whisper)";
-  return `<section class="try" data-try="${ti}"><h3>시도 ${t.n} <span class="muted">· ${head}</span> ${delta}</h3>
+  const legend = wh ? "위: 원고 · 아래: 들린 말(Whisper) · 단어를 누르면 자세한 분석이 나와요" : "단어를 누르면 자세한 분석이 나와요";
+  return `<section class="try" data-try="${ti}"><h3>시도 ${t.n} ${pct !== null ? `<span class="pct">${pct}%</span>` : ""} <span class="muted">· ${head}</span> ${delta}</h3>
+    ${pct !== null ? `<div class="pctbar" role="img" aria-label="일치율 ${pct}%"><i style="width:${pct}%"></i></div>` : ""}
     ${errs}${d.quiet ? `<div class="feedback warn">소리가 아주 작게 들어갔어요 (가장 큰 소리 ${d.peak}, 보통 말소리는 0.1 안팎). 마이크에 더 가까이서 읽거나, 설정에서 마이크를 확인하세요.</div>` : ""}
     <div class="legend muted">${legend}</div>
     ${gridHtml(t, ti)}
@@ -600,11 +612,15 @@ function compareHtml() {
   const last = (w) => w.marks[w.marks.length - 1];
   const better = words.filter((w) => !bad(last(w))).map((w) => w.word), hard = words.filter((w) => bad(last(w))).map((w) => w.word);
   const head = done.map((t) => `<th>시도 ${t.n}</th>`).join("");
-  const body = words.map((w) => `<tr><td><b>${esc(w.word)}</b></td>${w.marks.map((r) => `<td class="m ${r.status}" title="${STATUS_TEXT[r.status]}">${SYMBOL[r.status]}</td>`).join("")}</tr>`).join("");
+  const pctRow = `<tr class="pctrow"><td><b>일치율</b></td>${done.map((t) => `<td><b>${matchPct(t.data)}%</b></td>`).join("")}</tr>`;
+  const trend = done.map((t) => matchPct(t.data) + "%").join(" → ");
+  const body = pctRow + words.map((w) => `<tr><td><b>${esc(w.word)}</b></td>${w.marks.map((r) => `<td class="m ${r.status}" title="${STATUS_TEXT[r.status]}">${SYMBOL[r.status]}</td>`).join("")}</tr>`).join("");
   return `<details class="panel" open><summary style="cursor:pointer"><b>내가 아는 것</b> <span class="muted">(시도 ${done.length}번 비교)</span></summary>
     ${better.length ? `<div class="feedback ok">좋아진 단어: <b>${esc(better.join(", "))}</b></div>` : ""}
     ${hard.length ? `<div class="feedback no">아직 어려운 단어: <b>${esc(hard.join(", "))}</b></div>` : '<div class="feedback ok">마지막 시도에는 틀린 단어가 없어요.</div>'}
-    ${words.length ? `<table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table><div class="muted">✓ 잘 읽음 · ? 애매 · ✗ 틀림 · – 안 들림</div>` : ""}</details>`;
+    <div class="muted">일치율 변화: <b>${trend}</b></div>
+    <table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table>
+    <div class="muted">✓ 잘 읽음 · ? 애매 · ✗ 틀림 · – 안 들림 (일치율: 잘 읽은 단어 1, 애매한 단어 0.5로 센 비율)</div></details>`;
 }
 
 function newestFirst() {                                 // newest try, then the summary, then older tries (newest first)
@@ -613,8 +629,91 @@ function newestFirst() {                                 // newest try, then the
   return tryHtml(SP.tries[order[0]], order[0]) + compareHtml() + order.slice(1).map((ti) => tryHtml(SP.tries[ti], ti)).join("");
 }
 
+// Practising one word: read it again and again, each reading judged; three in a row passes.
+function openDrill(word, ph, ti, i) {
+  const inPair = DATA.pairs.find((p) => p.words.includes(word.toLowerCase()));
+  // The word is practised with one word on each side, as it is in the sentence: a word read alone is judged much less reliably.
+  const words = primaryOf(SP.tries[ti].data).rows.map((r) => r.word), from = Math.max(0, i - 1), to = Math.min(words.length, i + 2);
+  SP.drill = { word, phrase: words.slice(from, to).join(" "), target: i - from, expected: ph ? ph.expected : "", note: ph ? ph.note : "",
+               tip: inPair ? inPair.tip : "", tries: [], busy: false, status: "" };
+  renderSentence();
+  const el = $("drill"); if (el && !MUTE) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function drillStreak(d) { let n = 0; for (let k = d.tries.length - 1; k >= 0 && d.tries[k].ok; k--) n++; return n; }
+function drillHtml() {
+  const d = SP.drill;
+  if (!d) return "";
+  const streak = drillStreak(d), passed = streak >= 3, mine = SP.recording && SP.recMode === "drill";
+  const list = d.tries.slice().reverse().map((t) => `<div class="item"><div class="text">${t.ok ? "✓" : "✗"} <b>${esc(t.msg)}</b>
+      ${t.heard ? `<div class="muted">들린 말(Whisper): ${esc(t.heard)}</div>` : ""}</div>
+      <button class="ghost" data-dmine="${t.n}" ${t.hasClip ? "" : "disabled"}>▶ 내 소리</button></div>`).join("");
+  const phraseHtml = d.phrase.split(" ").map((w, k) => k === d.target ? `<b>${esc(w)}</b>` : esc(w)).join(" ");
+  return `<div class="panel" id="drill"><div class="row" style="margin:0 0 4px;justify-content:space-between">
+      <div><b style="font-size:22px">${esc(d.word)}</b> <span class="muted">단어 연습</span></div><button class="ghost" id="drill-close">닫기</button></div>
+    <div style="font-size:20px;margin:2px 0 6px">읽을 말: ${phraseHtml}</div>
+    <div class="muted" style="line-height:1.8">${d.expected ? `정답 소리: <span class="mono">${esc(d.expected)}</span><br>` : ""}${esc(d.tip || "")}</div>
+    <div class="row">
+      <button id="drill-right" ${mine ? "disabled" : ""}>▶ 정답 소리</button><button id="drill-word" ${mine ? "disabled" : ""}>▶ 단어만</button><button id="drill-slow" ${mine ? "disabled" : ""}>🐢 천천히</button>
+      <button id="drill-rec" class="${mine ? "rec pulse" : "primary"}" ${d.busy || (SP.recording && !mine) ? "disabled" : ""}>${mine ? "■ 끝내기" : d.tries.length ? "🎙 다시 해 보기" : "🎙 따라 해 보기"}</button>
+    </div>
+    <p class="muted" style="margin:4px 0">${esc(d.status)}</p>
+    <div class="feedback ${passed ? "ok" : "warn"}">${passed ? "통과! 연속 3번 맞게 읽었어요. 이제 문장에서 다시 읽어 보세요." : `연속 ${streak}번 성공 (3번 연속이면 통과)`}</div>
+    <div class="list">${list}</div></div>`;
+}
+function bindDrill() {
+  const d = SP.drill;
+  if (!d) return;
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on("drill-right", () => play(d.phrase, SET.ref));
+  on("drill-word", () => play(d.word, SET.ref));
+  on("drill-slow", () => play(d.phrase, SET.ref, "slow"));
+  on("drill-rec", toggleDrill);
+  on("drill-close", () => {
+    if (SP.recording && SP.recMode === "drill") { stopRecordingQuietly(); SP.recording = false; SP.recMode = null; }
+    SP.drill = null; renderSentence();
+  });
+  view.querySelectorAll("[data-dmine]").forEach((b) => b.addEventListener("click", () => {
+    const t = d.tries[+b.dataset.dmine - 1];
+    if (t && t.hasClip) playUrl(`/api/clip?attempt=${t.attempt}&i=${d.target}&engine=${t.engine}`);
+  }));
+}
+async function toggleDrill() {
+  const d = SP.drill;
+  if (!d || d.busy) return;
+  if (!(SP.recording && SP.recMode === "drill")) {
+    if (SP.recording) return;
+    stopAudio();
+    try { await startRecording(); } catch (e) { d.status = "마이크를 쓸 수 없어요. 브라우저 주소창의 마이크 허용을 확인하세요."; return renderSentence(); }
+    SP.recording = true; SP.recMode = "drill"; SP.live = ""; d.status = ""; return renderSentence();
+  }
+  SP.recording = false; SP.recMode = null;
+  const silent = Rec.max < 0.0015, label = Rec.label;
+  const blob = finishRecording();
+  if (silent) { d.status = `소리가 전혀 들어오지 않았어요 (마이크: ${label || "알 수 없음"}).`; return renderSentence(); }
+  await submitDrill(blob);
+}
+async function submitDrill(blob) {                       // a word read on its own; it does not touch the review list
+  const d = SP.drill;
+  d.busy = true; d.status = "분석 중…"; renderSentence();
+  try {
+    const res = await fetch(`/api/judge?engine=${SET.engine}&drill=1&text=${encodeURIComponent(d.phrase)}`, { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    const data = await res.json();
+    if (!res.ok) { d.busy = false; d.status = data.error === "too_short" ? "너무 짧아요. 또렷하게 읽어 주세요." : "분석하지 못했습니다. 다시 해 보세요."; return renderSentence(); }
+    const e = primaryOf(data), row = e.rows[d.target], wh = data.engines.whisper && data.engines.whisper.rows[d.target];
+    if (e.incomplete) { d.busy = false; d.status = "소리가 잘 안 들어갔어요. 다시 해 보세요."; return renderSentence(); }
+    // Success: the sounds were as expected. A word with only a vowel off counts too (the practice is about the consonants).
+    const ok = row.status === "ok" || row.status === "doubt";
+    const msg = row.status === "ok" ? "맞았어요" : row.status === "doubt" ? "거의 맞았어요 (모음은 조금 달랐을 수 있어요)"
+      : (row.note || (row.status === "missed" ? "들리지 않았어요" : `「${row.heard_as}」로 들렸어요`));
+    d.tries.push({ n: d.tries.length + 1, ok, msg, heard: wh ? (wh.status === "missed" ? "—" : wh.heard_as) : "", attempt: data.attempt, engine: data.primary, hasClip: row.has_clip });
+    d.busy = false; d.status = "";
+    renderSentence();
+  } catch (err) { d.busy = false; d.status = "분석하지 못했습니다. 프로그램이 켜져 있는지 확인하세요."; renderSentence(); }
+}
+
 function renderSentence() {
   const text = SP.list[SP.idx], multi = SP.list.length > 1, nextTry = SP.tries.length + 1;
+  const sentRec = SP.recording && SP.recMode !== "drill";        // recording the whole sentence (not a single word)
   const recArea = SP.recording ? `<div class="recbox">
       <div class="meter" role="img" aria-label="마이크 소리 크기"><div id="meter-bar"></div></div>
       <div class="muted"><span class="pulse">● 녹음 중</span> <span id="rec-time">0:00</span> · 막대가 움직이면 소리가 들어가고 있어요</div>
@@ -626,9 +725,10 @@ function renderSentence() {
     <div class="sentence" id="sentence">${esc(text)}</div>
     <div class="row">
       <button id="listen" ${SP.recording ? "disabled" : ""}>🔈 듣기</button><button id="slow" ${SP.recording ? "disabled" : ""}>🐢 천천히</button>
-      <button id="rec" class="${SP.recording ? "rec pulse" : "primary"}" ${SP.busy ? "disabled" : ""}>${SP.recording ? "■ 끝내기" : SP.tries.length ? `🎙 다시 읽기 (시도 ${nextTry})` : "🎙 읽기"}</button>
+      <button id="rec" class="${sentRec ? "rec pulse" : "primary"}" ${SP.busy || (SP.recording && !sentRec) ? "disabled" : ""}>${sentRec ? "■ 끝내기" : SP.tries.length ? `🎙 다시 읽기 (시도 ${nextTry})` : "🎙 읽기"}</button>
     </div>
     ${recArea}
+    ${drillHtml()}
     <p class="muted" id="status">${esc(SP.status)}</p>
     ${newestFirst()}
     <div class="row">
@@ -645,6 +745,7 @@ function renderSentence() {
   const prev = $("prev"); if (prev) prev.onclick = () => openSentence(SP.list, SP.idx - 1, SP.back);
   const next = $("next"); if (next) next.onclick = () => openSentence(SP.list, SP.idx + 1, SP.back);
   renderDetail();
+  bindDrill();
   if (SP.preload !== text) { SP.preload = text; preload(text, SET.ref); }
 }
 
@@ -664,6 +765,7 @@ function renderDetail() {
       <button data-a="right">▶ 정답 소리</button>
       <button data-a="mine" ${clipEngine ? "" : "disabled"}>▶ 내 소리</button>
       <button data-a="both" ${clipEngine ? "" : "disabled"}>번갈아 듣기</button>
+      <button data-a="drill" class="primary">🎙 이 단어 연습하기</button>
       <button data-a="save">복습에 저장</button>
       ${inPair ? '<button data-a="pair">이 소리 듣기 훈련</button>' : ""}
     </div></div>`;
@@ -674,6 +776,7 @@ function renderDetail() {
     both: async () => { for (let k = 0; k < 2; k++) { await play(r.word, SET.ref); await wait(300); await mine(); await wait(400); } },
     save: async () => { await api("/api/review/save", { kind: "word", text: r.word }); $("status").textContent = `“${r.word}”을(를) 복습에 저장했어요.`; refreshDue(); },
     pair: () => { go("listen"); renderPair(inPair.id); },
+    drill: () => openDrill(r.word, ph, ti, i),
   };
   host.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", act[b.dataset.a]));
 }
@@ -685,9 +788,9 @@ async function toggleRecording() {
     try { await startRecording(); } catch (e) {
       SP.status = "마이크를 쓸 수 없어요. 브라우저 주소창의 마이크 허용을 확인하세요."; return renderSentence();
     }
-    SP.recording = true; SP.live = ""; SP.status = ""; return renderSentence();
+    SP.recording = true; SP.recMode = "sentence"; SP.live = ""; SP.status = ""; return renderSentence();
   }
-  SP.recording = false;
+  SP.recording = false; SP.recMode = null;
   const silent = Rec.max < 0.0015, label = Rec.label;      // read before the recorder is reset
   const blob = finishRecording();
   if (silent) {

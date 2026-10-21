@@ -186,7 +186,7 @@ def make_handler(ctx):
             if body is None:
                 return self._send(413, {"error": "too big"})
             if url.path == "/api/judge" and kind == "audio/wav":
-                return self._judge(query.get("text", ""), body, query.get("engine") or ENGINES)
+                return self._judge(query.get("text", ""), body, query.get("engine") or ENGINES, query.get("drill") == "1")
             if url.path == "/api/peek" and kind == "audio/wav":
                 return self._peek(body)
             if kind != "application/json":
@@ -232,7 +232,7 @@ def make_handler(ctx):
                 return self._send(500, {"error": f"{type(error).__name__}: {error}"})
             self._send(200, {"text": text})
 
-        def _judge(self, text, data, engine):
+        def _judge(self, text, data, engine, drill=False):
             text = " ".join(text.split())
             if not ctx.tts.valid(text) or engine not in ("both", "phoneme", "whisper"):
                 return self._send(400, {"error": "bad text"})
@@ -260,7 +260,11 @@ def make_handler(ctx):
                 # A reading that does not cover the sentence (stopped early, silence, a different sentence)
                 # says nothing about pronunciation: it must not fill the review list.
                 matched = sum(1 for r in result["rows"] if r["status"] in ("ok", "doubt"))
-                incomplete = matched < max(1, -(-len(result["rows"]) // 2))  # fewer than half the words came out as written
+                n_words = len(result["rows"])
+                if n_words == 1:  # one word: wrong is wrong; only "nothing heard" says nothing about the pronunciation
+                    incomplete = result["rows"][0]["status"] == "missed"
+                else:
+                    incomplete = matched < max(1, -(-n_words // 2))  # fewer than half the words came out as written
                 out[name] = {
                     "heard": result["heard"], "incomplete": incomplete, "extra": result["extra"],
                     "rows": [dict(i=i, word=r["word"], status=r["status"], heard_as=r["heard_as"], prob=round(r["prob"], 2),
@@ -269,7 +273,7 @@ def make_handler(ctx):
                              for i, r in enumerate(result["rows"])],
                 }
             # The review list follows the first engine that answered (the sound judge when it is on).
-            if not out[primary]["incomplete"]:
+            if not out[primary]["incomplete"] and not drill:  # practising one word again and again is not a new miss
                 ctx.review.update_from_attempt(text, results[primary]["rows"], doubt_counts=(primary == "whisper"))
             self._send(200, {"attempt": attempt_id, "primary": primary, "engines": out, "errors": errors,
                              "seconds": round(audio.size / RATE, 1), "quiet": float(np.abs(audio).max()) < 0.02,

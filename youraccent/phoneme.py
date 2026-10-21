@@ -38,12 +38,25 @@ SWAPS = {
 def canon(p):
     """Spellings of the same sound are treated as equal when comparing."""
     p = p.replace("ː", "")
-    return {"ɚ": "ə", "ɜ": "ə", "ɐ": "ə", "ᵻ": "ɪ", "r": "ɹ"}.get(p, p)
+    return {"ɚ": "ə", "ɜ": "ə", "ɐ": "ə", "ᵻ": "ɪ", "r": "ɹ", "ɕ": "ʃ", "ʑ": "ʒ"}.get(p, p)
 
 
 def equivalent(a, b):
     a, b = canon(a), canon(b)
     return a == b or (a == "ɾ" and b in ("t", "d")) or (b == "ɾ" and a in ("t", "d"))  # the American flap
+
+
+# The model often mixes up voiced and unvoiced fricatives at the start of a word (sink heard as zink,
+# ship as zhip). That is its weakness, not a typical mistake of Korean speakers, so such a swap is only "doubt".
+VOICING = [{"s", "z"}, {"ʃ", "ʒ"}, {"θ", "ð"}, {"tʃ", "dʒ"}]
+
+
+FINAL_VOICING = [{"p", "b"}, {"t", "d"}, {"k", "g"}]  # at the end of a word the voicing of a stop is hard to hear
+
+
+def voicing_only(a, b, final=False):
+    a, b = canon(a), canon(b)
+    return any(a in group and b in group for group in VOICING + (FINAL_VOICING if final else []))
 
 
 def is_consonant(p):
@@ -99,7 +112,8 @@ def judge_words(words, expected_per_word, heard, doubt_below=SURE):
             if equivalent(exp[i], heard[j]["sound"]):
                 entry["matched"] += 1
             else:
-                entry["swaps"].append((exp[i], heard[j]["sound"], heard[j]["prob"]))
+                last_of_word = i + 1 >= len(exp) or owner[i + 1] != owner[i]
+                entry["swaps"].append((exp[i], heard[j]["sound"], heard[j]["prob"], last_of_word))
         elif i is not None:
             entry["lost"].append(exp[i])
         else:
@@ -114,12 +128,14 @@ def judge_words(words, expected_per_word, heard, doubt_below=SURE):
         elif not heard_here:
             status = "missed"
         else:
-            hard = [s for s in e["swaps"] if is_consonant(s[0]) and is_consonant(s[1]) and s[2] >= doubt_below]
+            hard = [s for s in e["swaps"] if is_consonant(s[0]) and is_consonant(s[1]) and s[2] >= doubt_below
+                    and not voicing_only(s[0], s[1], s[3])]
             problems = bool(e["swaps"] or e["lost"] or e["extra"])
             status = "wrong" if hard else ("doubt" if problems else "ok")
             if word.lower() in SKIP_DOUBT and status == "wrong":
                 status = "doubt"  # small function words are said fast and often misheard
-        notes = [SWAPS.get((canon(a), canon(b))) or f"{a} 소리가 {b}로 들렸어요" for a, b, _ in e["swaps"] if is_consonant(a) and is_consonant(b)]
+        notes = [("울림(유성/무성)이 조금 달랐을 수 있어요" if voicing_only(a, b, fin) else SWAPS.get((canon(a), canon(b))) or f"{a} 소리가 {b}로 들렸어요")
+                 for a, b, _, fin in e["swaps"] if is_consonant(a) and is_consonant(b)]
         notes += [f"{p} 소리가 빠진 것 같아요" for p in e["lost"] if is_consonant(p)]
         rows.append({
             "word": word,
