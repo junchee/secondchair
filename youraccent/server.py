@@ -25,7 +25,7 @@ from youraccent.tts import SPEEDS, TTS
 HOME = os.path.expanduser(os.environ.get("YOURACCENT_HOME", "~/yourAccent"))
 PORT = int(os.environ.get("YOURACCENT_PORT", "8766"))
 SECONDCHAIR_LOCK = "/tmp/secondchair.lock"
-OWN_LOCK = "/tmp/youraccent.lock"
+OWN_LOCK = os.environ.get("YOURACCENT_LOCK", "/tmp/youraccent.lock")  # tests use their own, so they never clash with a running copy
 PAGE = os.path.join(os.path.dirname(__file__), "ui", "index.html")
 
 

@@ -60,6 +60,12 @@
   dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); padding: 20px 22px; max-width: 420px; }
   dialog::backdrop { background: rgba(0,0,0,.35); }
   label { display: block; margin: 10px 0; }
+  dialog { max-height: 86vh; overflow: auto; width: min(460px, 92vw); }
+  dialog h3 { margin: 18px 0 4px; font-size: 16px; }
+  .vrow { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+  .vrow label { margin: 0; flex: 1; }
+  .vrow button { padding: 2px 10px; }
+  select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); width: 100%; }
   .err { color: var(--bad); }
   @media (max-width: 560px) { main { padding: 16px 16px 48px; } }
 </style>
@@ -73,7 +79,14 @@
 
 <dialog id="settings">
   <h2 style="margin-top:0">설정</h2>
-  <label><input type="checkbox" id="set-mix"> 목소리를 섞어서 듣기 (끄면 George만)</label>
+  <h3>퀴즈에 나오는 목소리</h3>
+  <p class="muted" style="margin:0 0 8px">하나만 고르면 그 목소리만, 여러 개를 고르면 그중에서 무작위로 나옵니다. 🔈로 미리 들어 볼 수 있어요.</p>
+  <div class="row"><button id="vo-all">모두 선택</button><button id="vo-ref">설명 목소리만</button></div>
+  <div id="voice-list"></div>
+  <h3>설명·비교 목소리</h3>
+  <p class="muted" style="margin:0 0 8px">두 단어의 차이를 들려줄 때와 틀린 뒤에 비교해서 들려줄 때 쓰는 목소리입니다.</p>
+  <select id="ref"></select>
+  <h3>속도</h3>
   <label><input type="checkbox" id="set-slow"> 천천히 듣기</label>
   <div class="row"><button class="primary" id="close-settings">닫기</button></div>
 </dialog>
@@ -83,13 +96,25 @@
 const params = new URLSearchParams(location.search);
 const MUTE = params.get("mute") === "1";       // for tests: no sound
 let DATA = null;                                // pairs, voices, progress from the server
-let SET = { mix: true, slow: false };
+let SET = { voices: null, ref: null, slow: false };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("youraccent-settings") || "{}")); } catch (e) {}
 const $ = (id) => document.getElementById(id);
 const view = $("view");
 let audioEl = null;
 let session = null;                             // the running quiz
 
+function allVoices() { return [...DATA.voices.british, ...DATA.voices.american_male]; }
+function fixSettings() {                         // fill in defaults, drop voices that no longer exist
+  const all = allVoices();
+  SET.voices = Array.isArray(SET.voices) ? SET.voices.filter((v) => all.includes(v)) : all.slice();
+  if (!SET.voices.length) SET.voices = all.slice();
+  if (!all.includes(SET.ref)) SET.ref = DATA.voices.target;
+}
+function voiceLabel(v) {
+  const kind = { bm: "영국 남", bf: "영국 여", am: "미국 남", af: "미국 여" }[v.slice(0, 2)] || "";
+  const name = v.slice(3);
+  return name.charAt(0).toUpperCase() + name.slice(1) + (kind ? ` (${kind})` : "");
+}
 function saveSettings() { try { localStorage.setItem("youraccent-settings", JSON.stringify(SET)); } catch (e) {} }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
@@ -137,12 +162,12 @@ function renderHome() {
 // ---------------------------------------------------------------- one pair: hear it, then the quiz
 function renderPair(id) {
   const pair = DATA.pairs.find((p) => p.id === id);
-  const target = DATA.voices.target;
+  const target = SET.ref;
   const [a, b] = pair.words;
   view.innerHTML = `<button class="ghost" id="back">← 목록</button>
     <h1>${esc(a)} / ${esc(b)} <span class="muted">${esc(pair.sounds)}</span></h1>
     <div class="tip">${esc(pair.tip)}</div>
-    <p class="muted">먼저 차이를 들어 보세요. (목소리: ${esc(target)})</p>
+    <p class="muted">먼저 차이를 들어 보세요. (목소리: ${esc(voiceLabel(target))})</p>
     <div class="wordrow"><button id="w0">🔈 ${esc(a)}</button><button id="w1">🔈 ${esc(b)}</button></div>
     <div class="row"><button id="alt">번갈아 듣기</button><button class="primary" id="start">퀴즈 시작</button></div>
     <p class="err" id="error"></p>`;
@@ -154,12 +179,8 @@ function renderPair(id) {
   preload(a, target); preload(b, target);
 }
 
-function pickVoice() {
-  const target = DATA.voices.target;
-  if (!SET.mix) return target;
-  if (Math.random() < 0.3) return target;
-  const pool = [...DATA.voices.british, ...DATA.voices.american_male].filter((v) => v !== target);
-  return pool[Math.floor(Math.random() * pool.length)];
+function pickVoice() {                           // one chosen voice, or a random one of the chosen few
+  return SET.voices[Math.floor(Math.random() * SET.voices.length)];
 }
 function pickWord(pair) {
   const conf = progressOf(pair.id).confusions || {};
@@ -224,8 +245,8 @@ async function answer(chosen) {
   session.answered = true; session.busy = false;
   const right = chosen === trial.word;
   let fb = right
-    ? `<div class="feedback ok">맞았어요! 들려준 단어는 <b>${esc(trial.word)}</b>입니다. <span class="muted">(${esc(trial.voice)})</span></div>`
-    : `<div class="feedback no">아쉬워요. 들려준 단어는 <b>${esc(trial.word)}</b>였어요. <span class="muted">(${esc(trial.voice)})</span></div>`;
+    ? `<div class="feedback ok">맞았어요! 들려준 단어는 <b>${esc(trial.word)}</b>입니다. <span class="muted">(${esc(voiceLabel(trial.voice))})</span></div>`
+    : `<div class="feedback no">아쉬워요. 들려준 단어는 <b>${esc(trial.word)}</b>였어요. <span class="muted">(${esc(voiceLabel(trial.voice))})</span></div>`;
   if (result.just_passed) {
     fb += `<div class="feedback ok"><b>통과!</b> 최근 10번 중 9번 이상 맞혔어요. 계속 연습하거나 다른 소리로 넘어가세요.</div>
       <div class="row"><button class="primary" id="keep">계속 연습</button><button id="done">다른 소리 고르기</button></div>`;
@@ -238,7 +259,7 @@ async function answer(chosen) {
 
 async function compare() {
   if (!session) return;
-  const [a, b] = session.pair.words, v = DATA.voices.target;
+  const [a, b] = session.pair.words, v = SET.ref;
   await play(a, v); await wait(300); await play(b, v);
 }
 
@@ -264,12 +285,29 @@ document.addEventListener("keydown", (e) => {
     nextTrial();
   }
 });
-$("open-settings").onclick = () => { $("set-mix").checked = SET.mix; $("set-slow").checked = SET.slow; $("settings").showModal(); };
+function renderSettings() {
+  const row = (v) => `<div class="vrow"><label><input type="checkbox" data-voice="${v}" ${SET.voices.includes(v) ? "checked" : ""}> ${esc(voiceLabel(v))}</label>
+    <button data-hear="${v}" title="미리 듣기" aria-label="${esc(voiceLabel(v))} 미리 듣기">🔈</button></div>`;
+  $("voice-list").innerHTML = allVoices().map(row).join("");
+  $("ref").innerHTML = allVoices().map((v) => `<option value="${v}" ${v === SET.ref ? "selected" : ""}>${esc(voiceLabel(v))}</option>`).join("");
+  $("set-slow").checked = SET.slow;
+  $("voice-list").querySelectorAll("input[data-voice]").forEach((box) => box.addEventListener("change", () => {
+    const v = box.dataset.voice;
+    if (box.checked) SET.voices.push(v);
+    else if (SET.voices.length > 1) SET.voices = SET.voices.filter((x) => x !== v);
+    else box.checked = true;                      // at least one voice stays chosen
+    saveSettings();
+  }));
+  $("voice-list").querySelectorAll("button[data-hear]").forEach((btn) => btn.addEventListener("click", () => play("right", btn.dataset.hear)));
+}
+$("open-settings").onclick = () => { renderSettings(); $("settings").showModal(); };
 $("close-settings").onclick = () => $("settings").close();
-$("set-mix").onchange = (e) => { SET.mix = e.target.checked; saveSettings(); };
+$("vo-all").onclick = () => { SET.voices = allVoices(); saveSettings(); renderSettings(); };
+$("vo-ref").onclick = () => { SET.voices = [SET.ref]; saveSettings(); renderSettings(); };
+$("ref").onchange = (e) => { SET.ref = e.target.value; saveSettings(); };
 $("set-slow").onchange = (e) => { SET.slow = e.target.checked; saveSettings(); };
 
-api("/api/pairs").then((d) => { DATA = d; renderHome(); })
+api("/api/pairs").then((d) => { DATA = d; fixSettings(); renderHome(); })
   .catch(() => { view.innerHTML = '<p class="err">yourAccent 프로그램에 연결하지 못했습니다. 프로그램이 켜져 있는지 확인하세요.</p>'; });
 </script>
 </body>
