@@ -158,6 +158,12 @@
   <div class="row"><button id="mic-test">마이크 소리 확인 (5초)</button></div>
   <div class="meter" id="test-meter" hidden><div id="test-bar"></div></div>
   <p class="muted" id="mic-info"></p>
+  <h3>목표 억양</h3>
+  <p class="muted" style="margin:0 0 8px">읽은 소리를 어느 억양의 정답과 비교할지 정해요. 영국식은 단어 끝의 r을 읽지 않는 것이 정답이지만, 읽어도 틀린 것으로 세지 않아요.</p>
+  <select id="set-accent" aria-label="목표 억양">
+    <option value="british">영국식</option>
+    <option value="american">미국식</option>
+  </select>
   <h3>읽은 것을 판정하는 방식</h3>
   <p class="muted" style="margin:0 0 8px">메모리가 적은 Mac에서는 하나만 쓰면 더 빨라요.</p>
   <select id="set-engine" aria-label="판정 방식">
@@ -173,7 +179,7 @@
 const params = new URLSearchParams(location.search);
 const MUTE = params.get("mute") === "1";       // for tests: no sound
 let DATA = null;                                // pairs, voices, progress from the server
-let SET = { voices: null, ref: null, slow: false, engine: "both", mic: null };
+let SET = { voices: null, ref: null, slow: false, engine: "both", mic: null, accent: "british" };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("youraccent-settings") || "{}")); } catch (e) {}
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -191,6 +197,7 @@ function fixSettings() {                         // fill in defaults, drop voice
   if (!all.includes(SET.ref)) SET.ref = DATA.voices.target;
   if (!["both", "phoneme", "whisper"].includes(SET.engine)) SET.engine = "both";
   if (typeof SET.mic !== "string") SET.mic = null;
+  if (!["british", "american"].includes(SET.accent)) SET.accent = "british";
 }
 function voiceLabel(v) {
   const kind = { bm: "영국 남", bf: "영국 여", am: "미국 남", af: "미국 여" }[v.slice(0, 2)] || "";
@@ -696,7 +703,7 @@ async function submitDrill(blob) {                       // a word read on its o
   const d = SP.drill;
   d.busy = true; d.status = "분석 중…"; renderSentence();
   try {
-    const res = await fetch(`/api/judge?engine=${SET.engine}&drill=1&text=${encodeURIComponent(d.phrase)}`, { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    const res = await fetch(`/api/judge?engine=${SET.engine}&accent=${SET.accent}&drill=1&text=${encodeURIComponent(d.phrase)}`, { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
     const data = await res.json();
     if (!res.ok) { d.busy = false; d.status = data.error === "too_short" ? "너무 짧아요. 또렷하게 읽어 주세요." : "분석하지 못했습니다. 다시 해 보세요."; return renderSentence(); }
     const e = primaryOf(data), row = e.rows[d.target], wh = data.engines.whisper && data.engines.whisper.rows[d.target];
@@ -805,7 +812,7 @@ async function submitRecording(blob) {
   SP.recording = false; SP.busy = true; SP.status = "분석 중… (처음에는 모델을 불러오느라 몇 초 더 걸릴 수 있어요)"; renderSentence();
   const text = SP.list[SP.idx];
   try {
-    const res = await fetch("/api/judge?engine=" + SET.engine + "&text=" + encodeURIComponent(text), { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    const res = await fetch("/api/judge?engine=" + SET.engine + "&accent=" + SET.accent + "&text=" + encodeURIComponent(text), { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
     const data = await res.json();
     if (!res.ok) {
       SP.busy = false; SP.status = data.error === "too_short" ? "너무 짧아요. 문장을 끝까지 읽어 주세요." : "분석하지 못했습니다. 다시 읽어 보세요.";
@@ -874,6 +881,7 @@ function renderSettings() {
   $("ref").innerHTML = allVoices().map((v) => `<option value="${v}" ${v === SET.ref ? "selected" : ""}>${esc(voiceLabel(v))}</option>`).join("");
   $("set-slow").checked = SET.slow;
   $("set-engine").value = SET.engine;
+  $("set-accent").value = SET.accent;
   $("voice-list").querySelectorAll("input[data-voice]").forEach((box) => box.addEventListener("change", () => {
     const v = box.dataset.voice;
     if (box.checked) SET.voices.push(v);
@@ -921,6 +929,7 @@ $("vo-ref").onclick = () => { SET.voices = [SET.ref]; saveSettings(); renderSett
 $("ref").onchange = (e) => { SET.ref = e.target.value; saveSettings(); };
 $("set-slow").onchange = (e) => { SET.slow = e.target.checked; saveSettings(); };
 $("set-engine").onchange = (e) => { SET.engine = e.target.value; saveSettings(); };
+$("set-accent").onchange = (e) => { SET.accent = e.target.value; saveSettings(); };
 
 api("/api/pairs").then((d) => { DATA = d; fixSettings(); go(new URLSearchParams(location.search).get("tab") || "listen"); refreshDue(); })
   .catch(() => { view.innerHTML = '<p class="err">yourAccent 프로그램에 연결하지 못했습니다. 프로그램이 켜져 있는지 확인하세요.</p>'; });

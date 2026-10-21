@@ -18,6 +18,8 @@ import re
 from youraccent.judge import SKIP_DOUBT, norm
 
 MODEL = "facebook/wav2vec2-xlsr-53-espeak-cv-ft"
+DEFAULT_ACCENT = "british"  # Jun's target; "american" is the other choice
+ESPEAK_LANGUAGE = {"british": "en-gb", "american": "en-us"}
 FRAME = 0.02  # seconds per model output frame
 SURE = 0.5  # a swapped consonant counts as wrong only if the model was at least this sure of what it heard
 CONSONANTS = set("p b t d k g f v θ ð s z ʃ ʒ h tʃ dʒ m n ŋ l ɹ r w j ɾ ʔ".split())
@@ -38,7 +40,8 @@ SWAPS = {
 def canon(p):
     """Spellings of the same sound are treated as equal when comparing."""
     p = p.replace("ː", "")
-    return {"ɚ": "ə", "ɜ": "ə", "ɐ": "ə", "ᵻ": "ɪ", "r": "ɹ", "ɕ": "ʃ", "ʑ": "ʒ"}.get(p, p)
+    return {"ɚ": "ə", "ɜ": "ə", "ɐ": "ə", "ᵻ": "ɪ", "r": "ɹ", "ɕ": "ʃ", "ʑ": "ʒ",
+            "əʊ": "oʊ", "ɒ": "ɑ", "a": "æ", "ɪə": "iə"}.get(p, p)   # British and American spellings of one sound
 
 
 def equivalent(a, b):
@@ -91,7 +94,7 @@ def align_sounds(expected, heard):
     return pairs[::-1]
 
 
-def judge_words(words, expected_per_word, heard, doubt_below=SURE):
+def judge_words(words, expected_per_word, heard, doubt_below=SURE, lenient_r=False):
     """Marks each word. `words`: the written words. `expected_per_word`: a list of sounds for each word.
     `heard`: a list of dicts {sound, prob, start, end}. Returns the rows, one per word."""
     exp, owner = [], []
@@ -116,7 +119,7 @@ def judge_words(words, expected_per_word, heard, doubt_below=SURE):
                 entry["swaps"].append((exp[i], heard[j]["sound"], heard[j]["prob"], last_of_word))
         elif i is not None:
             entry["lost"].append(exp[i])
-        else:
+        elif not (lenient_r and canon(heard[j]["sound"]) == "ɹ"):  # (British: reading an r is understood, not wrong)
             entry["extra"] += 1
     rows = []
     for w, word in enumerate(words):
@@ -168,6 +171,7 @@ class PhonemeJudge:
         EspeakWrapper.set_data_path(espeakng_loader.get_data_path())
         import torch
 
+        self.backends = {}
         self.processor = Wav2Vec2Processor.from_pretrained(MODEL)
         self.model = Wav2Vec2ForCTC.from_pretrained(MODEL).eval()
         # The Mac's GPU runs it in about 0.2 s (the CPU took 6 s on a busy Mac) with the same answer.
@@ -186,14 +190,20 @@ class PhonemeJudge:
             self.recognize(np.zeros(16000, dtype=np.float32))
         self.expected("warm")
 
-    def expected(self, word):
+    def expected(self, word, accent=DEFAULT_ACCENT):
         key = re.sub(r"[^A-Za-z']", "", word).lower()
         if not key:
             return []
-        if key not in self.cache:
-            text = self.processor.tokenizer.phonemize(key, "en-us")
-            self.cache[key] = [p for p in text.split() if p != "|"]
-        return self.cache[key]
+        if (accent, key) not in self.cache:
+            from phonemizer.backend import EspeakBackend
+            from phonemizer.separator import Separator
+
+            language = ESPEAK_LANGUAGE.get(accent, "en-gb")
+            if language not in self.backends:
+                self.backends[language] = EspeakBackend(language, language_switch="remove-flags")
+            text = self.backends[language].phonemize([key], separator=Separator(phone=" ", word=" | "), strip=True)[0]
+            self.cache[(accent, key)] = [p for p in text.split() if p != "|"]
+        return self.cache[(accent, key)]
 
     def recognize(self, audio):
         """The sounds heard: a list of {sound, prob, start, end} (seconds)."""
@@ -225,10 +235,11 @@ class PhonemeJudge:
                 run_start = k
         return heard
 
-    def judge(self, audio, text):
+    def judge(self, audio, text, accent=DEFAULT_ACCENT):
         if self.model is None:
             self._load()
+        accent = accent if accent in ESPEAK_LANGUAGE else DEFAULT_ACCENT
         words = [w.strip(".,?!;:\"()") for w in text.split() if norm(w)]
         heard = self.recognize(audio)
-        rows = judge_words(words, [self.expected(w) for w in words], heard)
+        rows = judge_words(words, [self.expected(w, accent) for w in words], heard, lenient_r=(accent == "british"))
         return {"engine": self.name, "heard": " ".join(h["sound"] for h in heard), "rows": rows, "extra": []}

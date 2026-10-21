@@ -112,7 +112,7 @@ class WhisperJudge:
         self.model = model
         self.doubt = doubt
 
-    def judge(self, audio, expected):
+    def judge(self, audio, expected, accent=None):  # (the accent only matters for the sound judge)
         text, words = transcribe_words(audio, self.model)
         rows, extra = align(expected, words, self.doubt)
         return {"engine": self.name, "heard": text, "rows": rows, "extra": [e["word"] for e in extra]}

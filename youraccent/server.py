@@ -40,6 +40,7 @@ HOME = os.path.expanduser(os.environ.get("YOURACCENT_HOME", "~/yourAccent"))
 PORT = int(os.environ.get("YOURACCENT_PORT", "8766"))
 JUDGE_MODEL = os.environ.get("YOURACCENT_JUDGE_MODEL", "small")  # the Whisper size
 ENGINES = os.environ.get("YOURACCENT_ENGINES", "both")  # both | phoneme | whisper
+ACCENT = os.environ.get("YOURACCENT_ACCENT", "british")  # the accent the sounds are judged against: british | american
 SECONDCHAIR_LOCK = "/tmp/secondchair.lock"
 OWN_LOCK = os.environ.get("YOURACCENT_LOCK", "/tmp/youraccent.lock")  # tests use their own, so they never clash with a running copy
 PAGE = os.path.join(os.path.dirname(__file__), "ui", "index.html")
@@ -186,7 +187,7 @@ def make_handler(ctx):
             if body is None:
                 return self._send(413, {"error": "too big"})
             if url.path == "/api/judge" and kind == "audio/wav":
-                return self._judge(query.get("text", ""), body, query.get("engine") or ENGINES, query.get("drill") == "1")
+                return self._judge(query.get("text", ""), body, query.get("engine") or ENGINES, query.get("drill") == "1", query.get("accent") or ACCENT)
             if url.path == "/api/peek" and kind == "audio/wav":
                 return self._peek(body)
             if kind != "application/json":
@@ -232,9 +233,9 @@ def make_handler(ctx):
                 return self._send(500, {"error": f"{type(error).__name__}: {error}"})
             self._send(200, {"text": text})
 
-        def _judge(self, text, data, engine, drill=False):
+        def _judge(self, text, data, engine, drill=False, accent=ACCENT):
             text = " ".join(text.split())
-            if not ctx.tts.valid(text) or engine not in ("both", "phoneme", "whisper"):
+            if not ctx.tts.valid(text) or engine not in ("both", "phoneme", "whisper") or accent not in ("british", "american"):
                 return self._send(400, {"error": "bad text"})
             try:
                 audio = wav_to_16k(data)
@@ -246,7 +247,7 @@ def make_handler(ctx):
             results, errors = {}, {}
             for name in names:
                 try:
-                    results[name] = ctx.worker.run(lambda j=ctx.judges[name]: j.judge(audio, text))
+                    results[name] = ctx.worker.run(lambda j=ctx.judges[name]: j.judge(audio, text, accent))
                 except Exception as error:
                     errors[name] = f"{type(error).__name__}: {error}"
             if not results:
