@@ -30,77 +30,12 @@ from difflib import SequenceMatcher
 
 import numpy as np
 
+from youraccent.judge import DOUBT, MODELS, compare, listen
 from youraccent.sentences import TRAPS, split_sentences
 
 DATA_DIR = os.path.expanduser("~/yourAccent")
-MODELS = {
-    "small": "mlx-community/whisper-small-mlx",
-    "turbo": "mlx-community/whisper-large-v3-turbo",
-}
 RATE = 16000
-MAX_TOKENS = 160
 SECONDCHAIR_LOCK = "/tmp/secondchair.lock"
-DOUBT = 0.6
-# Short function words and the first word of a recording often get a low score for reasons
-# that have nothing to do with the sound, so they are never marked "doubt".
-SKIP_DOUBT = {"the", "a", "an", "of", "to", "and", "is", "are", "on", "in", "i", "it", "at", "or"}
-
-
-def norm(word):
-    return re.sub(r"[^a-z0-9']", "", word.lower())
-
-
-def compare(expected, heard, doubt=DOUBT):
-    """Line up the written sentence with the heard words.
-
-    `heard` is a list of (word, probability). Returns (rows, extra): one row per written word,
-    (word, status, heard_as, probability), and the heard words that were not in the sentence.
-    """
-    shown = [w.strip(".,?!;:\"()") for w in expected.split() if norm(w)]
-    want = [norm(w) for w in shown]
-    got = [(norm(w), p) for w, p in heard if norm(w)]
-    rows = [None] * len(want)
-    extra = []
-    matcher = SequenceMatcher(None, want, [g[0] for g in got], autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            for k in range(i2 - i1):
-                i, p = i1 + k, got[j1 + k][1]
-                unsure = p < doubt and i > 0 and want[i] not in SKIP_DOUBT
-                rows[i] = (shown[i], "doubt" if unsure else "ok", want[i], p)
-        elif tag == "replace":
-            block = got[j1:j2]
-            for k, i in enumerate(range(i1, i2)):
-                if i2 - i1 == j2 - j1:
-                    heard_as, p = block[k]
-                else:
-                    heard_as, p = " ".join(g[0] for g in block), min(g[1] for g in block)
-                rows[i] = (shown[i], "wrong", heard_as, p)
-        elif tag == "delete":
-            for i in range(i1, i2):
-                rows[i] = (shown[i], "missed", "", 0.0)
-        else:  # insert: words that were heard but are not in the sentence
-            extra.extend(got[j1:j2])
-    return rows, extra
-
-
-def listen(audio, model, doubt=DOUBT):
-    """Whisper's text and the comparison for one recording (16 kHz mono float32)."""
-    import mlx_whisper
-
-    result = mlx_whisper.transcribe(
-        audio,
-        path_or_hf_repo=MODELS[model],
-        language="en",
-        condition_on_previous_text=False,  # and no prompt with the script: that would hide errors
-        temperature=0.0,
-        sample_len=MAX_TOKENS,
-        word_timestamps=True,
-    )
-    words = [(w["word"], w["probability"]) for s in result["segments"] for w in s.get("words", [])]
-    return result["text"].strip(), words
-
-
 def read_wav(path):
     with wave.open(path) as f:
         data = np.frombuffer(f.readframes(f.getnframes()), dtype=np.int16).astype(np.float32) / 32768

@@ -8,31 +8,36 @@
   :root {
     --bg: #faf8f5; --panel: #ffffff; --text: #1f2328; --muted: #6b7280; --line: #e5e0d8;
     --accent: #2f5d8a; --accent-text: #ffffff; --good: #2e7d4f; --good-bg: #e6f3ea;
-    --bad: #b3402a; --bad-bg: #f9e8e4; --dot: #d7d2c9;
+    --bad: #b3402a; --bad-bg: #f9e8e4; --warn: #8a6a12; --warn-bg: #f7efd5; --dot: #d7d2c9;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #17191c; --panel: #212428; --text: #e8e6e1; --muted: #9aa0a8; --line: #343a40;
       --accent: #7fb0e0; --accent-text: #10151a; --good: #6fcf97; --good-bg: #1d3327;
-      --bad: #f08c78; --bad-bg: #3a2420; --dot: #3d434a;
+      --bad: #f08c78; --bad-bg: #3a2420; --warn: #e3c566; --warn-bg: #38311b; --dot: #3d434a;
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.6 -apple-system, "Apple SD Gothic Neo", "Helvetica Neue", sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
   .brand { font-weight: 700; font-size: 20px; letter-spacing: .2px; }
-  .brand span { font-weight: 400; font-size: 14px; color: var(--muted); margin-left: 8px; }
-  main { max-width: 760px; margin: 0 auto; padding: 24px 20px 64px; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav button { border-color: transparent; background: transparent; padding: 6px 12px; }
+  nav button[aria-current="page"] { background: var(--accent); color: var(--accent-text); }
+  nav .badge { margin-left: 4px; }
+  main { max-width: 800px; margin: 0 auto; padding: 24px 20px 64px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   p.lead { color: var(--muted); margin: 0 0 20px; }
   button { font: inherit; color: inherit; cursor: pointer; border: 1px solid var(--line);
     background: var(--panel); border-radius: 10px; padding: 8px 14px; }
-  button:hover { border-color: var(--accent); }
-  button:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button:focus-visible, .card:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
   button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  button.danger { color: var(--bad); }
   .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
   .card { text-align: left; padding: 16px; border-radius: 14px; background: var(--panel);
     border: 1px solid var(--line); display: block; width: 100%; }
@@ -41,6 +46,7 @@
   .card .state { margin-top: 10px; font-size: 14px; }
   .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px;
     background: var(--good-bg); color: var(--good); }
+  .badge.due { background: var(--warn-bg); color: var(--warn); }
   .tip { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 16px 0; }
   .wordrow { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
   .wordrow button { flex: 1 1 200px; font-size: 26px; font-weight: 700; padding: 18px; }
@@ -55,24 +61,49 @@
   .feedback { border-radius: 12px; padding: 12px 16px; margin: 12px 0; }
   .feedback.ok { background: var(--good-bg); color: var(--good); }
   .feedback.no { background: var(--bad-bg); color: var(--bad); }
+  .feedback.warn { background: var(--warn-bg); color: var(--warn); }
   .muted { color: var(--muted); font-size: 14px; }
   .center { text-align: center; }
-  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); padding: 20px 22px; max-width: 420px; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 12px 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .item .text { flex: 1; }
+  .item.click { cursor: pointer; text-align: left; width: 100%; }
+  .sentence { font-size: 24px; line-height: 2.1; margin: 16px 0; }
+  .chip { display: inline-block; padding: 0 8px; margin: 0 2px; border-radius: 8px; border: 1px solid transparent; font: inherit; background: transparent; cursor: default; }
+  button.chip { cursor: pointer; }
+  .chip.ok { background: var(--good-bg); color: var(--good); }
+  .chip.doubt { background: var(--warn-bg); color: var(--warn); }
+  .chip.wrong, .chip.missed { background: var(--bad-bg); color: var(--bad); }
+  .chip.missed { text-decoration: line-through; }
+  .chip.sel { border-color: var(--accent); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
+  .rec { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .pulse { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+  .err { color: var(--bad); }
+  input[type=text], textarea, select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); width: 100%; }
+  textarea { min-height: 200px; resize: vertical; }
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); padding: 20px 22px;
+    max-height: 86vh; overflow: auto; width: min(460px, 92vw); }
   dialog::backdrop { background: rgba(0,0,0,.35); }
-  label { display: block; margin: 10px 0; }
-  dialog { max-height: 86vh; overflow: auto; width: min(460px, 92vw); }
   dialog h3 { margin: 18px 0 4px; font-size: 16px; }
+  label { display: block; margin: 10px 0; }
   .vrow { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
   .vrow label { margin: 0; flex: 1; }
   .vrow button { padding: 2px 10px; }
-  select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); width: 100%; }
-  .err { color: var(--bad); }
-  @media (max-width: 560px) { main { padding: 16px 16px 48px; } }
+  @media (max-width: 560px) { main { padding: 16px 16px 48px; } .sentence { font-size: 20px; } }
 </style>
 </head>
 <body>
 <header>
-  <div class="brand">yourAccent<span>듣기 훈련</span></div>
+  <div class="brand">yourAccent</div>
+  <nav id="tabs" aria-label="메뉴">
+    <button data-tab="listen">듣기 훈련</button>
+    <button data-tab="script">원고 연습</button>
+    <button data-tab="review">복습<span class="badge due" id="due-badge" hidden></span></button>
+  </nav>
   <div><button class="ghost" id="open-settings">설정</button></div>
 </header>
 <main id="view" aria-live="polite"></main>
@@ -84,8 +115,8 @@
   <div class="row"><button id="vo-all">모두 선택</button><button id="vo-ref">설명 목소리만</button></div>
   <div id="voice-list"></div>
   <h3>설명·비교 목소리</h3>
-  <p class="muted" style="margin:0 0 8px">두 단어의 차이를 들려줄 때와 틀린 뒤에 비교해서 들려줄 때 쓰는 목소리입니다.</p>
-  <select id="ref"></select>
+  <p class="muted" style="margin:0 0 8px">두 단어의 차이, 문장 읽어 주기, 정답 소리에 쓰는 목소리입니다.</p>
+  <select id="ref" aria-label="설명 목소리"></select>
   <h3>속도</h3>
   <label><input type="checkbox" id="set-slow"> 천천히 듣기</label>
   <div class="row"><button class="primary" id="close-settings">닫기</button></div>
@@ -100,9 +131,12 @@ let SET = { voices: null, ref: null, slow: false };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("youraccent-settings") || "{}")); } catch (e) {}
 const $ = (id) => document.getElementById(id);
 const view = $("view");
+let TAB = "listen";
 let audioEl = null;
-let session = null;                             // the running quiz
+let session = null;                             // the running listening quiz
+let SP = null;                                  // the sentence being practised
 
+// ---------------------------------------------------------------- basics
 function allVoices() { return [...DATA.voices.british, ...DATA.voices.american_male]; }
 function fixSettings() {                         // fill in defaults, drop voices that no longer exist
   const all = allVoices();
@@ -117,34 +151,58 @@ function voiceLabel(v) {
 }
 function saveSettings() { try { localStorage.setItem("youraccent-settings", JSON.stringify(SET)); } catch (e) {} }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
   if (!res.ok) throw new Error((await res.text()) || res.status);
   return res.json();
 }
-function audioUrl(word, voice) {
-  return `/api/audio?word=${encodeURIComponent(word)}&voice=${encodeURIComponent(voice)}&speed=${SET.slow ? "slow" : "normal"}`;
+function audioUrl(text, voice, speed) {
+  const sp = speed || (SET.slow ? "slow" : "normal");
+  const key = /^[A-Za-z']{1,24}$/.test(text) ? "word" : "text";
+  return `/api/audio?${key}=${encodeURIComponent(text)}&voice=${encodeURIComponent(voice)}&speed=${sp}`;
 }
-// Plays one word. Resolves when it has finished (or at once when muted or when it fails).
-function play(word, voice) {
+function stopAudio() { if (audioEl) { audioEl.pause(); audioEl = null; } }
+// Plays a sound file. Resolves when it has finished (or at once when muted or when it fails).
+function playUrl(url) {
   return new Promise((resolve) => {
     if (MUTE) return setTimeout(resolve, 30);
-    if (audioEl) audioEl.pause();
-    audioEl = new Audio(audioUrl(word, voice));
+    stopAudio();
+    audioEl = new Audio(url);
     audioEl.onended = resolve;
     audioEl.onerror = () => { showError("소리를 만들지 못했습니다."); resolve(); };
     audioEl.play().catch(() => resolve());
   });
 }
-function preload(word, voice) { if (!MUTE) { const a = new Audio(audioUrl(word, voice)); a.preload = "auto"; a.load(); } }
+function play(text, voice, speed) { return playUrl(audioUrl(text, voice, speed)); }
+function preload(text, voice) { if (!MUTE) { const a = new Audio(audioUrl(text, voice)); a.preload = "auto"; a.load(); } }
 function showError(text) { const e = $("error"); if (e) e.textContent = text; }
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ---------------------------------------------------------------- home
+function go(tab) {
+  stopAudio(); stopRecordingQuietly();
+  session = null; SP = null; TAB = tab;
+  document.querySelectorAll("#tabs button").forEach((b) => { if (b.dataset.tab === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  if (tab === "listen") renderListenHome();
+  else if (tab === "script") renderScriptHome();
+  else renderReview();
+}
+document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => go(b.dataset.tab)));
+
+async function refreshDue() {
+  try {
+    const r = await api("/api/review");
+    const due = r.items.filter((i) => i.is_due).length;
+    const badge = $("due-badge");
+    badge.textContent = due; badge.hidden = due === 0;
+    return r;
+  } catch (e) { return null; }
+}
+
+// ================================================================ listening training
 function progressOf(id) { return (DATA.progress[id]) || { trials: 0, correct: 0, recent: [], passed: false }; }
 
-function renderHome() {
+function renderListenHome() {
   session = null;
   const cards = DATA.pairs.map((p) => {
     const pr = progressOf(p.id);
@@ -159,7 +217,6 @@ function renderHome() {
   view.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => renderPair(b.dataset.pair)));
 }
 
-// ---------------------------------------------------------------- one pair: hear it, then the quiz
 function renderPair(id) {
   const pair = DATA.pairs.find((p) => p.id === id);
   const target = SET.ref;
@@ -171,7 +228,7 @@ function renderPair(id) {
     <div class="wordrow"><button id="w0">🔈 ${esc(a)}</button><button id="w1">🔈 ${esc(b)}</button></div>
     <div class="row"><button id="alt">번갈아 듣기</button><button class="primary" id="start">퀴즈 시작</button></div>
     <p class="err" id="error"></p>`;
-  $("back").onclick = renderHome;
+  $("back").onclick = () => go("listen");
   $("w0").onclick = () => play(a, target);
   $("w1").onclick = () => play(b, target);
   $("alt").onclick = async () => { for (let i = 0; i < 2; i++) { await play(a, target); await wait(350); await play(b, target); await wait(500); } };
@@ -215,20 +272,20 @@ function renderQuiz(feedback) {
     : `<div class="choices"><button data-w="${esc(a)}">${esc(a)}<small>키 1</small></button><button data-w="${esc(b)}">${esc(b)}<small>키 2</small></button></div>`;
   view.innerHTML = `<button class="ghost" id="back">← 목록</button>
     <h1>${esc(a)} / ${esc(b)} <span class="muted">듣기 퀴즈</span></h1>
-    <div class="center"><button class="listen" id="again" title="다시 듣기 (스페이스)">🔈</button>
+    <div class="center"><button class="listen" id="again" title="다시 듣기 (스페이스)" aria-label="다시 듣기">🔈</button>
     <p class="muted">${session.answered ? "" : "들려주는 단어를 고르세요. 스페이스로 다시 들을 수 있어요."}</p></div>
     ${choices}
     ${feedback || ""}
     <div class="muted">최근 10번 (${pr.recent.reduce((s, x) => s + x, 0)}번 맞힘, 9번이면 통과)</div>
     <div class="dots">${dots(pr)}</div>
     <p class="err" id="error"></p>`;
-  $("back").onclick = renderHome;
+  $("back").onclick = () => go("listen");
   $("again").onclick = () => play(trial.word, trial.voice);
   view.querySelectorAll(".choices button").forEach((btn) => btn.addEventListener("click", () => answer(btn.dataset.w)));
   const next = $("next"); if (next) next.onclick = nextTrial;
   const cmp = $("compare"); if (cmp) cmp.onclick = compare;
   const more = $("keep"); if (more) more.onclick = nextTrial;
-  const done = $("done"); if (done) done.onclick = renderHome;
+  const done = $("done"); if (done) done.onclick = () => go("listen");
 }
 
 async function playTrial() { await play(session.trial.word, session.trial.voice); }
@@ -271,10 +328,254 @@ function nextTrial() {
   playTrial();
 }
 
-// ---------------------------------------------------------------- keys and settings
+// ================================================================ script practice
+async function renderScriptHome() {
+  view.innerHTML = '<p class="muted">불러오는 중…</p>';
+  let list = [];
+  try { list = await api("/api/materials"); } catch (e) {}
+  if (TAB !== "script") return;
+  const items = list.map((m) => `<div class="item"><button class="item click" data-open="${m.id}" style="border:0;padding:0;background:none">
+      <b>${esc(m.title)}</b> <span class="muted">문장 ${m.count}개</span></button>
+      <button class="ghost danger" data-del="${m.id}" aria-label="${esc(m.title)} 지우기">지우기</button></div>`).join("");
+  view.innerHTML = `<h1>원고 연습</h1>
+    <p class="lead">원고를 올리면 문장으로 나눠서, 한 문장씩 소리 내어 읽고 틀린 단어를 확인할 수 있어요.</p>
+    <div class="row"><button class="primary" id="new">새 원고 추가</button></div>
+    <div class="list">${items || '<p class="muted">아직 올린 원고가 없어요.</p>'}</div>
+    <h2 style="font-size:18px;margin:28px 0 6px">문장 하나만 바로 연습</h2>
+    <input type="text" id="quick" placeholder="연습할 영어 문장이나 표현을 붙여 넣으세요" aria-label="연습할 문장">
+    <div class="row"><button id="quick-go">연습하기</button></div>`;
+  $("new").onclick = renderNewMaterial;
+  view.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => renderMaterial(b.dataset.open)));
+  view.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("이 원고를 지울까요? (복습 목록은 그대로 남아요)")) return;
+    await api("/api/material/delete", { id: b.dataset.del }); renderScriptHome();
+  }));
+  const quick = () => { const t = $("quick").value.trim(); if (t) openSentence([t], 0, () => go("script")); };
+  $("quick-go").onclick = quick;
+  $("quick").addEventListener("keydown", (e) => { if (e.key === "Enter") quick(); });
+}
+
+function renderNewMaterial() {
+  view.innerHTML = `<button class="ghost" id="back">← 원고 목록</button>
+    <h1>새 원고</h1>
+    <label>제목<input type="text" id="title" placeholder="예: 강의 1주차"></label>
+    <label>파일 열기 (텍스트 .txt 또는 .pdf)<input type="file" id="file" accept=".txt,.pdf,text/plain,application/pdf"></label>
+    <label>원고 내용 (붙여 넣거나 고칠 수 있어요)<textarea id="text" placeholder="영어 원고를 붙여 넣으세요"></textarea></label>
+    <p class="muted" id="msg">줄바꿈만 있는 곳은 한 문장으로 이어 붙이고, 마침표·물음표·느낌표에서 문장을 나눕니다.</p>
+    <div class="row"><button class="primary" id="save">저장</button></div>
+    <p class="err" id="error"></p>`;
+  $("back").onclick = () => go("script");
+  $("file").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    $("msg").textContent = "파일을 읽는 중…";
+    try {
+      if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+        const res = await fetch("/api/pdf", { method: "POST", headers: { "Content-Type": "application/pdf" }, body: await file.arrayBuffer() });
+        if (!res.ok) throw new Error("pdf");
+        $("text").value = (await res.json()).text;
+      } else {
+        $("text").value = await file.text();
+      }
+      if (!$("title").value) $("title").value = file.name.replace(/\.[^.]+$/, "");
+      $("msg").textContent = "내용을 확인하고, 필요하면 고친 뒤 저장하세요.";
+    } catch (err) { $("msg").textContent = ""; showError("파일을 읽지 못했습니다. 글자를 직접 붙여 넣어 주세요. (스캔한 PDF는 글자를 읽을 수 없어요)"); }
+  };
+  $("save").onclick = async () => {
+    try {
+      const m = await api("/api/materials", { title: $("title").value, text: $("text").value });
+      renderMaterial(m.id);
+    } catch (err) { showError("저장하지 못했습니다. 영어 문장이 들어 있는지 확인하세요."); }
+  };
+}
+
+async function renderMaterial(id) {
+  let m;
+  try { m = await api(`/api/material?id=${encodeURIComponent(id)}`); } catch (e) { return go("script"); }
+  const rows = m.sentences.map((s, i) => `<button class="item click" data-i="${i}"><span class="muted">${i + 1}</span><span class="text">${esc(s)}</span></button>`).join("");
+  view.innerHTML = `<button class="ghost" id="back">← 원고 목록</button>
+    <h1>${esc(m.title)}</h1><p class="lead">문장을 누르면 연습 화면이 열려요. (${m.sentences.length}문장)</p>
+    <div class="list">${rows}</div>`;
+  $("back").onclick = () => go("script");
+  view.querySelectorAll("[data-i]").forEach((b) => b.addEventListener("click", () => openSentence(m.sentences, +b.dataset.i, () => renderMaterial(id))));
+}
+
+// ---------------------------------------------------------------- recording in the browser
+const Rec = { stream: null, ctx: null, node: null, chunks: [], active: false };
+async function startRecording() {
+  Rec.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
+  Rec.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = Rec.ctx.createMediaStreamSource(Rec.stream);
+  Rec.node = Rec.ctx.createScriptProcessor(4096, 1, 1);   // writes nothing to its output: silent
+  Rec.chunks = [];
+  Rec.node.onaudioprocess = (e) => Rec.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  source.connect(Rec.node); Rec.node.connect(Rec.ctx.destination);
+  Rec.active = true;
+}
+function stopRecordingQuietly() {
+  if (!Rec.active) return;
+  Rec.active = false;
+  try { Rec.node.disconnect(); Rec.stream.getTracks().forEach((t) => t.stop()); Rec.ctx.close(); } catch (e) {}
+}
+function finishRecording() {
+  const rate = Rec.ctx.sampleRate, chunks = Rec.chunks;
+  stopRecordingQuietly();
+  return encodeWav(chunks, rate);
+}
+function encodeWav(chunks, rate) {                       // 16-bit mono wav
+  let n = 0; for (const c of chunks) n += c.length;
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+  let o = 44;
+  for (const c of chunks) for (let i = 0; i < c.length; i++) { const s = Math.max(-1, Math.min(1, c[i])); v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true); o += 2; }
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+// ---------------------------------------------------------------- one sentence
+function openSentence(list, idx, back) {
+  SP = { list, idx, back, result: null, selected: null, busy: false, recording: false, status: "" };
+  renderSentence();
+}
+
+const STATUS_TEXT = { ok: "잘 들렸어요", doubt: "확신이 낮아요", wrong: "다른 단어로 들렸어요", missed: "들리지 않았어요" };
+
+function renderSentence() {
+  const text = SP.list[SP.idx], res = SP.result;
+  let body;
+  if (res) {
+    body = res.rows.map((r) => `<button class="chip ${r.status} ${SP.selected === r.i ? "sel" : ""}" data-i="${r.i}" aria-label="${esc(r.word)}: ${STATUS_TEXT[r.status]}">${esc(r.word)}</button>`).join(" ");
+  } else {
+    body = esc(text);
+  }
+  const flagged = res ? res.rows.filter((r) => r.status !== "ok").length : 0;
+  let summary = "";
+  if (res) {
+    if (res.incomplete) summary = `<div class="feedback warn">문장을 끝까지 읽지 않았거나 소리가 잘 안 들어간 것 같아요. 이번 결과는 복습에 저장하지 않았어요. 들린 것: “${esc(res.heard || "아무것도 안 들림")}”</div>`;
+    else summary = `<div class="feedback ${flagged ? "no" : "ok"}">${flagged ? `확인할 단어가 ${flagged}개 있어요. 눌러서 들어 보세요.` : "모든 단어가 문장대로 들렸어요."} <span class="muted">들린 것: “${esc(res.heard)}”</span></div>`;
+    if (res.quiet) summary += '<div class="feedback warn">소리가 아주 작게 들어갔어요. 마이크에 더 가까이서 읽어 보세요.</div>';
+    summary += '<p class="muted">Whisper가 들은 것을 기준으로 한 결과라 틀릴 수 있어요. 비슷한 소리는 알아서 고쳐 적기도 합니다.</p>';
+  }
+  const multi = SP.list.length > 1;
+  view.innerHTML = `<button class="ghost" id="back">← 뒤로</button>
+    ${multi ? `<div class="muted">${SP.idx + 1} / ${SP.list.length}</div>` : ""}
+    <div class="sentence" id="sentence">${body}</div>
+    <div class="row">
+      <button id="listen">🔈 듣기</button><button id="slow">🐢 천천히</button>
+      <button id="rec" class="${SP.recording ? "rec pulse" : "primary"}" ${SP.busy ? "disabled" : ""}>${SP.recording ? "■ 끝내기" : "🎙 읽기"}</button>
+    </div>
+    <p class="muted" id="status">${esc(SP.status)}</p>
+    ${summary}
+    <div id="detail"></div>
+    <div class="row">
+      ${res ? '<button id="again">다시 읽기</button>' : ""}
+      <button id="save-sentence">문장 저장</button>
+      ${multi ? `<button id="prev" ${SP.idx === 0 ? "disabled" : ""}>← 이전 문장</button><button id="next" class="${res ? "primary" : ""}" ${SP.idx === SP.list.length - 1 ? "disabled" : ""}>다음 문장 →</button>` : ""}
+    </div>
+    <p class="err" id="error"></p>`;
+  $("back").onclick = () => { stopAudio(); stopRecordingQuietly(); SP.back(); };
+  $("listen").onclick = () => play(text, SET.ref);
+  $("slow").onclick = () => play(text, SET.ref, "slow");
+  $("rec").onclick = toggleRecording;
+  view.querySelectorAll(".chip[data-i]").forEach((c) => c.addEventListener("click", () => { SP.selected = +c.dataset.i; renderSentence(); }));
+  const again = $("again"); if (again) again.onclick = () => { SP.result = null; SP.selected = null; SP.status = ""; renderSentence(); };
+  $("save-sentence").onclick = async () => { await api("/api/review/save", { kind: "sentence", text }); SP.status = "문장을 복습에 저장했어요."; $("status").textContent = SP.status; refreshDue(); };
+  const prev = $("prev"); if (prev) prev.onclick = () => openSentence(SP.list, SP.idx - 1, SP.back);
+  const next = $("next"); if (next) next.onclick = () => openSentence(SP.list, SP.idx + 1, SP.back);
+  if (res && SP.selected !== null) renderDetail();
+  if (SP.preload !== text) { SP.preload = text; preload(text, SET.ref); }
+}
+
+function renderDetail() {
+  const r = SP.result.rows[SP.selected];
+  if (!r) return;
+  const inPair = DATA.pairs.find((p) => p.words.includes(r.word.toLowerCase()));
+  const heard = r.status === "wrong" ? `「${esc(r.heard_as)}」로 들렸어요.` : r.status === "doubt" ? `확신이 낮았어요 (확신도 ${r.prob}).` : r.status === "missed" ? "들리지 않았어요." : "잘 들렸어요.";
+  $("detail").innerHTML = `<div class="panel"><div><b style="font-size:20px">${esc(r.word)}</b> <span class="muted">${heard}</span></div>
+    <div class="row">
+      <button id="d-right">▶ 정답 소리</button>
+      <button id="d-mine" ${r.has_clip ? "" : "disabled"}>▶ 내 소리</button>
+      <button id="d-both" ${r.has_clip ? "" : "disabled"}>번갈아 듣기</button>
+      <button id="d-save">복습에 저장</button>
+      ${inPair ? '<button id="d-pair">이 소리 듣기 훈련</button>' : ""}
+    </div></div>`;
+  const mine = () => playUrl(`/api/clip?attempt=${SP.result.attempt}&i=${r.i}`);
+  $("d-right").onclick = () => play(r.word, SET.ref);
+  $("d-mine").onclick = mine;
+  $("d-both").onclick = async () => { for (let i = 0; i < 2; i++) { await play(r.word, SET.ref); await wait(300); await mine(); await wait(400); } };
+  $("d-save").onclick = async () => { await api("/api/review/save", { kind: "word", text: r.word }); $("status").textContent = `“${r.word}”을(를) 복습에 저장했어요.`; refreshDue(); };
+  const dp = $("d-pair"); if (dp) dp.onclick = () => { go("listen"); renderPair(inPair.id); };
+}
+
+async function toggleRecording() {
+  if (!SP || SP.busy) return;
+  if (!SP.recording) {
+    stopAudio();
+    try { await startRecording(); } catch (e) {
+      SP.status = "마이크를 쓸 수 없어요. 브라우저 주소창의 마이크 허용을 확인하세요."; return renderSentence();
+    }
+    SP.recording = true; SP.status = "녹음 중… 문장을 읽고 ‘끝내기’를 누르세요."; return renderSentence();
+  }
+  SP.recording = false;
+  await submitRecording(finishRecording());
+}
+
+// Sends a recording (a wav blob) to be judged. The recording button calls this; so can tests.
+async function submitRecording(blob) {
+  SP.recording = false; SP.busy = true; SP.status = "분석 중… (처음에는 Whisper 모델을 받느라 몇 분 걸릴 수 있어요)"; renderSentence();
+  const text = SP.list[SP.idx];
+  try {
+    const res = await fetch("/api/judge?text=" + encodeURIComponent(text), { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    const data = await res.json();
+    if (!res.ok) {
+      SP.busy = false; SP.status = data.error === "too_short" ? "너무 짧아요. 문장을 끝까지 읽어 주세요." : "분석하지 못했습니다. 다시 읽어 보세요.";
+      return renderSentence();
+    }
+    SP.result = data; SP.busy = false; SP.status = "";
+    const first = data.rows.find((r) => r.status !== "ok");
+    SP.selected = first ? first.i : null;
+    renderSentence();
+    refreshDue();
+  } catch (e) { SP.busy = false; SP.status = "분석하지 못했습니다. 프로그램이 켜져 있는지 확인하세요."; renderSentence(); }
+}
+
+// ================================================================ review
+async function renderReview() {
+  view.innerHTML = '<p class="muted">불러오는 중…</p>';
+  const r = await refreshDue();
+  if (TAB !== "review") return;
+  if (!r) { view.innerHTML = '<p class="err">복습 목록을 불러오지 못했습니다.</p>'; return; }
+  const due = r.items.filter((i) => i.is_due), later = r.items.filter((i) => !i.is_due);
+  const card = (i) => {
+    const label = i.kind === "word" ? `<b style="font-size:18px">${esc(i.text)}</b>${i.heard_as ? ` <span class="muted">「${esc(i.heard_as)}」로 들림</span>` : ""}` : `<span>${esc(i.text)}</span>`;
+    const ex = i.kind === "word" && i.examples.length ? `<div class="muted">${esc(i.examples[i.examples.length - 1])}</div>` : "";
+    const info = `<div class="muted">${i.kind === "word" ? `틀린 횟수 ${i.misses}번 · 연속 성공 ${i.streak}번` : "저장한 문장"}${i.is_due ? "" : ` · 다음 복습 ${esc(i.due)}`}</div>`;
+    return `<div class="item"><div class="text">${label}${ex}${info}</div>
+      <div class="row" style="margin:0"><button class="primary" data-practice="${esc(i.id)}">연습</button>
+      <button class="ghost danger" data-remove="${esc(i.id)}" aria-label="${esc(i.text)} 지우기">지우기</button></div></div>`;
+  };
+  view.innerHTML = `<h1>복습</h1>
+    <p class="lead">틀린 단어와 저장한 문장이 여기로 돌아와요. 세 번 연속 맞게 읽으면 목록에서 빠집니다. (졸업한 항목 ${r.graduated}개)</p>
+    <h2 style="font-size:18px;margin:0 0 8px">오늘 복습할 것 <span class="badge due">${due.length}</span></h2>
+    <div class="list">${due.map(card).join("") || '<p class="muted">오늘 복습할 것이 없어요.</p>'}</div>
+    ${later.length ? `<h2 style="font-size:18px;margin:24px 0 8px">나중에 복습할 것</h2><div class="list">${later.map(card).join("")}</div>` : ""}`;
+  const byId = Object.fromEntries(r.items.map((i) => [i.id, i]));
+  view.querySelectorAll("[data-practice]").forEach((b) => b.addEventListener("click", () => {
+    const i = byId[b.dataset.practice];
+    const sentences = i.kind === "sentence" ? [i.text] : (i.examples.length ? i.examples.slice().reverse() : [i.text]);
+    openSentence(sentences, 0, () => go("review"));
+  }));
+  view.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", async () => {
+    await api("/api/review/delete", { id: b.dataset.remove }); renderReview();
+  }));
+}
+
+// ================================================================ keys and settings
 document.addEventListener("keydown", (e) => {
   const t = e.target;
-  if (!session || (t.closest && t.closest("dialog")) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!session || TAB !== "listen" || (t.closest && t.closest("dialog")) || e.metaKey || e.ctrlKey || e.altKey) return;
   const onButton = t.tagName === "BUTTON";
   const [a, b] = session.pair.words;
   if (!session.answered) {
@@ -285,6 +586,7 @@ document.addEventListener("keydown", (e) => {
     nextTrial();
   }
 });
+
 function renderSettings() {
   const row = (v) => `<div class="vrow"><label><input type="checkbox" data-voice="${v}" ${SET.voices.includes(v) ? "checked" : ""}> ${esc(voiceLabel(v))}</label>
     <button data-hear="${v}" title="미리 듣기" aria-label="${esc(voiceLabel(v))} 미리 듣기">🔈</button></div>`;
@@ -307,7 +609,7 @@ $("vo-ref").onclick = () => { SET.voices = [SET.ref]; saveSettings(); renderSett
 $("ref").onchange = (e) => { SET.ref = e.target.value; saveSettings(); };
 $("set-slow").onchange = (e) => { SET.slow = e.target.checked; saveSettings(); };
 
-api("/api/pairs").then((d) => { DATA = d; fixSettings(); renderHome(); })
+api("/api/pairs").then((d) => { DATA = d; fixSettings(); go(new URLSearchParams(location.search).get("tab") || "listen"); refreshDue(); })
   .catch(() => { view.innerHTML = '<p class="err">yourAccent 프로그램에 연결하지 못했습니다. 프로그램이 켜져 있는지 확인하세요.</p>'; });
 </script>
 </body>
