@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>yourAccent</title>
+<style>
+  :root {
+    --bg: #faf8f5; --panel: #ffffff; --text: #1f2328; --muted: #6b7280; --line: #e5e0d8;
+    --accent: #2f5d8a; --accent-text: #ffffff; --good: #2e7d4f; --good-bg: #e6f3ea;
+    --bad: #b3402a; --bad-bg: #f9e8e4; --dot: #d7d2c9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17191c; --panel: #212428; --text: #e8e6e1; --muted: #9aa0a8; --line: #343a40;
+      --accent: #7fb0e0; --accent-text: #10151a; --good: #6fcf97; --good-bg: #1d3327;
+      --bad: #f08c78; --bad-bg: #3a2420; --dot: #3d434a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, "Apple SD Gothic Neo", "Helvetica Neue", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .brand { font-weight: 700; font-size: 20px; letter-spacing: .2px; }
+  .brand span { font-weight: 400; font-size: 14px; color: var(--muted); margin-left: 8px; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 20px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 1px solid var(--line);
+    background: var(--panel); border-radius: 10px; padding: 8px 14px; }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .card { text-align: left; padding: 16px; border-radius: 14px; background: var(--panel);
+    border: 1px solid var(--line); display: block; width: 100%; }
+  .card .words { font-size: 20px; font-weight: 700; }
+  .card .sounds { color: var(--muted); font-size: 14px; }
+  .card .state { margin-top: 10px; font-size: 14px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px;
+    background: var(--good-bg); color: var(--good); }
+  .tip { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 16px 0; }
+  .wordrow { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+  .wordrow button { flex: 1 1 200px; font-size: 26px; font-weight: 700; padding: 18px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+  .choices { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+  .choices button { flex: 1 1 200px; font-size: 28px; font-weight: 700; padding: 22px; }
+  .choices button small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .listen { font-size: 40px; width: 96px; height: 96px; border-radius: 50%; padding: 0; }
+  .dots { display: flex; gap: 6px; margin: 8px 0 4px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--dot); }
+  .dot.ok { background: var(--good); } .dot.no { background: var(--bad); }
+  .feedback { border-radius: 12px; padding: 12px 16px; margin: 12px 0; }
+  .feedback.ok { background: var(--good-bg); color: var(--good); }
+  .feedback.no { background: var(--bad-bg); color: var(--bad); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .center { text-align: center; }
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); padding: 20px 22px; max-width: 420px; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  label { display: block; margin: 10px 0; }
+  .err { color: var(--bad); }
+  @media (max-width: 560px) { main { padding: 16px 16px 48px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">yourAccent<span>듣기 훈련</span></div>
+  <div><button class="ghost" id="open-settings">설정</button></div>
+</header>
+<main id="view" aria-live="polite"></main>
+
+<dialog id="settings">
+  <h2 style="margin-top:0">설정</h2>
+  <label><input type="checkbox" id="set-mix"> 목소리를 섞어서 듣기 (끄면 George만)</label>
+  <label><input type="checkbox" id="set-slow"> 천천히 듣기</label>
+  <div class="row"><button class="primary" id="close-settings">닫기</button></div>
+</dialog>
+
+<script>
+"use strict";
+const params = new URLSearchParams(location.search);
+const MUTE = params.get("mute") === "1";       // for tests: no sound
+let DATA = null;                                // pairs, voices, progress from the server
+let SET = { mix: true, slow: false };
+try { Object.assign(SET, JSON.parse(localStorage.getItem("youraccent-settings") || "{}")); } catch (e) {}
+const $ = (id) => document.getElementById(id);
+const view = $("view");
+let audioEl = null;
+let session = null;                             // the running quiz
+
+function saveSettings() { try { localStorage.setItem("youraccent-settings", JSON.stringify(SET)); } catch (e) {} }
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  if (!res.ok) throw new Error((await res.text()) || res.status);
+  return res.json();
+}
+function audioUrl(word, voice) {
+  return `/api/audio?word=${encodeURIComponent(word)}&voice=${encodeURIComponent(voice)}&speed=${SET.slow ? "slow" : "normal"}`;
+}
+// Plays one word. Resolves when it has finished (or at once when muted or when it fails).
+function play(word, voice) {
+  return new Promise((resolve) => {
+    if (MUTE) return setTimeout(resolve, 30);
+    if (audioEl) audioEl.pause();
+    audioEl = new Audio(audioUrl(word, voice));
+    audioEl.onended = resolve;
+    audioEl.onerror = () => { showError("소리를 만들지 못했습니다."); resolve(); };
+    audioEl.play().catch(() => resolve());
+  });
+}
+function preload(word, voice) { if (!MUTE) { const a = new Audio(audioUrl(word, voice)); a.preload = "auto"; a.load(); } }
+function showError(text) { const e = $("error"); if (e) e.textContent = text; }
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---------------------------------------------------------------- home
+function progressOf(id) { return (DATA.progress[id]) || { trials: 0, correct: 0, recent: [], passed: false }; }
+
+function renderHome() {
+  session = null;
+  const cards = DATA.pairs.map((p) => {
+    const pr = progressOf(p.id);
+    const state = pr.passed ? '<span class="badge">통과</span> ' : "";
+    const stat = pr.trials ? `${state}${pr.trials}번 중 ${pr.correct}번 맞힘` : "아직 안 해 봤어요";
+    return `<button class="card" data-pair="${p.id}"><div class="words">${esc(p.words[0])} / ${esc(p.words[1])}</div>
+      <div class="sounds">${esc(p.sounds)}</div><div class="state muted">${stat}</div></button>`;
+  }).join("");
+  view.innerHTML = `<h1>어떤 소리를 연습할까요?</h1>
+    <p class="lead">두 단어를 귀로 구분할 수 있을 때까지 반복합니다. 최근 10번 중 9번을 맞히면 통과입니다.</p>
+    <div class="grid">${cards}</div>`;
+  view.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => renderPair(b.dataset.pair)));
+}
+
+// ---------------------------------------------------------------- one pair: hear it, then the quiz
+function renderPair(id) {
+  const pair = DATA.pairs.find((p) => p.id === id);
+  const target = DATA.voices.target;
+  const [a, b] = pair.words;
+  view.innerHTML = `<button class="ghost" id="back">← 목록</button>
+    <h1>${esc(a)} / ${esc(b)} <span class="muted">${esc(pair.sounds)}</span></h1>
+    <div class="tip">${esc(pair.tip)}</div>
+    <p class="muted">먼저 차이를 들어 보세요. (목소리: ${esc(target)})</p>
+    <div class="wordrow"><button id="w0">🔈 ${esc(a)}</button><button id="w1">🔈 ${esc(b)}</button></div>
+    <div class="row"><button id="alt">번갈아 듣기</button><button class="primary" id="start">퀴즈 시작</button></div>
+    <p class="err" id="error"></p>`;
+  $("back").onclick = renderHome;
+  $("w0").onclick = () => play(a, target);
+  $("w1").onclick = () => play(b, target);
+  $("alt").onclick = async () => { for (let i = 0; i < 2; i++) { await play(a, target); await wait(350); await play(b, target); await wait(500); } };
+  $("start").onclick = () => startQuiz(pair);
+  preload(a, target); preload(b, target);
+}
+
+function pickVoice() {
+  const target = DATA.voices.target;
+  if (!SET.mix) return target;
+  if (Math.random() < 0.3) return target;
+  const pool = [...DATA.voices.british, ...DATA.voices.american_male].filter((v) => v !== target);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function pickWord(pair) {
+  const conf = progressOf(pair.id).confusions || {};
+  const [a, b] = pair.words;
+  const wa = 1 + Math.min(3, conf[`${a}>${b}`] || 0);   // a word that was mistaken more often comes more often
+  const wb = 1 + Math.min(3, conf[`${b}>${a}`] || 0);
+  return Math.random() * (wa + wb) < wa ? a : b;
+}
+function makeTrial(pair) { return { word: pickWord(pair), voice: pickVoice() }; }
+
+function startQuiz(pair) {
+  session = { pair, trial: makeTrial(pair), answered: false, busy: false };
+  renderQuiz();
+  playTrial();
+}
+
+function dots(pr) {
+  const items = [];
+  for (let i = 0; i < 10; i++) {
+    const v = pr.recent[i];
+    items.push(`<span class="dot ${v === 1 ? "ok" : v === 0 ? "no" : ""}"></span>`);
+  }
+  return items.join("");
+}
+
+function renderQuiz(feedback) {
+  const { pair, trial } = session;
+  const pr = progressOf(pair.id);
+  const [a, b] = pair.words;
+  const choices = session.answered
+    ? ""
+    : `<div class="choices"><button data-w="${esc(a)}">${esc(a)}<small>키 1</small></button><button data-w="${esc(b)}">${esc(b)}<small>키 2</small></button></div>`;
+  view.innerHTML = `<button class="ghost" id="back">← 목록</button>
+    <h1>${esc(a)} / ${esc(b)} <span class="muted">듣기 퀴즈</span></h1>
+    <div class="center"><button class="listen" id="again" title="다시 듣기 (스페이스)">🔈</button>
+    <p class="muted">${session.answered ? "" : "들려주는 단어를 고르세요. 스페이스로 다시 들을 수 있어요."}</p></div>
+    ${choices}
+    ${feedback || ""}
+    <div class="muted">최근 10번 (${pr.recent.reduce((s, x) => s + x, 0)}번 맞힘, 9번이면 통과)</div>
+    <div class="dots">${dots(pr)}</div>
+    <p class="err" id="error"></p>`;
+  $("back").onclick = renderHome;
+  $("again").onclick = () => play(trial.word, trial.voice);
+  view.querySelectorAll(".choices button").forEach((btn) => btn.addEventListener("click", () => answer(btn.dataset.w)));
+  const next = $("next"); if (next) next.onclick = nextTrial;
+  const cmp = $("compare"); if (cmp) cmp.onclick = compare;
+  const more = $("keep"); if (more) more.onclick = nextTrial;
+  const done = $("done"); if (done) done.onclick = renderHome;
+}
+
+async function playTrial() { await play(session.trial.word, session.trial.voice); }
+
+async function answer(chosen) {
+  if (!session || session.answered || session.busy) return;
+  session.busy = true;
+  const { pair, trial } = session;
+  let result;
+  try {
+    result = await api("/api/answer", { pair: pair.id, played: trial.word, chosen, voice: trial.voice });
+  } catch (e) { session.busy = false; return showError("기록하지 못했습니다."); }
+  DATA.progress[pair.id] = result;
+  session.answered = true; session.busy = false;
+  const right = chosen === trial.word;
+  let fb = right
+    ? `<div class="feedback ok">맞았어요! 들려준 단어는 <b>${esc(trial.word)}</b>입니다. <span class="muted">(${esc(trial.voice)})</span></div>`
+    : `<div class="feedback no">아쉬워요. 들려준 단어는 <b>${esc(trial.word)}</b>였어요. <span class="muted">(${esc(trial.voice)})</span></div>`;
+  if (result.just_passed) {
+    fb += `<div class="feedback ok"><b>통과!</b> 최근 10번 중 9번 이상 맞혔어요. 계속 연습하거나 다른 소리로 넘어가세요.</div>
+      <div class="row"><button class="primary" id="keep">계속 연습</button><button id="done">다른 소리 고르기</button></div>`;
+  } else {
+    fb += `<div class="row"><button id="compare">두 단어 비교해서 듣기</button><button class="primary" id="next">다음 (Enter)</button></div>`;
+  }
+  renderQuiz(fb);
+  if (!right) compare();
+}
+
+async function compare() {
+  if (!session) return;
+  const [a, b] = session.pair.words, v = DATA.voices.target;
+  await play(a, v); await wait(300); await play(b, v);
+}
+
+function nextTrial() {
+  session.trial = makeTrial(session.pair);
+  session.answered = false;
+  renderQuiz();
+  preload(session.trial.word, session.trial.voice);
+  playTrial();
+}
+
+// ---------------------------------------------------------------- keys and settings
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (!session || (t.closest && t.closest("dialog")) || e.metaKey || e.ctrlKey || e.altKey) return;
+  const onButton = t.tagName === "BUTTON";
+  const [a, b] = session.pair.words;
+  if (!session.answered) {
+    if (e.key === "1") answer(a);
+    else if (e.key === "2") answer(b);
+    else if (e.key === " " && !onButton) { e.preventDefault(); play(session.trial.word, session.trial.voice); }
+  } else if (e.key === "Enter" && !$("done") && !onButton) {
+    nextTrial();
+  }
+});
+$("open-settings").onclick = () => { $("set-mix").checked = SET.mix; $("set-slow").checked = SET.slow; $("settings").showModal(); };
+$("close-settings").onclick = () => $("settings").close();
+$("set-mix").onchange = (e) => { SET.mix = e.target.checked; saveSettings(); };
+$("set-slow").onchange = (e) => { SET.slow = e.target.checked; saveSettings(); };
+
+api("/api/pairs").then((d) => { DATA = d; renderHome(); })
+  .catch(() => { view.innerHTML = '<p class="err">yourAccent 프로그램에 연결하지 못했습니다. 프로그램이 켜져 있는지 확인하세요.</p>'; });
+</script>
+</body>
+</html>

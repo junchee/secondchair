@@ -1,0 +1,7 @@
+# yourAccent's voice engine (Kokoro through MLX). Install into its own environment, not secondchair's:
+#   python3.13 -m venv ~/.venvs/youraccent
+#   ~/.venvs/youraccent/bin/pip install --only-binary=:all: -r youraccent/requirements.txt
+# --only-binary matters: without it spacy's pinned thinc is built from source and fails on Python 3.13.
+# The first start also downloads spaCy's en_core_web_sm (about 13 MB) and the Kokoro model (339 MB).
+mlx-audio==0.6.1
+misaki[en]==0.7.4
