@@ -93,6 +93,34 @@
   .vrow { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
   .vrow label { margin: 0; flex: 1; }
   .vrow button { padding: 2px 10px; }
+
+  .filebtn { display: inline-block; cursor: pointer; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; background: var(--panel); margin: 0; }
+  textarea.big { min-height: 58vh; font-size: 17px; line-height: 1.7; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .recbox { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; margin: 8px 0; }
+  .meter { height: 16px; background: var(--dot); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+  #meter-bar { height: 100%; width: 0; background: var(--good); transition: width .06s linear; }
+  #meter-bar.hot { background: var(--bad); }
+  .live { margin-top: 6px; min-height: 1.6em; }
+  .try { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 6px; }
+  .try h3 { margin: 8px 0 4px; font-size: 17px; }
+  .legend { margin: 2px 0 0; }
+  .grid2 { display: flex; flex-wrap: wrap; gap: 6px 4px; margin: 6px 0 10px; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 46px; padding: 6px 8px; border: 1px solid transparent; border-radius: 10px; background: transparent; }
+  .col.sel { border-color: var(--accent); }
+  .col .w { font-size: 20px; padding: 0 8px; border-radius: 8px; }
+  .col .h { font-size: 15px; }
+  .col .s { font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; white-space: nowrap; }
+  .w.ok { background: var(--good-bg); color: var(--good); }
+  .w.doubt { background: var(--warn-bg); color: var(--warn); }
+  .w.wrong, .w.missed { background: var(--bad-bg); color: var(--bad); }
+  .h.ok, .s.ok { color: var(--muted); }
+  .h.doubt, .s.doubt { color: var(--warn); }
+  .h.wrong, .h.missed, .s.wrong, .s.missed { color: var(--bad); font-weight: 600; }
+  table.cmp { border-collapse: collapse; margin: 8px 0; }
+  table.cmp th, table.cmp td { padding: 4px 14px; text-align: center; border-bottom: 1px solid var(--line); }
+  table.cmp td:first-child { text-align: left; }
+  td.m.ok { color: var(--good); } td.m.doubt { color: var(--warn); } td.m.wrong, td.m.missed { color: var(--bad); }
   @media (max-width: 560px) { main { padding: 16px 16px 48px; } .sentence { font-size: 20px; } }
 </style>
 </head>
@@ -119,6 +147,13 @@
   <select id="ref" aria-label="설명 목소리"></select>
   <h3>속도</h3>
   <label><input type="checkbox" id="set-slow"> 천천히 듣기</label>
+  <h3>읽은 것을 판정하는 방식</h3>
+  <p class="muted" style="margin:0 0 8px">메모리가 적은 Mac에서는 하나만 쓰면 더 빨라요.</p>
+  <select id="set-engine" aria-label="판정 방식">
+    <option value="both">소리 기준 + 단어 기준(Whisper) 둘 다</option>
+    <option value="phoneme">소리 기준만 (빠름)</option>
+    <option value="whisper">단어 기준(Whisper)만</option>
+  </select>
   <div class="row"><button class="primary" id="close-settings">닫기</button></div>
 </dialog>
 
@@ -127,7 +162,7 @@
 const params = new URLSearchParams(location.search);
 const MUTE = params.get("mute") === "1";       // for tests: no sound
 let DATA = null;                                // pairs, voices, progress from the server
-let SET = { voices: null, ref: null, slow: false };
+let SET = { voices: null, ref: null, slow: false, engine: "both" };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("youraccent-settings") || "{}")); } catch (e) {}
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -143,6 +178,7 @@ function fixSettings() {                         // fill in defaults, drop voice
   SET.voices = Array.isArray(SET.voices) ? SET.voices.filter((v) => all.includes(v)) : all.slice();
   if (!SET.voices.length) SET.voices = all.slice();
   if (!all.includes(SET.ref)) SET.ref = DATA.voices.target;
+  if (!["both", "phoneme", "whisper"].includes(SET.engine)) SET.engine = "both";
 }
 function voiceLabel(v) {
   const kind = { bm: "영국 남", bf: "영국 여", am: "미국 남", af: "미국 여" }[v.slice(0, 2)] || "";
@@ -359,27 +395,24 @@ function renderNewMaterial() {
   view.innerHTML = `<button class="ghost" id="back">← 원고 목록</button>
     <h1>새 원고</h1>
     <label>제목<input type="text" id="title" placeholder="예: 강의 1주차"></label>
-    <label>파일 열기 (텍스트 .txt 또는 .pdf)<input type="file" id="file" accept=".txt,.pdf,text/plain,application/pdf"></label>
-    <label>원고 내용 (붙여 넣거나 고칠 수 있어요)<textarea id="text" placeholder="영어 원고를 붙여 넣으세요"></textarea></label>
-    <p class="muted" id="msg">줄바꿈만 있는 곳은 한 문장으로 이어 붙이고, 마침표·물음표·느낌표에서 문장을 나눕니다.</p>
-    <div class="row"><button class="primary" id="save">저장</button></div>
+    <label>원고 내용 — 영어 글을 여기에 붙여 넣으세요 (붙인 뒤에 고칠 수도 있어요)
+      <textarea id="text" class="big" placeholder="여기에 붙여 넣기 (⌘V)"></textarea></label>
+    <div class="row"><button class="primary" id="save">저장</button>
+      <label class="filebtn">텍스트 파일(.txt) 열기<input type="file" id="file" accept=".txt,text/plain" hidden></label>
+      <span class="muted" id="count"></span></div>
+    <p class="muted">줄바꿈만 있는 곳은 한 문장으로 이어 붙이고, 마침표·물음표·느낌표에서 문장을 나눕니다.</p>
     <p class="err" id="error"></p>`;
   $("back").onclick = () => go("script");
+  const count = () => { const n = ($("text").value.match(/[.!?](\s|$)/g) || []).length; $("count").textContent = n ? `대략 ${n}문장` : ""; };
+  $("text").addEventListener("input", count);
   $("file").onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    $("msg").textContent = "파일을 읽는 중…";
     try {
-      if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
-        const res = await fetch("/api/pdf", { method: "POST", headers: { "Content-Type": "application/pdf" }, body: await file.arrayBuffer() });
-        if (!res.ok) throw new Error("pdf");
-        $("text").value = (await res.json()).text;
-      } else {
-        $("text").value = await file.text();
-      }
+      $("text").value = await file.text();
       if (!$("title").value) $("title").value = file.name.replace(/\.[^.]+$/, "");
-      $("msg").textContent = "내용을 확인하고, 필요하면 고친 뒤 저장하세요.";
-    } catch (err) { $("msg").textContent = ""; showError("파일을 읽지 못했습니다. 글자를 직접 붙여 넣어 주세요. (스캔한 PDF는 글자를 읽을 수 없어요)"); }
+      count();
+    } catch (err) { showError("파일을 읽지 못했습니다. 글자를 직접 붙여 넣어 주세요."); }
   };
   $("save").onclick = async () => {
     try {
@@ -387,6 +420,7 @@ function renderNewMaterial() {
       renderMaterial(m.id);
     } catch (err) { showError("저장하지 못했습니다. 영어 문장이 들어 있는지 확인하세요."); }
   };
+  $("text").focus();
 }
 
 async function renderMaterial(id) {
@@ -401,16 +435,23 @@ async function renderMaterial(id) {
 }
 
 // ---------------------------------------------------------------- recording in the browser
-const Rec = { stream: null, ctx: null, node: null, chunks: [], active: false };
+const Rec = { stream: null, ctx: null, node: null, chunks: [], active: false, level: 0, max: 0, t0: 0, peeking: false };
 async function startRecording() {
   Rec.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
   Rec.ctx = new (window.AudioContext || window.webkitAudioContext)();
   const source = Rec.ctx.createMediaStreamSource(Rec.stream);
   Rec.node = Rec.ctx.createScriptProcessor(4096, 1, 1);   // writes nothing to its output: silent
-  Rec.chunks = [];
-  Rec.node.onaudioprocess = (e) => Rec.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  Rec.chunks = []; Rec.level = 0; Rec.max = 0; Rec.t0 = performance.now(); Rec.peeking = false;
+  Rec.node.onaudioprocess = (e) => {
+    const data = new Float32Array(e.inputBuffer.getChannelData(0));
+    Rec.chunks.push(data);
+    let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+    const rms = Math.sqrt(sum / data.length);
+    Rec.level = Math.max(rms, Rec.level * 0.8); Rec.max = Math.max(Rec.max, rms);
+  };
   source.connect(Rec.node); Rec.node.connect(Rec.ctx.destination);
   Rec.active = true;
+  meterLoop(); peekLoop();
 }
 function stopRecordingQuietly() {
   if (!Rec.active) return;
@@ -422,6 +463,30 @@ function finishRecording() {
   stopRecordingQuietly();
   return encodeWav(chunks, rate);
 }
+function meterLoop() {                                   // the level bar, the timer and the "no sound" hint
+  if (!Rec.active) return;
+  const bar = $("meter-bar");
+  if (bar) {
+    const db = 20 * Math.log10(Math.max(Rec.level, 1e-5));
+    const pct = Math.max(0, Math.min(100, ((db + 55) / 55) * 100));
+    bar.style.width = pct + "%"; bar.classList.toggle("hot", pct > 92);
+  }
+  const secs = (performance.now() - Rec.t0) / 1000;
+  const timer = $("rec-time"); if (timer) timer.textContent = Math.floor(secs / 60) + ":" + String(Math.floor(secs % 60)).padStart(2, "0");
+  const hint = $("mic-hint"); if (hint) hint.hidden = !(secs > 3 && Rec.max < 0.003);
+  requestAnimationFrame(meterLoop);
+}
+async function peekOnce() {                              // what Whisper hears so far, shown while reading
+  if (!Rec.active || Rec.peeking || !SP) return;
+  Rec.peeking = true;
+  try {
+    const blob = encodeWav(Rec.chunks.slice(), Rec.ctx.sampleRate);
+    const res = await fetch("/api/peek", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    if (res.ok && Rec.active && SP) { SP.live = (await res.json()).text; const el = $("live-text"); if (el) el.textContent = SP.live; }
+  } catch (e) {}
+  Rec.peeking = false;
+}
+async function peekLoop() { while (Rec.active) { await wait(2500); await peekOnce(); } }
 function encodeWav(chunks, rate) {                       // 16-bit mono wav
   let n = 0; for (const c of chunks) n += c.length;
   const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
@@ -434,79 +499,140 @@ function encodeWav(chunks, rate) {                       // 16-bit mono wav
   return new Blob([buf], { type: "audio/wav" });
 }
 
-// ---------------------------------------------------------------- one sentence
+// ---------------------------------------------------------------- one sentence, tried again and again
+const STATUS_TEXT = { ok: "잘 들렸어요", doubt: "애매해요", wrong: "다르게 들렸어요", missed: "들리지 않았어요" };
+const SYMBOL = { ok: "✓", doubt: "?", wrong: "✗", missed: "–" };
+
 function openSentence(list, idx, back) {
-  SP = { list, idx, back, result: null, selected: null, busy: false, recording: false, status: "" };
+  SP = { list, idx, back, tries: [], selected: null, busy: false, recording: false, status: "", live: "" };
   renderSentence();
 }
+function primaryOf(data) { return data.engines[data.primary]; }
+function counts(data) {
+  const e = primaryOf(data);
+  return { bad: e.rows.filter((r) => r.status === "wrong" || r.status === "missed").length,
+           unsure: e.rows.filter((r) => r.status === "doubt").length, incomplete: e.incomplete };
+}
 
-const STATUS_TEXT = { ok: "잘 들렸어요", doubt: "확신이 낮아요", wrong: "다른 단어로 들렸어요", missed: "들리지 않았어요" };
+// The script and what was heard, word by word, one above the other.
+function gridHtml(t, ti) {
+  const d = t.data, ph = d.engines.phoneme, wh = d.engines.whisper;
+  return '<div class="grid2">' + (ph || wh).rows.map((r, i) => {
+    const rp = ph && ph.rows[i], rw = wh && wh.rows[i], main = rp || rw;
+    const sel = SP.selected && SP.selected.t === ti && SP.selected.i === i;
+    const heard = rw ? (rw.status === "missed" ? "—" : rw.heard_as) : "";
+    const sound = rp ? (rp.status === "ok" ? "✓" : `${rp.expected} → ${rp.heard_as || "∅"}`) : "";
+    return `<button class="col ${sel ? "sel" : ""}" data-t="${ti}" data-i="${i}" aria-label="${esc(r.word)}: ${STATUS_TEXT[main.status]}">
+      <span class="w ${main.status}">${esc(r.word)}</span>
+      ${rw ? `<span class="h ${rw.status}">${esc(heard)}</span>` : ""}
+      ${rp ? `<span class="s ${rp.status}">${esc(sound)}</span>` : ""}</button>`;
+  }).join("") + "</div>";
+}
+
+function tryHtml(t, ti) {
+  const d = t.data, c = counts(d), wh = d.engines.whisper;
+  const prev = SP.tries.slice(0, ti).reverse().find((x) => !counts(x.data).incomplete);
+  let delta = "";
+  if (prev && !c.incomplete) {
+    const diff = c.bad - counts(prev.data).bad;
+    delta = diff < 0 ? `<span class="badge">↓ 틀린 단어 ${-diff}개 줄었어요</span>` : diff > 0 ? `<span class="badge due">↑ ${diff}개 늘었어요</span>` : '<span class="badge due">변화 없음</span>';
+  }
+  const head = c.incomplete ? "끝까지 읽지 않은 것 같아요 (복습에 저장 안 함)"
+    : (c.bad ? `틀린 단어 ${c.bad}개` : "틀린 단어 없음") + (c.unsure ? ` · 애매 ${c.unsure}개` : "");
+  const errs = Object.keys(d.errors || {}).map((n) => `<div class="feedback warn">${esc(n === "phoneme" ? "소리 기준" : "단어 기준")} 판정을 쓰지 못했어요.</div>`).join("");
+  const legend = d.engines.phoneme && wh ? "위: 원고 · 가운데: 들린 말(Whisper) · 아래: 소리 차이" : d.engines.phoneme ? "위: 원고 · 아래: 소리 차이" : "위: 원고 · 아래: 들린 말(Whisper)";
+  return `<section class="try" data-try="${ti}"><h3>시도 ${t.n} <span class="muted">· ${head}</span> ${delta}</h3>
+    ${errs}${d.quiet ? '<div class="feedback warn">소리가 아주 작게 들어갔어요. 마이크에 더 가까이서 읽어 보세요.</div>' : ""}
+    <div class="legend muted">${legend}</div>
+    ${gridHtml(t, ti)}
+    ${wh ? `<div class="muted">Whisper가 들은 문장: “${esc(wh.heard || "아무것도 안 들림")}”</div>` : ""}
+    <div data-detail="${ti}"></div></section>`;
+}
+
+// What I know now: which words got better over the tries, which are still hard.
+function compareHtml() {
+  const done = SP.tries.filter((t) => !counts(t.data).incomplete);
+  if (done.length < 2) return "";
+  const rowsOf = (t) => primaryOf(t.data).rows, n = rowsOf(done[0]).length;
+  const bad = (r) => r.status === "wrong" || r.status === "missed";
+  const words = [];
+  for (let i = 0; i < n; i++) {
+    const marks = done.map((t) => rowsOf(t)[i]);
+    if (marks.some(bad)) words.push({ word: marks[0].word, marks });
+  }
+  const last = (w) => w.marks[w.marks.length - 1];
+  const better = words.filter((w) => !bad(last(w))).map((w) => w.word), hard = words.filter((w) => bad(last(w))).map((w) => w.word);
+  const head = done.map((t) => `<th>시도 ${t.n}</th>`).join("");
+  const body = words.map((w) => `<tr><td><b>${esc(w.word)}</b></td>${w.marks.map((r) => `<td class="m ${r.status}" title="${STATUS_TEXT[r.status]}">${SYMBOL[r.status]}</td>`).join("")}</tr>`).join("");
+  return `<section class="panel"><h3 style="margin:0 0 6px">내가 아는 것</h3>
+    ${better.length ? `<div class="feedback ok">좋아진 단어: <b>${esc(better.join(", "))}</b></div>` : ""}
+    ${hard.length ? `<div class="feedback no">아직 어려운 단어: <b>${esc(hard.join(", "))}</b></div>` : '<div class="feedback ok">마지막 시도에는 틀린 단어가 없어요.</div>'}
+    ${words.length ? `<table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table><div class="muted">✓ 잘 읽음 · ? 애매 · ✗ 틀림 · – 안 들림</div>` : ""}</section>`;
+}
 
 function renderSentence() {
-  const text = SP.list[SP.idx], res = SP.result;
-  let body;
-  if (res) {
-    body = res.rows.map((r) => `<button class="chip ${r.status} ${SP.selected === r.i ? "sel" : ""}" data-i="${r.i}" aria-label="${esc(r.word)}: ${STATUS_TEXT[r.status]}">${esc(r.word)}</button>`).join(" ");
-  } else {
-    body = esc(text);
-  }
-  const flagged = res ? res.rows.filter((r) => r.status !== "ok").length : 0;
-  let summary = "";
-  if (res) {
-    if (res.incomplete) summary = `<div class="feedback warn">문장을 끝까지 읽지 않았거나 소리가 잘 안 들어간 것 같아요. 이번 결과는 복습에 저장하지 않았어요. 들린 것: “${esc(res.heard || "아무것도 안 들림")}”</div>`;
-    else summary = `<div class="feedback ${flagged ? "no" : "ok"}">${flagged ? `확인할 단어가 ${flagged}개 있어요. 눌러서 들어 보세요.` : "모든 단어가 문장대로 들렸어요."} <span class="muted">들린 것: “${esc(res.heard)}”</span></div>`;
-    if (res.quiet) summary += '<div class="feedback warn">소리가 아주 작게 들어갔어요. 마이크에 더 가까이서 읽어 보세요.</div>';
-    summary += '<p class="muted">Whisper가 들은 것을 기준으로 한 결과라 틀릴 수 있어요. 비슷한 소리는 알아서 고쳐 적기도 합니다.</p>';
-  }
-  const multi = SP.list.length > 1;
+  const text = SP.list[SP.idx], multi = SP.list.length > 1, nextTry = SP.tries.length + 1;
+  const recArea = SP.recording ? `<div class="recbox">
+      <div class="meter" role="img" aria-label="마이크 소리 크기"><div id="meter-bar"></div></div>
+      <div class="muted"><span class="pulse">● 녹음 중</span> <span id="rec-time">0:00</span> · 막대가 움직이면 소리가 들어가고 있어요</div>
+      <div class="live">듣는 중: <b id="live-text">${esc(SP.live || "")}</b></div>
+      <div class="feedback warn" id="mic-hint" hidden>마이크 소리가 거의 안 들어와요. 마이크 연결과 시스템 설정의 입력 장치를 확인하세요.</div></div>` : "";
   view.innerHTML = `<button class="ghost" id="back">← 뒤로</button>
     ${multi ? `<div class="muted">${SP.idx + 1} / ${SP.list.length}</div>` : ""}
-    <div class="sentence" id="sentence">${body}</div>
+    <div class="sentence" id="sentence">${esc(text)}</div>
     <div class="row">
-      <button id="listen">🔈 듣기</button><button id="slow">🐢 천천히</button>
-      <button id="rec" class="${SP.recording ? "rec pulse" : "primary"}" ${SP.busy ? "disabled" : ""}>${SP.recording ? "■ 끝내기" : "🎙 읽기"}</button>
+      <button id="listen" ${SP.recording ? "disabled" : ""}>🔈 듣기</button><button id="slow" ${SP.recording ? "disabled" : ""}>🐢 천천히</button>
+      <button id="rec" class="${SP.recording ? "rec pulse" : "primary"}" ${SP.busy ? "disabled" : ""}>${SP.recording ? "■ 끝내기" : SP.tries.length ? `🎙 다시 읽기 (시도 ${nextTry})` : "🎙 읽기"}</button>
     </div>
+    ${recArea}
     <p class="muted" id="status">${esc(SP.status)}</p>
-    ${summary}
-    <div id="detail"></div>
+    ${SP.tries.map(tryHtml).join("")}
+    ${compareHtml()}
     <div class="row">
-      ${res ? '<button id="again">다시 읽기</button>' : ""}
       <button id="save-sentence">문장 저장</button>
-      ${multi ? `<button id="prev" ${SP.idx === 0 ? "disabled" : ""}>← 이전 문장</button><button id="next" class="${res ? "primary" : ""}" ${SP.idx === SP.list.length - 1 ? "disabled" : ""}>다음 문장 →</button>` : ""}
+      ${multi ? `<button id="prev" ${SP.idx === 0 ? "disabled" : ""}>← 이전 문장</button><button id="next" ${SP.idx === SP.list.length - 1 ? "disabled" : ""}>다음 문장 →</button>` : ""}
     </div>
     <p class="err" id="error"></p>`;
   $("back").onclick = () => { stopAudio(); stopRecordingQuietly(); SP.back(); };
   $("listen").onclick = () => play(text, SET.ref);
   $("slow").onclick = () => play(text, SET.ref, "slow");
   $("rec").onclick = toggleRecording;
-  view.querySelectorAll(".chip[data-i]").forEach((c) => c.addEventListener("click", () => { SP.selected = +c.dataset.i; renderSentence(); }));
-  const again = $("again"); if (again) again.onclick = () => { SP.result = null; SP.selected = null; SP.status = ""; renderSentence(); };
+  view.querySelectorAll(".col[data-i]").forEach((c) => c.addEventListener("click", () => { SP.selected = { t: +c.dataset.t, i: +c.dataset.i }; renderSentence(); }));
   $("save-sentence").onclick = async () => { await api("/api/review/save", { kind: "sentence", text }); SP.status = "문장을 복습에 저장했어요."; $("status").textContent = SP.status; refreshDue(); };
   const prev = $("prev"); if (prev) prev.onclick = () => openSentence(SP.list, SP.idx - 1, SP.back);
   const next = $("next"); if (next) next.onclick = () => openSentence(SP.list, SP.idx + 1, SP.back);
-  if (res && SP.selected !== null) renderDetail();
+  renderDetail();
   if (SP.preload !== text) { SP.preload = text; preload(text, SET.ref); }
 }
 
 function renderDetail() {
-  const r = SP.result.rows[SP.selected];
-  if (!r) return;
+  if (!SP.selected) return;
+  const { t: ti, i } = SP.selected, t = SP.tries[ti], host = view.querySelector(`[data-detail="${ti}"]`);
+  if (!t || !host) return;
+  const d = t.data, ph = d.engines.phoneme && d.engines.phoneme.rows[i], wh = d.engines.whisper && d.engines.whisper.rows[i], r = ph || wh;
+  const lines = [];
+  if (wh) lines.push(`들린 말(Whisper): <b>${esc(wh.status === "missed" ? "—" : wh.heard_as)}</b> <span class="muted">(${STATUS_TEXT[wh.status]})</span>`);
+  if (ph) lines.push(`소리 기준: <span class="mono">${esc(ph.expected)}</span> → <span class="mono">${esc(ph.heard_as || "—")}</span> <span class="muted">(${STATUS_TEXT[ph.status]})</span>${ph.note ? ` · <b>${esc(ph.note)}</b>` : ""}`);
+  const clipEngine = ph && ph.has_clip ? "phoneme" : wh && wh.has_clip ? "whisper" : null;
   const inPair = DATA.pairs.find((p) => p.words.includes(r.word.toLowerCase()));
-  const heard = r.status === "wrong" ? `「${esc(r.heard_as)}」로 들렸어요.` : r.status === "doubt" ? `확신이 낮았어요 (확신도 ${r.prob}).` : r.status === "missed" ? "들리지 않았어요." : "잘 들렸어요.";
-  $("detail").innerHTML = `<div class="panel"><div><b style="font-size:20px">${esc(r.word)}</b> <span class="muted">${heard}</span></div>
+  host.innerHTML = `<div class="panel"><div><b style="font-size:20px">${esc(r.word)}</b></div>
+    <div class="muted" style="line-height:1.9">${lines.join("<br>")}</div>
     <div class="row">
-      <button id="d-right">▶ 정답 소리</button>
-      <button id="d-mine" ${r.has_clip ? "" : "disabled"}>▶ 내 소리</button>
-      <button id="d-both" ${r.has_clip ? "" : "disabled"}>번갈아 듣기</button>
-      <button id="d-save">복습에 저장</button>
-      ${inPair ? '<button id="d-pair">이 소리 듣기 훈련</button>' : ""}
+      <button data-a="right">▶ 정답 소리</button>
+      <button data-a="mine" ${clipEngine ? "" : "disabled"}>▶ 내 소리</button>
+      <button data-a="both" ${clipEngine ? "" : "disabled"}>번갈아 듣기</button>
+      <button data-a="save">복습에 저장</button>
+      ${inPair ? '<button data-a="pair">이 소리 듣기 훈련</button>' : ""}
     </div></div>`;
-  const mine = () => playUrl(`/api/clip?attempt=${SP.result.attempt}&i=${r.i}`);
-  $("d-right").onclick = () => play(r.word, SET.ref);
-  $("d-mine").onclick = mine;
-  $("d-both").onclick = async () => { for (let i = 0; i < 2; i++) { await play(r.word, SET.ref); await wait(300); await mine(); await wait(400); } };
-  $("d-save").onclick = async () => { await api("/api/review/save", { kind: "word", text: r.word }); $("status").textContent = `“${r.word}”을(를) 복습에 저장했어요.`; refreshDue(); };
-  const dp = $("d-pair"); if (dp) dp.onclick = () => { go("listen"); renderPair(inPair.id); };
+  const mine = () => playUrl(`/api/clip?attempt=${d.attempt}&i=${i}&engine=${clipEngine}`);
+  const act = {
+    right: () => play(r.word, SET.ref),
+    mine,
+    both: async () => { for (let k = 0; k < 2; k++) { await play(r.word, SET.ref); await wait(300); await mine(); await wait(400); } },
+    save: async () => { await api("/api/review/save", { kind: "word", text: r.word }); $("status").textContent = `“${r.word}”을(를) 복습에 저장했어요.`; refreshDue(); },
+    pair: () => { go("listen"); renderPair(inPair.id); },
+  };
+  host.querySelectorAll("[data-a]").forEach((b) => b.addEventListener("click", act[b.dataset.a]));
 }
 
 async function toggleRecording() {
@@ -516,7 +642,7 @@ async function toggleRecording() {
     try { await startRecording(); } catch (e) {
       SP.status = "마이크를 쓸 수 없어요. 브라우저 주소창의 마이크 허용을 확인하세요."; return renderSentence();
     }
-    SP.recording = true; SP.status = "녹음 중… 문장을 읽고 ‘끝내기’를 누르세요."; return renderSentence();
+    SP.recording = true; SP.live = ""; SP.status = ""; return renderSentence();
   }
   SP.recording = false;
   await submitRecording(finishRecording());
@@ -524,19 +650,22 @@ async function toggleRecording() {
 
 // Sends a recording (a wav blob) to be judged. The recording button calls this; so can tests.
 async function submitRecording(blob) {
-  SP.recording = false; SP.busy = true; SP.status = "분석 중… (처음에는 Whisper 모델을 받느라 몇 분 걸릴 수 있어요)"; renderSentence();
+  SP.recording = false; SP.busy = true; SP.status = "분석 중… (처음에는 모델을 불러오느라 몇 초 더 걸릴 수 있어요)"; renderSentence();
   const text = SP.list[SP.idx];
   try {
-    const res = await fetch("/api/judge?text=" + encodeURIComponent(text), { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    const res = await fetch("/api/judge?engine=" + SET.engine + "&text=" + encodeURIComponent(text), { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
     const data = await res.json();
     if (!res.ok) {
       SP.busy = false; SP.status = data.error === "too_short" ? "너무 짧아요. 문장을 끝까지 읽어 주세요." : "분석하지 못했습니다. 다시 읽어 보세요.";
       return renderSentence();
     }
-    SP.result = data; SP.busy = false; SP.status = "";
-    const first = data.rows.find((r) => r.status !== "ok");
-    SP.selected = first ? first.i : null;
+    SP.tries.push({ n: SP.tries.length + 1, data });
+    const first = primaryOf(data).rows.find((r) => r.status === "wrong" || r.status === "missed") || primaryOf(data).rows.find((r) => r.status !== "ok");
+    SP.selected = first ? { t: SP.tries.length - 1, i: first.i } : null;
+    SP.busy = false; SP.status = ""; SP.live = "";
     renderSentence();
+    const sections = view.querySelectorAll("[data-try]");
+    if (sections.length && !MUTE) sections[sections.length - 1].scrollIntoView({ block: "nearest", behavior: "smooth" });
     refreshDue();
   } catch (e) { SP.busy = false; SP.status = "분석하지 못했습니다. 프로그램이 켜져 있는지 확인하세요."; renderSentence(); }
 }
@@ -593,6 +722,7 @@ function renderSettings() {
   $("voice-list").innerHTML = allVoices().map(row).join("");
   $("ref").innerHTML = allVoices().map((v) => `<option value="${v}" ${v === SET.ref ? "selected" : ""}>${esc(voiceLabel(v))}</option>`).join("");
   $("set-slow").checked = SET.slow;
+  $("set-engine").value = SET.engine;
   $("voice-list").querySelectorAll("input[data-voice]").forEach((box) => box.addEventListener("change", () => {
     const v = box.dataset.voice;
     if (box.checked) SET.voices.push(v);
@@ -608,6 +738,7 @@ $("vo-all").onclick = () => { SET.voices = allVoices(); saveSettings(); renderSe
 $("vo-ref").onclick = () => { SET.voices = [SET.ref]; saveSettings(); renderSettings(); };
 $("ref").onchange = (e) => { SET.ref = e.target.value; saveSettings(); };
 $("set-slow").onchange = (e) => { SET.slow = e.target.checked; saveSettings(); };
+$("set-engine").onchange = (e) => { SET.engine = e.target.value; saveSettings(); };
 
 api("/api/pairs").then((d) => { DATA = d; fixSettings(); go(new URLSearchParams(location.search).get("tab") || "listen"); refreshDue(); })
   .catch(() => { view.innerHTML = '<p class="err">yourAccent 프로그램에 연결하지 못했습니다. 프로그램이 켜져 있는지 확인하세요.</p>'; });

@@ -45,8 +45,9 @@ class Review:
         return {"id": item_id(kind, text), "kind": kind, "text": text, "examples": [], "misses": 0,
                 "streak": 0, "due": today, "graduated": False, "last_ok": None, "heard_as": ""}
 
-    def update_from_attempt(self, sentence, rows, today=None):
-        """Apply one reading of `sentence`: rows are the judged words."""
+    def update_from_attempt(self, sentence, rows, today=None, doubt_counts=True):
+        """Apply one reading of `sentence`: rows are the judged words. With doubt_counts False only wrong
+        and missed words are saved (the sound judge is often unsure about vowels)."""
         today = today or today_str()
         with self.lock:
             for r in rows:
@@ -54,7 +55,7 @@ class Review:
                 if not re.sub(r"[^a-z0-9]", "", r["word"].lower()) or r["word"].lower() in SKIP_DOUBT:
                     continue  # small function words are often misheard ("in" as "and"): not worth a review
                 item = self.items.get(key)
-                if r["status"] in ("wrong", "missed", "doubt"):
+                if r["status"] in ("wrong", "missed") or (r["status"] == "doubt" and doubt_counts):
                     if item is None:
                         item = self.items[key] = self._new("word", r["word"].lower(), today)
                     item.update(misses=item["misses"] + 1, streak=0, due=today, graduated=False,

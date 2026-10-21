@@ -1,6 +1,5 @@
-"""Scripts Jun wants to practise (lecture text and the like): saved as text, split into sentences."""
+"""Scripts Jun wants to practise (lecture text and the like): pasted or opened as text, saved as text, split into sentences."""
 
-import io
 import json
 import os
 import re
@@ -14,7 +13,7 @@ ID = re.compile(r"m[0-9a-f]{12}")
 
 
 def clean_text(text):
-    """Join lines that were only wrapped (as in a PDF); keep blank lines as paragraph breaks."""
+    """Join lines that were only wrapped (as in text copied from a PDF); keep blank lines as paragraph breaks."""
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     paragraphs = re.split(r"\n\s*\n", text)
     joined = []
@@ -29,13 +28,6 @@ def clean_text(text):
         if out:
             joined.append(out)
     return "\n".join(joined)
-
-
-def pdf_text(data):
-    from pypdf import PdfReader
-
-    reader = PdfReader(io.BytesIO(data))
-    return "\n\n".join((page.extract_text() or "") for page in reader.pages)
 
 
 class Materials:

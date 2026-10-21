@@ -3,8 +3,10 @@
 #   ~/.venvs/youraccent/bin/pip install --only-binary=:all: -r youraccent/requirements.txt
 # --only-binary matters: without it spacy's pinned thinc is built from source and fails on Python 3.13.
 # The first start also downloads spaCy's en_core_web_sm (about 13 MB), the Kokoro model (339 MB) and, when
-# you first read a sentence, Whisper-small (about 460 MB).
+# you first read a sentence, Whisper-small (about 460 MB) and the sound-judge model (1.26 GB).
 mlx-audio==0.6.1
 misaki[en]==0.7.4
 mlx-whisper==0.4.3
-pypdf==6.21.1
+torch==2.14.1
+transformers==5.20.2
+espeakng-loader==0.2.4

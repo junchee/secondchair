@@ -4,7 +4,38 @@ MLX must be used from a single thread, so web requests hand their work to this t
 """
 
 import queue
+import sys
 import threading
+
+
+CACHE_LIMIT = 200 * 1024 * 1024  # how much spare GPU memory MLX may keep between jobs
+
+
+def trim_memory():
+    """Give back GPU memory that the last job no longer needs (this Mac has 8 GB, shared by everything)."""
+    try:
+        import mlx.core as mx
+
+        (getattr(mx, "clear_cache", None) or mx.metal.clear_cache)()
+    except Exception:
+        pass
+    if "torch" in sys.modules:
+        try:
+            import torch
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception:
+            pass
+
+
+def limit_cache():
+    try:
+        import mlx.core as mx
+
+        (getattr(mx, "set_cache_limit", None) or mx.metal.set_cache_limit)(CACHE_LIMIT)
+    except Exception:
+        pass
 
 
 class Worker:
@@ -23,6 +54,7 @@ class Worker:
         return job["result"]
 
     def _loop(self):
+        limit_cache()
         while True:
             job = self.jobs.get()
             try:
@@ -30,4 +62,5 @@ class Worker:
             except Exception as error:  # hand it to the waiting caller, keep the thread alive
                 job["error"] = error
             finally:
+                trim_memory()
                 job["done"].set()

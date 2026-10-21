@@ -2,7 +2,7 @@
 
 A separate program from secondchair (own port, own data folder), meant to feel like its own app.
   - Listening training with minimal pairs (light / right ...), spoken by Kokoro voices.
-  - Script practice: read a sentence aloud, Whisper marks the words, hear the right sound and your own.
+  - Script practice: read a sentence aloud; two judges (sounds, and Whisper's words) mark it; hear the right sound and your own.
   - Review: words and sentences that went wrong come back later.
 
 Run:  python -m youraccent            (opens the page)
@@ -27,8 +27,9 @@ from urllib.parse import parse_qs, urlparse
 import numpy as np
 
 from youraccent import voices
-from youraccent.judge import WhisperJudge
-from youraccent.materials import Materials, clean_text, pdf_text
+from youraccent.judge import WhisperJudge, transcribe_words
+from youraccent.phoneme import PhonemeJudge
+from youraccent.materials import Materials
 from youraccent.pairs import BY_ID, PAIRS
 from youraccent.review import Review
 from youraccent.store import Store
@@ -37,12 +38,13 @@ from youraccent.worker import Worker
 
 HOME = os.path.expanduser(os.environ.get("YOURACCENT_HOME", "~/yourAccent"))
 PORT = int(os.environ.get("YOURACCENT_PORT", "8766"))
-JUDGE_MODEL = os.environ.get("YOURACCENT_JUDGE_MODEL", "small")
+JUDGE_MODEL = os.environ.get("YOURACCENT_JUDGE_MODEL", "small")  # the Whisper size
+ENGINES = os.environ.get("YOURACCENT_ENGINES", "both")  # both | phoneme | whisper
 SECONDCHAIR_LOCK = "/tmp/secondchair.lock"
 OWN_LOCK = os.environ.get("YOURACCENT_LOCK", "/tmp/youraccent.lock")  # tests use their own, so they never clash with a running copy
 PAGE = os.path.join(os.path.dirname(__file__), "ui", "index.html")
 RATE = 16000
-MAX_BODY = 25_000_000  # a minute of audio is about 6 MB; a PDF of a lecture can be bigger
+MAX_BODY = 25_000_000  # a minute of audio is about 6 MB
 MAX_ATTEMPTS = 30  # recent readings kept in memory (never on disk) so the own-sound clips can be played
 
 
@@ -154,8 +156,9 @@ def make_handler(ctx):
             if path == "/api/clip":  # Jun's own sound of one word, cut from the recording
                 attempt = ctx.attempts.get(query.get("attempt", ""))
                 try:
-                    row = attempt["rows"][int(query.get("i", "-1"))]
-                except (TypeError, ValueError, IndexError, KeyError):
+                    engine = query.get("engine") or next(iter(attempt["rows"]))
+                    row = attempt["rows"][engine][int(query.get("i", "-1"))]
+                except (TypeError, ValueError, IndexError, KeyError, StopIteration):
                     return self._send(404, {"error": "no such clip"})
                 if row["start"] is None or row["end"] is None:
                     return self._send(404, {"error": "no sound for this word"})
@@ -183,12 +186,9 @@ def make_handler(ctx):
             if body is None:
                 return self._send(413, {"error": "too big"})
             if url.path == "/api/judge" and kind == "audio/wav":
-                return self._judge(query.get("text", ""), body)
-            if url.path == "/api/pdf" and kind == "application/pdf":
-                try:
-                    return self._send(200, {"text": clean_text(pdf_text(body))})
-                except Exception:
-                    return self._send(400, {"error": "pdf"})
+                return self._judge(query.get("text", ""), body, query.get("engine") or ENGINES)
+            if url.path == "/api/peek" and kind == "audio/wav":
+                return self._peek(body)
             if kind != "application/json":
                 return self._send(415, {"error": "wrong content type"})
             try:
@@ -218,9 +218,23 @@ def make_handler(ctx):
                 return self._send(200, {"deleted": ctx.review.delete(str(data.get("id", "")))})
             self._send(404, {"error": "not found"})
 
-        def _judge(self, text, data):
+        def _peek(self, data):
+            """What Whisper hears in the recording so far (shown while Jun is still reading). Nothing is saved."""
+            try:
+                audio = wav_to_16k(data)[-30 * RATE:]
+            except (ValueError, wave.Error, EOFError):
+                return self._send(400, {"error": "bad audio"})
+            if audio.size < RATE * 0.8 or float(np.abs(audio).max()) < 0.01:
+                return self._send(200, {"text": ""})  # too short or silent: nothing to show
+            try:
+                text = ctx.worker.run(lambda: transcribe_words(audio, JUDGE_MODEL)[0], timeout=60)
+            except Exception as error:
+                return self._send(500, {"error": f"{type(error).__name__}: {error}"})
+            self._send(200, {"text": text})
+
+        def _judge(self, text, data, engine):
             text = " ".join(text.split())
-            if not ctx.tts.valid(text):
+            if not ctx.tts.valid(text) or engine not in ("both", "phoneme", "whisper"):
                 return self._send(400, {"error": "bad text"})
             try:
                 audio = wav_to_16k(data)
@@ -228,26 +242,37 @@ def make_handler(ctx):
                 return self._send(400, {"error": "bad audio"})
             if audio.size < RATE * 0.4:
                 return self._send(400, {"error": "too_short"})
-            try:
-                result = ctx.worker.run(lambda: ctx.judge.judge(audio, text))
-            except Exception as error:
-                return self._send(500, {"error": f"{type(error).__name__}: {error}"})
+            names = ["phoneme", "whisper"] if engine == "both" else [engine]
+            results, errors = {}, {}
+            for name in names:
+                try:
+                    results[name] = ctx.worker.run(lambda j=ctx.judges[name]: j.judge(audio, text))
+                except Exception as error:
+                    errors[name] = f"{type(error).__name__}: {error}"
+            if not results:
+                return self._send(500, {"error": "; ".join(errors.values())})
             attempt_id = uuid.uuid4().hex[:12]
-            ctx.attempts[attempt_id] = {"audio": audio, "rows": result["rows"]}
+            ctx.attempts[attempt_id] = {"audio": audio, "rows": {n: r["rows"] for n, r in results.items()}}
             while len(ctx.attempts) > MAX_ATTEMPTS:
                 ctx.attempts.popitem(last=False)
-            # A reading that does not cover the sentence (stopped early, silence, a different sentence)
-            # says nothing about pronunciation: it must not fill the review list.
-            matched = sum(1 for r in result["rows"] if r["status"] in ("ok", "doubt"))
-            incomplete = matched < max(1, -(-len(result["rows"]) // 2))  # fewer than half the words came out as written
-            if not incomplete:
-                ctx.review.update_from_attempt(text, result["rows"])
-            rows = [dict(i=i, word=r["word"], status=r["status"], heard_as=r["heard_as"], prob=round(r["prob"], 2),
-                         has_clip=r["start"] is not None and r["end"] is not None)
-                    for i, r in enumerate(result["rows"])]
-            self._send(200, {"attempt": attempt_id, "engine": result["engine"], "heard": result["heard"], "rows": rows,
-                             "extra": result["extra"], "seconds": round(audio.size / RATE, 1), "incomplete": incomplete,
-                             "quiet": float(np.abs(audio).max()) < 0.02})
+            out, primary = {}, next(iter(results))
+            for name, result in results.items():
+                # A reading that does not cover the sentence (stopped early, silence, a different sentence)
+                # says nothing about pronunciation: it must not fill the review list.
+                matched = sum(1 for r in result["rows"] if r["status"] in ("ok", "doubt"))
+                incomplete = matched < max(1, -(-len(result["rows"]) // 2))  # fewer than half the words came out as written
+                out[name] = {
+                    "heard": result["heard"], "incomplete": incomplete, "extra": result["extra"],
+                    "rows": [dict(i=i, word=r["word"], status=r["status"], heard_as=r["heard_as"], prob=round(r["prob"], 2),
+                                  expected=r.get("expected", ""), note=r.get("note", ""),
+                                  has_clip=r["start"] is not None and r["end"] is not None)
+                             for i, r in enumerate(result["rows"])],
+                }
+            # The review list follows the first engine that answered (the sound judge when it is on).
+            if not out[primary]["incomplete"]:
+                ctx.review.update_from_attempt(text, results[primary]["rows"], doubt_counts=(primary == "whisper"))
+            self._send(200, {"attempt": attempt_id, "primary": primary, "engines": out, "errors": errors,
+                             "seconds": round(audio.size / RATE, 1), "quiet": float(np.abs(audio).max()) < 0.02})
 
     return Handler
 
@@ -266,14 +291,24 @@ def main():
         materials=Materials(os.path.join(HOME, "materials")),
         worker=worker,
         tts=TTS(os.path.join(HOME, "cache", "voices"), worker),
-        judge=WhisperJudge(JUDGE_MODEL),
+        judges={"whisper": WhisperJudge(JUDGE_MODEL), "phoneme": PhonemeJudge()},
         attempts=collections.OrderedDict(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", PORT), make_handler(ctx))
     url = f"http://127.0.0.1:{PORT}/"
     print(f"yourAccent: {url}   (끝내려면 Ctrl+C)")
     # Make the first pair's words in the explaining voice ahead of time, so the first click is not slow.
-    threading.Thread(target=lambda: [ctx.tts.get(w, voices.TARGET) for w in PAIRS[0]["words"]], daemon=True).start()
+    def warm_up():
+        for w in PAIRS[0]["words"]:
+            ctx.tts.get(w, voices.TARGET)
+        import numpy as np
+        for name in (["phoneme", "whisper"] if ENGINES == "both" else [ENGINES]):
+            try:  # load the models now, so the first reading is not slow
+                ctx.worker.run((lambda j=ctx.judges[name]: j.warmup()) if name == "phoneme" else
+                               (lambda: transcribe_words(np.zeros(16000, dtype=np.float32), JUDGE_MODEL)), timeout=600)
+            except Exception as error:
+                print(f"({name} judge could not be prepared: {error})")
+    threading.Thread(target=warm_up, daemon=True).start()
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:

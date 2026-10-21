@@ -128,7 +128,7 @@ def main():
             sentences = [(line.rstrip("\n"), (), "") for line in f if line.strip()]
     elif args.text:
         if args.text.lower().endswith(".pdf"):
-            sys.exit("PDF는 다음 단계에서 지원합니다. 지금은 글을 텍스트 파일(.txt)로 저장해서 쓰세요.")
+            sys.exit("PDF는 지원하지 않습니다. 글을 텍스트 파일(.txt)로 저장해서 쓰세요.")
         with open(os.path.expanduser(args.text), encoding="utf-8") as f:
             sentences = [(s, (), "") for s in split_sentences(f.read())]
         if not sentences:
