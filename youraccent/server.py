@@ -272,7 +272,8 @@ def make_handler(ctx):
             if not out[primary]["incomplete"]:
                 ctx.review.update_from_attempt(text, results[primary]["rows"], doubt_counts=(primary == "whisper"))
             self._send(200, {"attempt": attempt_id, "primary": primary, "engines": out, "errors": errors,
-                             "seconds": round(audio.size / RATE, 1), "quiet": float(np.abs(audio).max()) < 0.02})
+                             "seconds": round(audio.size / RATE, 1), "quiet": float(np.abs(audio).max()) < 0.02,
+                             "peak": round(float(np.abs(audio).max()), 3)})
 
     return Handler
 
