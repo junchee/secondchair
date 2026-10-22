@@ -44,6 +44,9 @@ LIMITS = {"max_line_seconds": (4.0, 20.0), "pause_seconds": (0.2, 1.5)}
 # "Thank you." for key clicks and room noise, and each such line also costs a translation.
 MIC_FILTER_LEVELS = {"off": 0.0, "normal": 0.006, "strong": 0.015}
 
+# Which model translates the bubbles: DeepSeek with Qwen as the backup (auto), or one of them alone.
+TRANSLATION_MODES = ("auto", "deepseek", "qwen")
+
 
 class Settings:
     """What the user can change while secondchair runs (read by other threads as it changes).
@@ -59,6 +62,7 @@ class Settings:
         self.max_line_seconds = max_line_seconds
         self.pause_seconds = pause_seconds
         self.mic_filter = "normal"
+        self.translate_model = "auto"
         if persist:
             self._apply(prefs.load())
 
@@ -72,6 +76,8 @@ class Settings:
             self.translate = change["translate"] and self.translate_available
         if change.get("mic_filter") in MIC_FILTER_LEVELS:
             self.mic_filter = change["mic_filter"]
+        if change.get("translate_model") in TRANSLATION_MODES:
+            self.translate_model = change["translate_model"]
         for key, (low, high) in LIMITS.items():
             if key in change:
                 try:
@@ -88,6 +94,7 @@ class Settings:
                 max_line_seconds=self.max_line_seconds,
                 pause_seconds=self.pause_seconds,
                 mic_filter=self.mic_filter,
+                translate_model=self.translate_model,
             )
 
     def as_event(self):
@@ -98,6 +105,7 @@ class Settings:
             "max_line_seconds": self.max_line_seconds,
             "pause_seconds": self.pause_seconds,
             "mic_filter": self.mic_filter,
+            "translate_model": self.translate_model,
         }
 
 

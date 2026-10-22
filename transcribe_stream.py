@@ -294,7 +294,7 @@ class Engine:
             if controls is not None:
                 controls["voice"] = self.voice_out
         self.emit = emit
-        self.translator = Translator(emit) if self.settings.translate_available else None
+        self.translator = Translator(emit, lambda: self.settings.translate_model) if self.settings.translate_available else None
         self.grouper = Grouper()
         if controls is not None:
             controls["engine"] = self
