@@ -36,7 +36,7 @@ import audio_output
 from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
 from events import Settings, fan_out, print_event
 from bubbles import Grouper
-from translate import MODELS, Translator
+from translate import Translator
 from voice_out import VoiceOut
 
 WHISPER_RATE = 16000
@@ -294,7 +294,7 @@ class Engine:
             if controls is not None:
                 controls["voice"] = self.voice_out
         self.emit = emit
-        self.translator = Translator(emit, lambda: MODELS[self.settings.translate_model]) if self.settings.translate_available else None
+        self.translator = Translator(emit) if self.settings.translate_available else None
         self.grouper = Grouper()
         if controls is not None:
             controls["engine"] = self

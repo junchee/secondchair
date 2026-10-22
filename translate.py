@@ -22,13 +22,9 @@ MODEL = "qwen/qwen3.5-9b"
 # The small model sometimes slips other scripts into Korean ("毛毛비" for drizzle, a Japanese
 # clause, "아нди") even when told not to; such lines are redone once with this one.
 FALLBACK_MODEL = "qwen/qwen3.5-35b-a3b"
-# The developer menu (Settings) picks one of these for the bubbles; compared on 2026-10-22 under ZDR:
-# complete translation of a sentence took about 0.9 s (qwen), 0.7 s (haiku), 0.4 s (deepseek).
-MODELS = {
-    "qwen": MODEL,
-    "haiku": "anthropic/claude-haiku-5.5",
-    "deepseek": "deepseek/deepseek-v4.1-flash-1017",
-}
+# The bubbles are translated by DeepSeek: fastest and cleanest of the three tried on 2026-10-22
+# (Qwen and Haiku too); the comparison is in notes/translation_models_2026-10-22.md.
+BUBBLE_MODEL = "deepseek/deepseek-v4.1-flash-1017"
 # Trust the certifi certificate list, not the Python build's own setting. Some Python builds
 # (the standalone ones `uv` installs) have no system certificates, and the request then fails
 # with CERTIFICATE_VERIFY_FAILED. certifi comes with requests, which mlx-whisper needs anyway.
@@ -265,9 +261,8 @@ class Translator:
     keeps showing the previous translation until the new one arrives.
     """
 
-    def __init__(self, emit, model=lambda: MODEL):
+    def __init__(self, emit):
         self.emit = emit
-        self.model = model  # called for every job: the developer menu can change it while running
         self.client = Client()
         self.cv = threading.Condition()
         self.waiting = OrderedDict()  # bubble id -> job, oldest first
@@ -315,10 +310,10 @@ class Translator:
                 # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
                 # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
                 partial = None if version > 1 else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
-                result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=self.model())
+                result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=BUBBLE_MODEL)
             except Exception as error:  # network or API error: show it, keep going
                 result = f"(translation failed: {error})"
-            print(f"[timing] {self.model().split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
+            print(f"[timing] {BUBBLE_MODEL.split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
             if version > 1 and self.shown.get(bid) == result:
                 continue  # the same words again: nothing to update on the page
             self.shown[bid] = result
