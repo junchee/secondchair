@@ -555,19 +555,18 @@
   }
 
   // A line cut in the middle of a sentence (short pause or longest-line setting) joins the speaker's open bubble
-  // instead of starting a new one; the bubble closes when a sentence ends, the other side speaks, or 12 s pass.
+  // instead of starting a new one; the bubble closes when a sentence ends or the other side speaks, not after silence.
   const openBubbles = new Map();   // source -> { row, otext, tbox, text, lang, time }
   function endsSentence(text, lang) {
     const t = text.trim();
     if (/(\.\.\.|…)$/.test(t)) return false;
     return /[.?!。？！]["')\]”’]*$/.test(t) || (lang === "ko" && /[다요죠까네]$/.test(t));
   }
-  function secondsOf(t) { const [h, m, s] = (t || "0:0:0").split(":").map(Number); return h * 3600 + m * 60 + s; }
   function joinable(b, e) {
     if (!b || !b.row.isConnected || b.lang !== e.lang || endsSentence(b.text, b.lang) || b.text.length > 500) return false;
     const next = b.row.nextElementSibling;
     if (next && !next.classList.contains("live")) return false;   // someone else spoke in between
-    return Math.abs(secondsOf(e.time) - secondsOf(b.time)) <= 12;
+    return true;   // silence alone does not close the bubble: only a finished sentence or the other side speaking
   }
 
   function addLine(e) {
