@@ -67,13 +67,19 @@ def has_foreign_script(text):
     return False
 
 
-def build_request(text, target, context=(), following=None, model=MODEL):
+def build_request(text, target, context=(), following=None, model=MODEL, previous=None):
     """Chat request for one line. `context` holds earlier "LABEL: text" lines and `following`
     the next line; both are only there to make the meaning of a cut line clear."""
     parts = []
     if context:
         parts.append("Earlier lines (context only, do not translate):\n" + "\n".join(context))
     parts.append("Line to translate:\n" + text)
+    if previous:
+        parts.append(
+            "Your earlier translation of the beginning of this line (the line has grown since). Keep its wording "
+            "for everything that has not changed and add the translation of the new words; change the earlier "
+            "wording only if it was wrong:\n" + previous
+        )
     if following:
         parts.append("Next line (context only, do not translate):\n" + following)
     script = " Write Korean in Hangul only; never use Chinese, Japanese or Cyrillic characters." if target == "Korean" else ""
@@ -181,11 +187,11 @@ class Client:
                 raise
 
 
-def translate(text, target, context=(), following=None, client=None, on_text=None, model=MODEL):
+def translate(text, target, context=(), following=None, client=None, on_text=None, model=MODEL, previous=None):
     """The translation of one line. With on_text, it is asked for in pieces and on_text(text so far)
     is called while it arrives (the page shows the Korean from the first word)."""
     client = client or Client()
-    body = build_request(text, target, context, following, model)
+    body = build_request(text, target, context, following, model, previous)
     if on_text:
         show, stopped = on_text, []
 
@@ -304,13 +310,16 @@ class Translator:
                 while not self.waiting:
                     self.cv.wait()
                 bid, text, lang, context, ids, version = self.waiting.popitem(last=False)[1]
+                previous = self.shown.get(bid)  # what the page shows for this bubble now: keep its wording
+                if previous and previous.startswith("(translation failed"):
+                    previous = None
                 queued = len(self.waiting)
             started = time.time()
             try:
                 # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
                 # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
                 partial = None if version > 1 else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
-                result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=BUBBLE_MODEL)
+                result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=BUBBLE_MODEL, previous=previous)
             except Exception as error:  # network or API error: show it, keep going
                 result = f"(translation failed: {error})"
             print(f"[timing] {BUBBLE_MODEL.split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)

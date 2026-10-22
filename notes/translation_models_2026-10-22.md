@@ -26,6 +26,6 @@ Live runs (Jun's logs, a BBC podcast, Mac busy with Whisper drafts), time per bu
 
 ## Decision and open points
 - DeepSeek only (Jun, 2026-10-22); the selector in Settings was removed.
-- To do: give the previous Korean to the model as a reference ("keep the earlier part, translate only the new part") to make growing bubbles stable.
+- Done (2026-10-22): a bubble that grew is translated with the Korean the page shows as a reference ("keep the earlier wording, add the new words"). Test on 4 growing versions of one bubble (DeepSeek): similarity of each version to the previous one 0.83, 0.81, 0.86 without the reference, 0.83, 1.0, 0.97 with it (the first step has no reference).
 - Jun said he could not tell the translation quality apart in plain reading; speed and the points above decided it.
 - Whisper mishears names ("matter" for Meta): a terms dictionary would help (not built).
