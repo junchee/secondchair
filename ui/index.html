@@ -563,7 +563,10 @@
     return /[.?!。？！]["')\]”’]*$/.test(t) || (lang === "ko" && /[다요죠까네]$/.test(t));
   }
   function joinable(b, e) {
-    if (!b || !b.row.isConnected || b.lang !== e.lang || endsSentence(b.text, b.lang) || b.text.length > 500) return false;
+    if (!b || !b.row.isConnected || b.lang !== e.lang || b.text.length > 500) return false;
+    // Whisper often puts a full stop where it only paused; a line that starts with a small letter continues the sentence.
+    const continues = e.lang === "en" && /^[a-z]/.test(e.text.trim());
+    if (endsSentence(b.text, b.lang) && !continues) return false;
     const next = b.row.nextElementSibling;
     if (next && !next.classList.contains("live")) return false;   // someone else spoke in between
     return true;   // silence alone does not close the bubble: only a finished sentence or the other side speaking

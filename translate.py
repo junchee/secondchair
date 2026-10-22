@@ -275,7 +275,8 @@ class Translator:
     def submit(self, line):
         source = line["source"]
         previous = self.last.get(source)
-        if previous and previous[0]["lang"] == line["lang"] and not ends_sentence(previous[0]["text"]):
+        continues = line["lang"] == "en" and line["text"][:1].islower()  # Whisper's full stop was only a pause
+        if previous and previous[0]["lang"] == line["lang"] and (continues or not ends_sentence(previous[0]["text"])):
             self.jobs.put((previous[0], previous[1], line["text"], True))
         # Take the context now, in transcript order, before this line joins it.
         context = tuple(self.recent)
