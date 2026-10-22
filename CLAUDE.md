@@ -70,6 +70,8 @@ Draft first, clean up when the bubble is final. Server side, in this order (the 
 
 - Mic on speakers (Jun, 2026-10-22): let Jun's microphone (the MacBook's or an external one) record even without earphones; today it is off on speakers because it re-records the meeting. Idea: keep it on, and drop a mic segment while the system audio is loud at the same moment (or when the mic text matches the last system line); if the echo still gets through, show a hint to use earphones. Needs a design and a real test on speakers; the mic is chosen by name (`MIC_NAME`), never the macOS default.
 
+- **Decided 2026-10-22 (Jun):** to do later: the closing English clean-up of a bubble, and the draft translation. To build (design first where needed): the bottom box as Korean | arrow | English, drop the Avatar voice, mic on speakers. Meeting context and terms (plan step 6): before a meeting Jun writes a sentence about it ("university meeting about student assessment") and/or uploads a PDF; the LLM proposes names and terms (with preferred Korean), Jun edits the list; it goes to Whisper as `initial_prompt` (top ~40 terms) and to the translation prompt as context + glossary. Idea: speaker labels "상대 1 / 상대 2" from voice embeddings (not tested; memory is tight on 8 GB). Later: question detection with answers, floating window.
+
 ## Later (commercial)
 - Swift native app with a process tap (no BlackHole); the pkg/installer ideas above; progress display for long waits.
 - Premium voices (macOS -> cloud voice -> own-voice clone); direct Qwen API vs ZDR; a proxy that holds the API key; consent-based quality feedback (delays, translation quality); check trademark/domain for the names secondchair and yourAccent; Apple Developer signing and notarization for strangers.
