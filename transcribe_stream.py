@@ -41,6 +41,9 @@ from voice_out import VoiceOut
 
 WHISPER_RATE = 16000
 POLL_SECONDS = 0.2  # how often the main loop collects new audio
+# An empty outlined bubble at the bottom the moment speech starts. Off (Jun, 2026-10-22): with short pauses it
+# came and went with every fragment and made the page jump; the next bubble appears with its first text.
+SHOW_EMPTY_BUBBLE = False
 MAX_TOKENS = 160  # enough for the longest allowed line (20 s); caps the length of any loop
 LANGUAGES = ("en", "ko")  # with --translate, each line is detected as one of these
 
@@ -358,6 +361,8 @@ class Engine:
         self._clear_bubbles()
 
     def _show_bubble(self, source, force=False):
+        if not SHOW_EMPTY_BUBBLE:
+            return
         """Them only: an empty in-progress bubble as soon as speech has begun, so the page shows that
         someone is talking before the pause and Whisper have finished. The final line replaces it."""
         if source is self.mic or self.bubbles.get(source.label):
