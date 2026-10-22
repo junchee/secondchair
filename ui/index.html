@@ -21,6 +21,7 @@
     --flash: #fff4c2;
     --shadow: 0 8px 28px rgb(0 0 0 / .14);
     --text-size: 17px;
+    --trans-size: 16px;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
@@ -179,6 +180,7 @@
     background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow); z-index: 2;
   }
   #jump.show { display: block; }
+  .icon-btn[aria-pressed="true"] { color: var(--text); background: var(--bg); }
   /* ---- Beta footer: everything about the computer voice, small, at the very bottom */
   #beta { border-top: 1px solid var(--border); background: var(--surface); padding: 2px 16px 6px; font-size: 12px; color: var(--muted); }
   #beta summary { cursor: pointer; padding: 6px 0; }
@@ -257,6 +259,36 @@
   .sp-foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
   .note button { border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; text-decoration: underline; }
 
+  /* ---- Bubble layout (the default): one bubble per line, English large, the translation below in grey.
+     It restyles the same row elements as the table layout, so translations that arrive later,
+     revisions and the replay after a reconnect all work as before. */
+  body.layout-bubbles .colhead { display: none; }
+  body.layout-bubbles #rows { max-width: 920px; margin: 0 auto; padding: 14px 16px 28px; display: flex; flex-direction: column; gap: 10px; }
+  body.layout-bubbles .grid:not(.row):not(.colhead) { display: block; }
+  body.layout-bubbles .grid.row { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px 12px; }
+  body.layout-bubbles .row > div { padding: 0; }
+  body.layout-bubbles .meta { flex-direction: row; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  body.layout-bubbles .col-original { border-right: 0; }
+  body.layout-bubbles .col-original .text { font-weight: 550; }
+  body.layout-bubbles .col-translation { margin-top: 6px; }
+  body.layout-bubbles .col-translation .text { font-size: var(--trans-size); color: var(--muted); }
+  body.layout-bubbles.emph .col-translation .text { color: var(--accent); }
+  body.layout-bubbles .col-translation .text.none { color: var(--faint); }
+  body.layout-bubbles .col-translation .text.failed { color: var(--danger); }
+  body.layout-bubbles .row.me { margin-left: auto; width: min(82%, 680px); background: var(--surface-me); opacity: .9; }
+  body.layout-bubbles .row.me .col-original .text { font-size: calc(var(--text-size) - 2px); font-weight: 400; }
+  /* a line that is still being spoken: outlined, grey, filled in as words arrive, replaced when it is final */
+  .row.live { box-shadow: inset 3px 0 0 var(--accent); }
+  .row.live .col-original .text { color: var(--muted); font-style: italic; }
+  body.layout-bubbles .row.live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+
+  /* ---- Compact: only the meeting buttons and the transcript, for a small window */
+  body.compact header .chips, body.compact #translate-switch, body.compact #view-buttons, body.compact #summary-btn,
+  body.compact #composer, body.compact #beta, body.compact .brand .beta, body.compact .meta .lang { display: none; }
+  body.compact header { padding: 6px 10px; gap: 8px; }
+  body.compact.layout-bubbles #rows { padding: 8px 8px 16px; gap: 6px; }
+  body.compact.layout-bubbles .grid.row { padding: 6px 10px 8px; border-radius: 10px; }
+
   @media (max-width: 720px) {
     .grid, body.view-original .grid, body.view-translation .grid { grid-template-columns: minmax(0, 1fr); }
     .colhead { display: none; }
@@ -268,7 +300,7 @@
   }
 </style>
 </head>
-<body class="view-both">
+<body class="view-both layout-bubbles">
 <header>
   <div class="brand"><span class="dot" id="live"></span>secondchair<span class="beta" title="Beta version name">hajung beta</span></div>
   <div class="chips">
@@ -318,11 +350,28 @@
           </select>
           <p>Clicks and room noise can show up as a made-up line like “Thank you.” Raise this if that happens; lower it if your quiet speech is missed.</p>
         </div>
-        <h3>Text</h3>
+        <h3>Look</h3>
+        <div class="setting">
+          <div class="segmented" id="layout-buttons" role="group" aria-label="Layout">
+            <button data-layout="bubbles" aria-pressed="true">Bubbles</button>
+            <button data-layout="table" aria-pressed="false">Table</button>
+          </div>
+        </div>
         <div class="setting" style="display:flex; gap:8px; align-items:center;">
+          <span style="color:var(--muted); min-width:96px">English text</span>
           <button class="icon-btn" id="smaller" aria-label="Smaller text">A−</button>
           <button class="icon-btn" id="larger" aria-label="Larger text">A+</button>
           <span id="size-out" style="color:var(--muted)"></span>
+        </div>
+        <div class="setting" style="display:flex; gap:8px; align-items:center;">
+          <span style="color:var(--muted); min-width:96px">Translation text</span>
+          <button class="icon-btn" id="t-smaller" aria-label="Smaller translation text">A−</button>
+          <button class="icon-btn" id="t-larger" aria-label="Larger translation text">A+</button>
+          <span id="tsize-out" style="color:var(--muted)"></span>
+        </div>
+        <div class="setting">
+          <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="emph"><span class="track"></span><span>Highlight the translation</span></label>
+          <p>Colours the Korean so it stands out from the English.</p>
         </div>
         <h3>Program</h3>
         <div class="setting">
@@ -331,6 +380,7 @@
         </div>
       </div>
     </div>
+    <button class="icon-btn" id="compact-btn" aria-pressed="false" title="Compact view (C): only the buttons and the transcript, for a small window">Compact</button>
     <button class="icon-btn" id="summary-btn" title="Summarize the meeting so far (S). The meeting keeps going.">Summary</button>
     <div class="segmented session" id="session-buttons" role="group" aria-label="Meeting">
       <button id="btn-start" class="go" data-action="start" title="Start a new meeting">Start</button>
@@ -470,12 +520,47 @@
   }
   const SPEAKER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>';
 
+  // A line that is still being spoken (a "partial" event from the server): an outlined bubble that fills in,
+  // then is replaced by the final line. {source, text, translation?, clear?}. Not part of the replay.
+  const partials = new Map();      // source -> { row, text, ttext }
+  function clearPartial(sourceName) {
+    const p = partials.get(sourceName);
+    if (p) { p.row.remove(); partials.delete(sourceName); }
+  }
+  function clearPartials() { for (const name of [...partials.keys()]) clearPartial(name); }
+  function setPartial(e) {
+    if (replaying) return;
+    if (e.clear) return clearPartial(e.source);
+    $("empty").style.display = "none";
+    let p = partials.get(e.source);
+    if (!p) {
+      const me = e.source === "MIC";
+      const row = el("div", "grid row live" + (me ? " me" : ""));
+      const meta = el("div", "meta");
+      meta.append(el("span", "who", me ? "나" : "상대"), el("span", "", e.time || ""), el("span", "lang", "…"));
+      const original = el("div", "col-original"), text = el("div", "text pending", "");
+      original.append(text);
+      const translation = el("div", "col-translation"), ttext = el("div", "text none", "");
+      translation.append(ttext);
+      row.append(meta, original, translation);
+      rowsEl.append(row);
+      p = { row, text, ttext };
+      partials.set(e.source, p);
+    }
+    p.text.className = "text" + (e.text ? "" : " pending");
+    p.text.textContent = e.text || "";
+    p.ttext.className = "text" + (e.translation ? "" : " none");
+    p.ttext.textContent = e.translation || (translateOn && e.text ? "…" : "");
+    added();
+  }
+
   function addLine(e) {
+    clearPartial(e.source);
     $("empty").style.display = "none";
     const me = e.source === "MIC";
     const row = el("div", "grid row" + (me ? " me" : ""));
     const meta = el("div", "meta");
-    meta.append(el("span", "who", me ? "Me" : "Them"), el("span", "", e.time), el("span", "lang", e.lang.toUpperCase()));
+    meta.append(el("span", "who", me ? "나" : "상대"), el("span", "", e.time), el("span", "lang", e.lang.toUpperCase()));
     const original = el("div", "col-original");
     original.append(el("div", "text", e.text));
     const translation = el("div", "col-translation");
@@ -483,6 +568,7 @@
     translation.append(cell);
     row.append(meta, original, translation);
     rowsEl.append(row);
+    for (const p of partials.values()) rowsEl.append(p.row);   // a line still being spoken stays last
     lines.set(e.id, cell);
     added();
   }
@@ -507,7 +593,7 @@
     const meta = el("div", "meta");
     const tag = el("span", "voice-tag");
     tag.innerHTML = SPEAKER;
-    tag.append("Me");
+    tag.append("나");
     meta.append(tag, el("span", "", e.time || ""), el("span", "lang", "EN · VOICE"));
     const original = el("div", "col-original");
     original.append(el("div", "text", e.text));
@@ -857,6 +943,38 @@
   $("larger").onclick = () => setSize(size + 2);
   setSize(size);
 
+  function setLayout(name) {
+    document.body.classList.toggle("layout-bubbles", name === "bubbles");
+    document.querySelectorAll("#layout-buttons button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.layout === name));
+    store.set("layout", name);
+  }
+  document.querySelectorAll("#layout-buttons button").forEach((b) => b.onclick = () => setLayout(b.dataset.layout));
+  setLayout(store.get("layout", "bubbles") === "table" ? "table" : "bubbles");
+
+  let tsize = Number(store.get("tsize", 16));
+  function setTSize(px) {
+    tsize = Math.min(28, Math.max(12, px));
+    document.documentElement.style.setProperty("--trans-size", tsize + "px");
+    $("tsize-out").textContent = `${tsize} px`;
+    store.set("tsize", tsize);
+  }
+  $("t-smaller").onclick = () => setTSize(tsize - 2);
+  $("t-larger").onclick = () => setTSize(tsize + 2);
+  setTSize(tsize);
+
+  function setEmph(on) { document.body.classList.toggle("emph", on); $("emph").checked = on; store.set("emph", on ? "1" : "0"); }
+  $("emph").addEventListener("change", () => setEmph($("emph").checked));
+  setEmph(store.get("emph", "0") === "1");
+
+  function setCompact(on) {
+    document.body.classList.toggle("compact", on);
+    $("compact-btn").setAttribute("aria-pressed", on);
+    $("compact-btn").textContent = on ? "Expand" : "Compact";
+    store.set("compact", on ? "1" : "0");
+  }
+  $("compact-btn").onclick = () => setCompact(!document.body.classList.contains("compact"));
+  setCompact(store.get("compact", "0") === "1");
+
   function togglePanel(open) {
     const panel = $("settings-panel");
     open = open ?? panel.hidden;
@@ -881,7 +999,7 @@
     $("paused").classList.toggle("show", paused);
     $("live").classList.toggle("live", running);
     if (e.new) {                       // a new meeting: start with an empty page
-      rowsEl.replaceChildren(); lines.clear();
+      rowsEl.replaceChildren(); lines.clear(); partials.clear();
       $("ask-body").replaceChildren(); asks.clear();
       $("summary-panel").hidden = true;
       $("empty").style.display = "";
@@ -913,6 +1031,7 @@
     if (e.key === "/") { e.preventDefault(); $("type-input").focus(); }
     if (e.key === "?") { e.preventDefault(); setTypeKind("ask"); $("type-input").focus(); }
     if (e.key === "s") requestSummary();
+    if (e.key === "c") $("compact-btn").click();
     if (e.key === "p" && !$("btn-pause").disabled) $("btn-pause").click();
     if (e.key === "t" && translateAvailable) $("translate").click();
     if (e.key === "Enter" && !$("speak").disabled) { e.preventDefault(); speak(); }
@@ -926,6 +1045,7 @@
   // ---- Live events. On every (re)connect the server replays the session, so start clean.
   function stopped(e) {
     source.close();
+    clearPartials();
     $("live").classList.remove("live");
     $("banner").classList.remove("show");
     $("stopped").textContent = e.saved
@@ -941,7 +1061,7 @@
     source = new EventSource("/events");
     source.onopen = () => {
       replaying = true;
-      rowsEl.replaceChildren(); lines.clear();
+      rowsEl.replaceChildren(); lines.clear(); partials.clear();
       $("ask-body").replaceChildren(); asks.clear();
       $("empty").style.display = "";
       $("banner").classList.remove("show");
@@ -955,6 +1075,7 @@
       const e = JSON.parse(message.data);
       switch (e.type) {
         case "line": addLine(e); break;
+        case "partial": setPartial(e); break;
         case "translation": setTranslation(e); break;
         case "status": setStatus(e); break;
         case "settings": setSettings(e); break;
