@@ -165,8 +165,25 @@ def to_whisper_rate(audio, rate):
 
 
 def drop_repeats(text):
-    # Whisper sometimes loops on one phrase ("I have a look. I have a look. ...").
-    return re.sub(r"((?:\b\w+\b[ ,.?!]*){1,12}?)(?:\s*\1){2,}", r"\1", text).strip()
+    # Whisper sometimes loops on one phrase ("I have a look. I have a look. ..." or "f***ing f***ing ...").
+    # A group of 1-12 words that comes 3 or more times in a row is kept once.
+    words = text.split()
+    key = [re.sub(r"\W", "", word).lower() or word for word in words]
+    out, i = [], 0
+    while i < len(words):
+        for size in range(1, min(12, len(words) - i) + 1):
+            group = key[i:i + size]
+            repeats = 1
+            while key[i + repeats * size:i + (repeats + 1) * size] == group:
+                repeats += 1
+            if repeats >= 3:
+                out.extend(words[i:i + size])
+                i += repeats * size
+                break
+        else:
+            out.append(words[i])
+            i += 1
+    return " ".join(out)
 
 
 def detect_language(audio, model):
@@ -185,7 +202,7 @@ def transcribe(audio, model, language="en"):
         language=language,
         condition_on_previous_text=False,
         temperature=0.0,  # no retries at higher temperatures, which made loops slow
-        sample_len=MAX_TOKENS,
+        sample_len=min(MAX_TOKENS, 16 + int(12 * len(audio) / 16000)),  # a short line cannot hold a long loop
     )
     return drop_repeats(result["text"].strip())
 
