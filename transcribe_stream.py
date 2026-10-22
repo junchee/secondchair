@@ -73,6 +73,11 @@ class Segmenter:
         self.silence_seconds = 0.0
         self.speech_energy = 0.0  # sum of squared RMS over the speech frames
 
+    @property
+    def speaking(self):
+        """True while a segment with real speech (as long as the shortest kept) is being collected."""
+        return self.speech_seconds >= MIN_SPEECH_SECONDS
+
     def _is_speech(self, frame):
         rms = float(np.sqrt(np.mean(np.square(frame))))
         # Follow the floor down at once, up only slowly, so speech does not raise it.
@@ -239,6 +244,7 @@ class Engine:
         self.quit_requested = False
         self.route = None
         self.sources = []
+        self.bubbles = {}  # source label -> True while the page shows an in-progress bubble for it
         self.mic = None
         self.line_ids = itertools.count(1)
         self.last_status = None
@@ -302,6 +308,7 @@ class Engine:
         self.hooks.begin()
         self.line_ids = itertools.count(1)
         self.last_status = None
+        self.bubbles = {}
         if self.translator:
             self.translator.reset()
         try:
@@ -328,6 +335,25 @@ class Engine:
         for source in self.sources:
             source.take()
             source.segmenter.reset()
+        self._clear_bubbles()
+
+    def _show_bubble(self, source, force=False):
+        """Them only: an empty in-progress bubble as soon as speech has begun, so the page shows that
+        someone is talking before the pause and Whisper have finished. The final line replaces it."""
+        if source is self.mic or self.bubbles.get(source.label):
+            return
+        if force or source.segmenter.speaking:
+            self.bubbles[source.label] = True
+            self.emit({"type": "partial", "source": source.label, "text": "", "time": time.strftime("%H:%M:%S")})
+
+    def _hide_bubble(self, source):
+        if self.bubbles.pop(source.label, False):
+            self.emit({"type": "partial", "source": source.label, "clear": True})
+
+    def _clear_bubbles(self):
+        for label in [label for label, shown in self.bubbles.items() if shown]:
+            self.emit({"type": "partial", "source": label, "clear": True})
+        self.bubbles = {}
 
     def _pause(self):
         self._drop_audio()
@@ -339,6 +365,7 @@ class Engine:
 
     def _end(self):
         self._set_state("ending")
+        self._clear_bubbles()
         for source in self.sources:
             source.stream.stop()
             source.stream.close()
@@ -377,7 +404,9 @@ class Engine:
             audio = to_whisper_rate(source.take(), source.rate)
             if source is mic and not mic_on:
                 continue
-            for segment, level in source.segmenter.feed(audio):
+            segments = source.segmenter.feed(audio)
+            self._show_bubble(source, force=bool(segments))  # also while Whisper works on a short line
+            for segment, level in segments:
                 if self.state != "running":
                     return  # paused or ended while we were busy: do not transcribe the rest
                 if source is mic and level < settings.mic_min_level():
@@ -386,6 +415,7 @@ class Engine:
                 language = detect_language(segment, self.model) if translating else "en"
                 text = transcribe(segment, self.model, language)
                 if not text:
+                    self._hide_bubble(source)  # nothing was said after all
                     continue
                 line = {
                     "type": "line",
@@ -398,6 +428,7 @@ class Engine:
                 if source is mic:
                     line["level"] = round(level, 4)  # saved with the line, to tune mic_filter
                 self.emit(line)
+                self.bubbles.pop(source.label, None)  # the page replaced the bubble with this line
                 if translating:
                     self.translator.submit(line)
 

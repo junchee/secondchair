@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import time
 import unicodedata
 import ssl
 from collections import deque
@@ -126,9 +127,76 @@ class Client:
             return json.loads(data)["choices"][0]["message"]["content"].strip()
 
 
-def translate(text, target, context=(), following=None, client=None):
+    def stream(self, body, on_text, interval=0.08):
+        """Like post(), but asks for the answer to arrive in pieces and calls on_text(text so far) as it
+        grows (at most every `interval` seconds). Returns the whole text. The connection is reused."""
+        payload = json.dumps(dict(body, stream=True)).encode()
+        headers = {
+            "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        }
+        for attempt in (1, 2):
+            if self.connection is None:
+                self.connection = http.client.HTTPSConnection(HOST, timeout=self.timeout, context=TLS)
+            try:
+                self.connection.request("POST", PATH, payload, headers)
+                response = self.connection.getresponse()
+                if response.status != 200:
+                    data = response.read()
+                    raise RuntimeError(f"HTTP {response.status}: {data[:200].decode(errors='replace')}")
+                text, last = "", 0.0
+                while True:
+                    raw = response.readline()
+                    if not raw:
+                        break
+                    line = raw.decode("utf-8", "replace").strip()
+                    if not line.startswith("data:"):
+                        continue  # a comment or a keep-alive
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        delta = json.loads(data)["choices"][0]["delta"].get("content") or ""
+                    except (ValueError, KeyError, IndexError):
+                        continue
+                    if delta:
+                        text += delta
+                        now = time.monotonic()
+                        if now - last >= interval:
+                            last = now
+                            on_text(text.strip())
+                response.read()  # finish the response so the connection can be used again
+                return text.strip()
+            except (http.client.HTTPException, OSError):
+                self.connection.close()
+                self.connection = None
+                if attempt == 2:
+                    raise
+            except RuntimeError:
+                raise
+
+
+def translate(text, target, context=(), following=None, client=None, on_text=None):
+    """The translation of one line. With on_text, it is asked for in pieces and on_text(text so far)
+    is called while it arrives (the page shows the Korean from the first word)."""
     client = client or Client()
-    result = client.post(build_request(text, target, context, following))
+    body = build_request(text, target, context, following)
+    if on_text:
+        show, stopped = on_text, []
+
+        def on_text(partial):  # a partial with another script in it is not shown: the redo below replaces it
+            if stopped or (target == "Korean" and has_foreign_script(partial)):
+                stopped.append(True)
+                return
+            show(partial)
+
+        try:
+            result = client.stream(body, on_text)
+        except Exception:
+            result = client.post(body)  # streaming did not work: the plain request still can
+    else:
+        result = client.post(body)
     if target == "Korean" and has_foreign_script(result):
         result = client.post(build_request(text, target, context, following, FALLBACK_MODEL))
     return result
@@ -219,7 +287,10 @@ class Translator:
             line, context, following, revised = self.jobs.get()
             target = TARGET[line["lang"]]
             try:
-                text = translate(line["text"], target, context, following, self.client)
+                # A first translation arrives piece by piece (the page shows the Korean from the first word);
+                # a revision is not streamed: its text would shrink and grow again under the reader's eyes.
+                partial = None if revised else (lambda text, id=line["id"]: self.emit({"type": "translation_partial", "id": id, "text": text}))
+                text = translate(line["text"], target, context, following, self.client, on_text=partial)
             except Exception as error:  # network or API error: show it, keep going
                 text = f"(translation failed: {error})"
             if revised and self.shown.get(line["id"]) == text:

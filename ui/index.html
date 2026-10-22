@@ -587,6 +587,15 @@
     }
   }
 
+  // The translation so far, while it is still arriving; the final translation event replaces it.
+  function setPartialTranslation(e) {
+    const cell = lines.get(e.id);
+    if (!cell || replaying) return;
+    cell.className = "text";
+    cell.textContent = e.text;
+    added();
+  }
+
   function addSpoken(e) {
     $("empty").style.display = "none";
     const row = el("div", "grid row me");
@@ -1077,6 +1086,7 @@
         case "line": addLine(e); break;
         case "partial": setPartial(e); break;
         case "translation": setTranslation(e); break;
+        case "translation_partial": setPartialTranslation(e); break;
         case "status": setStatus(e); break;
         case "settings": setSettings(e); break;
         case "session": onSession(e); break;

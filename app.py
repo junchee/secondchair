@@ -24,7 +24,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import transcribe_stream
-from events import Settings, fan_out, print_event
+from events import VOLATILE, Settings, fan_out, print_event
 from transcribe_stream import Hooks
 from record import Recorder
 from summary import answer, summarize
@@ -51,7 +51,8 @@ class Hub:
 
     def emit(self, event):
         with self.lock:
-            self.history.append(event)
+            if event["type"] not in VOLATILE:  # a page that connects later does not need them
+                self.history.append(event)
             for client in self.clients:
                 client.put(event)
 

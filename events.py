@@ -20,11 +20,21 @@ Every component reports through an `emit(event)` callable; the terminal and the 
     typing       id, source (text Jun typed; its translation is on the way)
     typed        id, source, text (translation), target ("English"/"Korean"/None on failure)
     info         text
+    partial      source, text, time or clear: a line that is still being spoken (Them only; the text is
+                 empty for now). The page shows an outlined bubble until the final line replaces it.
+    translation_partial   id (of the line), text: the translation so far while it is still arriving.
+                 The final translation event follows and replaces it.
+
+partial and translation_partial are short-lived: they are not kept for the page's replay, not
+saved in the transcript and not used for the voice draft.
 """
 
 import os
 
 import prefs
+
+# Events that only matter at the moment they happen.
+VOLATILE = ("partial", "translation_partial")
 
 # Line cutting: a line ends after this much silence, or at the maximum length.
 LIMITS = {"max_line_seconds": (4.0, 20.0), "pause_seconds": (0.2, 1.5)}
