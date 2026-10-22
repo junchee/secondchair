@@ -11,6 +11,7 @@ import queue
 import threading
 import sys
 import time
+import traceback
 import unicodedata
 import ssl
 from collections import OrderedDict, deque
@@ -106,6 +107,13 @@ def build_request(text, target, context=(), following=None, model=MODEL, previou
     }
 
 
+STREAM_DEADLINE_SECONDS = 8
+
+
+class StreamStalled(Exception):
+    pass
+
+
 class Client:
     """One HTTPS connection kept open between requests, so each line skips the TLS handshake."""
 
@@ -156,10 +164,15 @@ class Client:
                     data = response.read()
                     raise RuntimeError(f"HTTP {response.status}: {data[:200].decode(errors='replace')}")
                 text, last = "", 0.0
+                deadline = time.monotonic() + STREAM_DEADLINE_SECONDS
                 while True:
                     raw = response.readline()
                     if not raw:
                         break
+                    if time.monotonic() > deadline:
+                        # OpenRouter keeps sending keep-alive comments while a provider stalls, so the socket
+                        # timeout never fires: give up on our own, or the translator waits here for ever.
+                        raise StreamStalled(f"no complete answer in {STREAM_DEADLINE_SECONDS} s")
                     line = raw.decode("utf-8", "replace").strip()
                     if not line.startswith("data:"):
                         continue  # a comment or a keep-alive
@@ -178,6 +191,10 @@ class Client:
                             on_text(text.strip())
                 response.read()  # finish the response so the connection can be used again
                 return text.strip()
+            except StreamStalled:
+                self.connection.close()
+                self.connection = None
+                raise  # no second try: translate() asks once more without streaming
             except (http.client.HTTPException, OSError):
                 self.connection.close()
                 self.connection = None
@@ -269,7 +286,7 @@ class Translator:
 
     def __init__(self, emit):
         self.emit = emit
-        self.client = Client()
+        self.client = Client(timeout=10)  # a bubble translation takes about a second; 10 s means it is stuck
         self.cv = threading.Condition()
         self.waiting = OrderedDict()  # bubble id -> job, oldest first
         self.recent = deque(maxlen=CONTEXT_LINES)  # [bubble id, "LABEL: text"] of the latest bubbles
@@ -306,24 +323,30 @@ class Translator:
 
     def _work(self):
         while True:
-            with self.cv:
-                while not self.waiting:
-                    self.cv.wait()
-                bid, text, lang, context, ids, version = self.waiting.popitem(last=False)[1]
-                previous = self.shown.get(bid)  # what the page shows for this bubble now: keep its wording
-                if previous and previous.startswith("(translation failed"):
-                    previous = None
-                queued = len(self.waiting)
-            started = time.time()
             try:
-                # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
-                # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
-                partial = None if version > 1 else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
-                result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=BUBBLE_MODEL, previous=previous)
-            except Exception as error:  # network or API error: show it, keep going
-                result = f"(translation failed: {error})"
-            print(f"[timing] {BUBBLE_MODEL.split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
-            if version > 1 and self.shown.get(bid) == result:
-                continue  # the same words again: nothing to update on the page
-            self.shown[bid] = result
-            self.emit({"type": "translation", "id": bid, "ids": list(ids), "text": result, "revised": version > 1})
+                self._translate_next()
+            except Exception:  # one bad job must never stop the translator for the rest of the meeting
+                traceback.print_exc()
+
+    def _translate_next(self):
+        with self.cv:
+            while not self.waiting:
+                self.cv.wait()
+            bid, text, lang, context, ids, version = self.waiting.popitem(last=False)[1]
+            previous = self.shown.get(bid)  # what the page shows for this bubble now: keep its wording
+            if previous and previous.startswith("(translation failed"):
+                previous = None
+            queued = len(self.waiting)
+        started = time.time()
+        try:
+            # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
+            # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
+            partial = None if version > 1 else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
+            result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=BUBBLE_MODEL, previous=previous)
+        except Exception as error:  # network or API error: show it, keep going
+            result = f"(translation failed: {error})"
+        print(f"[timing] {BUBBLE_MODEL.split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
+        if version > 1 and self.shown.get(bid) == result:
+            return  # the same words again: nothing to update on the page
+        self.shown[bid] = result
+        self.emit({"type": "translation", "id": bid, "ids": list(ids), "text": result, "revised": version > 1})
