@@ -29,6 +29,13 @@ class Grouper:
         self.open[source] = {"id": line["id"], "text": line["text"], "lang": line["lang"]}
         return line["id"]
 
+    def peek(self, source, text, lang):
+        """The bubble that a line with this text would join (its id), or None if it would start a new one."""
+        current = self.open.get(source)
+        if not current or self.last_source not in (None, source):
+            return None
+        return current["id"] if self._continues(current, {"lang": lang, "text": text}) else None
+
     @staticmethod
     def _continues(current, line):
         if current["lang"] != line["lang"] or len(current["text"]) > MAX_BUBBLE_CHARS:

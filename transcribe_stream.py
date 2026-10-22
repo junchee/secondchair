@@ -44,6 +44,9 @@ POLL_SECONDS = 0.2  # how often the main loop collects new audio
 # An empty outlined bubble at the bottom the moment speech starts. Off (Jun, 2026-10-22): with short pauses it
 # came and went with every fragment and made the page jump; the next bubble appears with its first text.
 SHOW_EMPTY_BUBBLE = False
+# While a line is spoken, Whisper hears the audio so far again about this often (0 = never) and shows it as a draft.
+DRAFT_SECONDS = 1.0
+DRAFT_MIN_SECONDS = 0.8  # no draft for a shorter line
 MAX_TOKENS = 160  # enough for the longest allowed line (20 s); caps the length of any loop
 LANGUAGES = ("en", "ko")  # with --translate, each line is detected as one of these
 
@@ -76,6 +79,10 @@ class Segmenter:
         self.speech_seconds = 0.0
         self.silence_seconds = 0.0
         self.speech_energy = 0.0  # sum of squared RMS over the speech frames
+
+    def current(self):
+        """The audio collected so far for the line being spoken, or None when nobody is speaking."""
+        return np.concatenate(self.frames) if self.speaking and self.frames else None
 
     @property
     def speaking(self):
@@ -266,6 +273,8 @@ class Engine:
         self.route = None
         self.sources = []
         self.bubbles = {}  # source label -> True while the page shows an in-progress bubble for it
+        self.drafts = {}  # source label -> {"at", "samples", "text", "cost"} of its latest draft
+        self.draft_lang = {}  # source label -> language of its latest line (the draft uses it, no detection)
         self.mic = None
         self.line_ids = itertools.count(1)
         self.last_status = None
@@ -331,6 +340,8 @@ class Engine:
         self.line_ids = itertools.count(1)
         self.last_status = None
         self.bubbles = {}
+        self.drafts = {}
+        self.draft_lang = {}
         self.grouper.reset()
         if self.translator:
             self.translator.reset()
@@ -371,6 +382,39 @@ class Engine:
             self.bubbles[source.label] = True
             self.emit({"type": "partial", "source": source.label, "text": "", "time": time.strftime("%H:%M:%S")})
 
+    def _draft(self, source):
+        """While a line is still being spoken, show what Whisper hears so far (grey, replaced by the final line).
+
+        Every second or so the audio collected so far goes to Whisper again, so the English grows on the page
+        before the pause that ends the line. Never for the mic, and never more often than Whisper can keep up with.
+        """
+        if source is self.mic or not DRAFT_SECONDS:
+            return
+        audio = source.segmenter.current()
+        state = self.drafts.get(source.label)
+        if audio is None or len(audio) < DRAFT_MIN_SECONDS * WHISPER_RATE:
+            self.drafts.pop(source.label, None)
+            return
+        if state and (time.time() - state["at"] < max(DRAFT_SECONDS, state["cost"])
+                      or len(audio) - state["samples"] < 0.4 * WHISPER_RATE):
+            return
+        started = time.time()
+        language = self.draft_lang.get(source.label, "en")
+        text = transcribe(audio, self.model, language)
+        cost = time.time() - started
+        print(f"[timing] draft {cost:.1f}s for {len(audio) / WHISPER_RATE:.1f}s of speech", file=sys.stderr, flush=True)
+        self.drafts[source.label] = {"at": time.time(), "samples": len(audio), "text": text, "cost": cost}
+        if self.state != "running" or not text or (state and state["text"] == text):
+            return
+        self.bubbles[source.label] = True
+        self.emit({
+            "type": "partial",
+            "source": source.label,
+            "text": text,
+            "time": time.strftime("%H:%M:%S"),
+            "bubble": self.grouper.peek(source.label, text, language),
+        })
+
     def _hide_bubble(self, source):
         if self.bubbles.pop(source.label, False):
             self.emit({"type": "partial", "source": source.label, "clear": True})
@@ -379,6 +423,7 @@ class Engine:
         for label in [label for label, shown in self.bubbles.items() if shown]:
             self.emit({"type": "partial", "source": label, "clear": True})
         self.bubbles = {}
+        self.drafts = {}
 
     def _pause(self):
         self._drop_audio()
@@ -431,6 +476,8 @@ class Engine:
                 continue
             segments = source.segmenter.feed(audio)
             self._show_bubble(source, force=bool(segments))  # also while Whisper works on a short line
+            if not segments:
+                self._draft(source)
             for segment, level in segments:
                 if self.state != "running":
                     return  # paused or ended while we were busy: do not transcribe the rest
@@ -457,6 +504,8 @@ class Engine:
                 line["bubble"] = self.grouper.assign(line)  # lines cut mid-sentence share one bubble
                 self.emit(line)
                 self.bubbles.pop(source.label, None)  # the page replaced the bubble with this line
+                self.drafts.pop(source.label, None)
+                self.draft_lang[source.label] = language
                 if translating:
                     self.translator.submit(line)
 

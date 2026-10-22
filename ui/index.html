@@ -278,6 +278,7 @@
   body.layout-bubbles .row.me { margin-left: auto; width: min(82%, 680px); background: var(--surface-me); opacity: .9; }
   body.layout-bubbles .row.me .col-original .text { font-size: calc(var(--text-size) - 2px); font-weight: 400; }
   /* a line that is still being spoken: outlined, grey, filled in as words arrive, replaced when it is final */
+  .col-original .text .draft { color: var(--muted); font-weight: 400; }
   .row.live { box-shadow: inset 3px 0 0 var(--accent); }
   .row.live .col-original .text { color: var(--muted); font-style: italic; }
   body.layout-bubbles .row.live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -535,7 +536,7 @@
   const partials = new Map();      // source -> { row, text, ttext }
   function clearPartial(sourceName) {
     const p = partials.get(sourceName);
-    if (p) { p.row.remove(); partials.delete(sourceName); }
+    if (p) { (p.row || p.span).remove(); partials.delete(sourceName); }
   }
   function clearPartials() { for (const name of [...partials.keys()]) clearPartial(name); }
   function setPartial(e) {
@@ -543,6 +544,21 @@
     if (e.clear) return clearPartial(e.source);
     $("empty").style.display = "none";
     let p = partials.get(e.source);
+    // A draft that will continue the open bubble grows inside it, in grey, instead of starting a bubble below.
+    const open = openBubbles.get(e.source);
+    const next = open && open.row.nextElementSibling;
+    if (e.text && e.bubble != null && open && open.bubble === e.bubble && open.row.isConnected && (!next || next.classList.contains("live"))) {
+      if (p && !p.span) { clearPartial(e.source); p = null; }
+      if (!p) {
+        p = { span: el("span", "draft") };
+        open.otext.append(p.span);
+        partials.set(e.source, p);
+      }
+      p.span.textContent = " " + e.text;
+      added();
+      return;
+    }
+    if (p && p.span) { clearPartial(e.source); p = null; }
     if (!p) {
       const me = e.source === "MIC";
       const row = el("div", "grid row live" + (me ? " me" : ""));
@@ -589,7 +605,7 @@
     translation.append(cell);
     row.append(meta, original, translation);
     rowsEl.append(row);
-    for (const p of partials.values()) rowsEl.append(p.row);   // a line still being spoken stays last
+    for (const p of partials.values()) if (p.row) rowsEl.append(p.row);   // a line still being spoken stays last
     lines.set(e.id, cell);
     openBubbles.set(e.source, { bubble: e.bubble ?? e.id, row, otext });
     added();
