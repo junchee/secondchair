@@ -4,7 +4,8 @@ Every component reports through an `emit(event)` callable; the terminal and the 
 (app.py) are just two consumers of the same events. An event is a dict with a "type":
 
     line         id, source ("SYSTEM" or "MIC"), lang ("en"/"ko"), text, time ("HH:MM:SS")
-    translation  id (of the line), text, revised (True when redone with the next line)
+    translation  id (of the bubble = its first line), ids (all its lines so far), text, revised (True when
+                 redone because the bubble grew). A line event also carries bubble (see bubbles.py).
     status       output (device name or None), kind ("headphones"/"speakers"/None), mic (bool)
     settings     translate, translate_available, max_line_seconds, pause_seconds, mic_filter
     line         also has level (speech RMS of the segment) for MIC lines, to tune mic_filter
@@ -22,7 +23,7 @@ Every component reports through an `emit(event)` callable; the terminal and the 
     info         text
     partial      source, text, time or clear: a line that is still being spoken (Them only; the text is
                  empty for now). The page shows an outlined bubble until the final line replaces it.
-    translation_partial   id (of the line), text: the translation so far while it is still arriving.
+    translation_partial   id (of the bubble), text: the translation so far while it is still arriving.
                  The final translation event follows and replaces it.
 
 partial and translation_partial are short-lived: they are not kept for the page's replay, not

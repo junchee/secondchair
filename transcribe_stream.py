@@ -35,6 +35,7 @@ from mlx_whisper.transcribe import ModelHolder
 import audio_output
 from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
 from events import Settings, fan_out, print_event
+from bubbles import Grouper
 from translate import Translator
 from voice_out import VoiceOut
 
@@ -282,6 +283,7 @@ class Engine:
                 controls["voice"] = self.voice_out
         self.emit = emit
         self.translator = Translator(emit) if self.settings.translate_available else None
+        self.grouper = Grouper()
         if controls is not None:
             controls["engine"] = self
 
@@ -326,6 +328,7 @@ class Engine:
         self.line_ids = itertools.count(1)
         self.last_status = None
         self.bubbles = {}
+        self.grouper.reset()
         if self.translator:
             self.translator.reset()
         try:
@@ -446,6 +449,7 @@ class Engine:
                 }
                 if source is mic:
                     line["level"] = round(level, 4)  # saved with the line, to tune mic_filter
+                line["bubble"] = self.grouper.assign(line)  # lines cut mid-sentence share one bubble
                 self.emit(line)
                 self.bubbles.pop(source.label, None)  # the page replaced the bubble with this line
                 if translating:

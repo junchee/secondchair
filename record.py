@@ -55,7 +55,11 @@ class Recorder:
             self.file.write(json.dumps(event, ensure_ascii=False) + "\n")
             self.file.flush()
             if event["type"] == "translation":
-                self.translations[event["id"]] = event["text"]
+                # A bubble is translated as a whole: its text goes under the bubble's last line.
+                ids = event.get("ids") or [event["id"]]
+                for line_id in ids:
+                    self.translations.pop(line_id, None)
+                self.translations[ids[-1]] = event["text"]
             else:
                 self.entries.append(dict(event, time=event.get("time") or time.strftime("%H:%M:%S")))
 

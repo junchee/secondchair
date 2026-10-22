@@ -554,37 +554,16 @@
     added();
   }
 
-  // A line cut in the middle of a sentence (short pause or longest-line setting) joins the speaker's open bubble
-  // instead of starting a new one; the bubble closes when a sentence ends or the other side speaks, not after silence.
-  const openBubbles = new Map();   // source -> { row, otext, tbox, text, lang, time }
-  function endsSentence(text, lang) {
-    const t = text.trim();
-    if (/(\.\.\.|…)$/.test(t)) return false;
-    return /[.?!。？！]["')\]”’]*$/.test(t) || (lang === "ko" && /[다요죠까네]$/.test(t));
-  }
-  function joinable(b, e) {
-    if (!b || !b.row.isConnected || b.lang !== e.lang || b.text.length > 500) return false;
-    // Whisper often puts a full stop where it only paused; a line that starts with a small letter continues the sentence.
-    const continues = e.lang === "en" && /^[a-z]/.test(e.text.trim());
-    if (endsSentence(b.text, b.lang) && !continues) return false;
-    const next = b.row.nextElementSibling;
-    if (next && !next.classList.contains("live")) return false;   // someone else spoke in between
-    return true;   // silence alone does not close the bubble: only a finished sentence or the other side speaking
-  }
+  // Lines cut in the middle of a sentence share a bubble: the server numbers it ("bubble" = id of its first line).
+  // The translation belongs to the whole bubble and is redone as the bubble grows.
+  const openBubbles = new Map();   // source -> { bubble, row, otext }
 
   function addLine(e) {
     clearPartial(e.source);
     $("empty").style.display = "none";
     const prev = openBubbles.get(e.source);
-    if (joinable(prev, e)) {
-      const seg = el("span", "", e.text);
-      prev.otext.append(" ", seg);
-      const cell = el("span", translateOn ? "pending" : "none", translateOn ? "" : "—");
-      cell.row = prev.row;
-      prev.tbox.append(" ", cell);
-      prev.text += " " + e.text;
-      prev.time = e.time;
-      lines.set(e.id, cell);
+    if (prev && e.bubble !== undefined && prev.bubble === e.bubble && prev.row.isConnected) {
+      prev.otext.append(" ", el("span", "", e.text));
       added();
       return;
     }
@@ -596,16 +575,13 @@
     const otext = el("div", "text", e.text);
     original.append(otext);
     const translation = el("div", "col-translation");
-    const tbox = el("div", "text");
-    const cell = el("span", translateOn ? "pending" : "none", translateOn ? "" : "—");
-    cell.row = row;
-    tbox.append(cell);
-    translation.append(tbox);
+    const cell = translateOn ? el("div", "text pending") : el("div", "text none", "—");
+    translation.append(cell);
     row.append(meta, original, translation);
     rowsEl.append(row);
     for (const p of partials.values()) rowsEl.append(p.row);   // a line still being spoken stays last
     lines.set(e.id, cell);
-    openBubbles.set(e.source, { row, otext, tbox, text: e.text, lang: e.lang, time: e.time });
+    openBubbles.set(e.source, { bubble: e.bubble ?? e.id, row, otext });
     added();
   }
 
@@ -613,21 +589,15 @@
     const cell = lines.get(e.id);
     if (!cell) return;
     const failed = e.text.startsWith("(translation failed");
-    cell.className = failed ? "failed" : "";
+    cell.className = "text" + (failed ? " failed" : "");
     cell.textContent = e.text;
-    if (e.revised && !replaying) {
-      cell.row.classList.remove("flash");
-      void cell.row.offsetWidth;  // restart the animation
-      cell.row.classList.add("flash");
-      cell.title = "Revised with the next line";
-    }
   }
 
   // The translation so far, while it is still arriving; the final translation event replaces it.
   function setPartialTranslation(e) {
     const cell = lines.get(e.id);
     if (!cell || replaying) return;
-    cell.className = "";
+    cell.className = "text";
     cell.textContent = e.text;
     added();
   }

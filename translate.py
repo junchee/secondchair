@@ -13,7 +13,7 @@ import sys
 import time
 import unicodedata
 import ssl
-from collections import deque
+from collections import OrderedDict, deque
 
 # Cheapest Qwen that translated well in tests: $0.10/M in, $0.15/M out, about 0.45-0.6 s per
 # line on ZDR providers (Oct 2026). qwen/qwen3.5-35b-a3b was similar in speed, slightly
@@ -251,53 +251,67 @@ def translate_typed(text, conversation="", client=None):
 
 
 class Translator:
-    """Translates line events in a background thread, so transcription never waits for the network.
+    """Translates bubbles in a background thread, so transcription never waits for the network.
 
-    When a line ends mid-sentence, it is translated again once the next line from the same
-    speaker arrives, with that line as context, and sent as a revised translation.
+    A bubble (see bubbles.py) is translated as a whole. While it grows, only its newest text is
+    kept waiting: an older waiting version is replaced, so the queue cannot fall behind. The page
+    keeps showing the previous translation until the new one arrives.
     """
 
     def __init__(self, emit):
         self.emit = emit
         self.client = Client()
-        self.jobs = queue.Queue()
-        self.recent = deque(maxlen=CONTEXT_LINES)  # "LABEL: text" of the latest lines
-        self.last = {}  # source -> (line, context) of that speaker's latest line
-        self.shown = {}  # line id -> the translation the page shows now
+        self.cv = threading.Condition()
+        self.waiting = OrderedDict()  # bubble id -> job, oldest first
+        self.recent = deque(maxlen=CONTEXT_LINES)  # [bubble id, "LABEL: text"] of the latest bubbles
+        self.bubbles = {}  # bubble id -> {"ids", "text", "lang", "context", "version"}
+        self.shown = {}  # bubble id -> the translation the page shows now
         threading.Thread(target=self._work, daemon=True).start()
 
     def reset(self):
         """A new meeting starts: its first lines must not borrow context from the last one."""
-        self.recent.clear()
-        self.last.clear()
-        self.shown.clear()
+        with self.cv:
+            self.waiting.clear()
+            self.recent.clear()
+            self.bubbles.clear()
+            self.shown.clear()
 
     def submit(self, line):
-        source = line["source"]
-        previous = self.last.get(source)
-        continues = line["lang"] == "en" and line["text"][:1].islower()  # Whisper's full stop was only a pause
-        if previous and previous[0]["lang"] == line["lang"] and (continues or not ends_sentence(previous[0]["text"])):
-            self.jobs.put((previous[0], previous[1], line["text"], True))
-        # Take the context now, in transcript order, before this line joins it.
-        context = tuple(self.recent)
-        self.jobs.put((line, context, None, False))
-        self.last[source] = (line, context)
-        self.recent.append(f"{source}: {line['text']}")
+        bid = line.get("bubble", line["id"])
+        with self.cv:
+            bubble = self.bubbles.get(bid)
+            if bubble is None:
+                # The context is taken now, in transcript order, before this bubble joins it.
+                context = tuple(text[-300:] for _, text in self.recent)
+                bubble = {"ids": [], "text": "", "lang": line["lang"], "context": context, "version": 0}
+                self.bubbles[bid] = bubble
+                self.recent.append([bid, ""])
+            bubble["ids"].append(line["id"])
+            bubble["text"] = (bubble["text"] + " " + line["text"]).strip()
+            for entry in self.recent:
+                if entry[0] == bid:
+                    entry[1] = f"{line['source']}: {bubble['text']}"
+            bubble["version"] += 1
+            self.waiting[bid] = (bid, bubble["text"], bubble["lang"], bubble["context"], tuple(bubble["ids"]), bubble["version"])
+            self.cv.notify()
 
     def _work(self):
         while True:
-            line, context, following, revised = self.jobs.get()
+            with self.cv:
+                while not self.waiting:
+                    self.cv.wait()
+                bid, text, lang, context, ids, version = self.waiting.popitem(last=False)[1]
+                queued = len(self.waiting)
             started = time.time()
-            target = TARGET[line["lang"]]
             try:
-                # A first translation arrives piece by piece (the page shows the Korean from the first word);
-                # a revision is not streamed: its text would shrink and grow again under the reader's eyes.
-                partial = None if revised else (lambda text, id=line["id"]: self.emit({"type": "translation_partial", "id": id, "text": text}))
-                text = translate(line["text"], target, context, following, self.client, on_text=partial)
+                # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
+                # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
+                partial = None if version > 1 else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
+                result = translate(text, TARGET[lang], context, None, self.client, on_text=partial)
             except Exception as error:  # network or API error: show it, keep going
-                text = f"(translation failed: {error})"
-            print(f"[timing] #{line['id']} {'revision' if revised else 'translation'} {time.time() - started:.1f}s, waiting jobs {self.jobs.qsize()}", file=sys.stderr, flush=True)
-            if revised and self.shown.get(line["id"]) == text:
+                result = f"(translation failed: {error})"
+            print(f"[timing] bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
+            if version > 1 and self.shown.get(bid) == result:
                 continue  # the same words again: nothing to update on the page
-            self.shown[line["id"]] = text
-            self.emit({"type": "translation", "id": line["id"], "text": text, "revised": revised})
+            self.shown[bid] = result
+            self.emit({"type": "translation", "id": bid, "ids": list(ids), "text": result, "revised": version > 1})

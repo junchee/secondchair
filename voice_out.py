@@ -257,7 +257,7 @@ class VoiceOut:
         subprocess.Popen([sys.executable, MONITOR_PLAYER, device, path])
 
     def draft(self):
-        return " ".join(self.parts[i] for i in sorted(self.parts))
+        return " ".join(self.parts[i] for i in sorted(self.parts) if self.parts[i])
 
     def _draft_changed(self):
         text = self.draft()
@@ -290,7 +290,11 @@ class VoiceOut:
                 self.last_line_time = time.time()
         elif event["type"] == "translation" and event["id"] in self.korean_mic_lines:
             if not event["text"].startswith("(translation failed"):
-                self.parts[event["id"]] = event["text"]
+                # A bubble is translated as a whole: its text counts under its last line, the others are covered.
+                ids = [i for i in (event.get("ids") or [event["id"]]) if i in self.korean_mic_lines]
+                for line_id in ids:
+                    self.parts[line_id] = ""
+                self.parts[ids[-1]] = event["text"]
                 self._draft_changed()
 
     def _send_when_translated(self):
