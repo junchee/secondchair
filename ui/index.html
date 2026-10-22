@@ -14,6 +14,7 @@
     --muted: #74746f;
     --faint: #a5a5a0;
     --accent: #2f6fde;
+    --korean: #8a6200;  /* the translation: amber, dark enough to read on a light page */
     --on-accent: #ffffff;
     --ok: #1f9d55;
     --warn: #b7791f;
@@ -34,6 +35,7 @@
       --muted: #9a9a95;
       --faint: #66665f;
       --accent: #6b9cf5;
+      --korean: #e8c64a;
       --on-accent: #0d1420;
       --ok: #3fbf74;
       --warn: #d9a441;
@@ -271,8 +273,8 @@
   body.layout-bubbles .col-original { border-right: 0; }
   body.layout-bubbles .col-original .text { font-weight: 550; }
   body.layout-bubbles .col-translation { margin-top: 6px; }
-  body.layout-bubbles .col-translation .text { font-size: var(--trans-size); color: var(--muted); }
-  body.layout-bubbles.emph .col-translation .text { color: var(--accent); }
+  body.layout-bubbles .col-translation .text { font-size: var(--trans-size); color: var(--korean); }
+  body.layout-bubbles .col-translation .text.pending, body.layout-bubbles .col-translation .text.none { color: var(--faint); }
   body.layout-bubbles .col-translation .text.none { color: var(--faint); }
   body.layout-bubbles .col-translation .text.failed { color: var(--danger); }
   body.layout-bubbles .row.me { margin-left: auto; width: min(82%, 680px); background: var(--surface-me); opacity: .9; }
@@ -381,7 +383,6 @@
           <span id="tsize-out" style="color:var(--muted)"></span>
         </div>
         <div class="setting">
-          <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="emph"><span class="track"></span><span>Highlight the translation</span></label>
           <p>Colours the Korean so it stands out from the English.</p>
         </div>
         <h3>Program</h3>
@@ -1005,9 +1006,6 @@
   $("t-larger").onclick = () => setTSize(tsize + 2);
   setTSize(tsize);
 
-  function setEmph(on) { document.body.classList.toggle("emph", on); $("emph").checked = on; store.set("emph", on ? "1" : "0"); }
-  $("emph").addEventListener("change", () => setEmph($("emph").checked));
-  setEmph(store.get("emph", "0") === "1");
 
   function setCompact(on) {
     document.body.classList.toggle("compact", on);
