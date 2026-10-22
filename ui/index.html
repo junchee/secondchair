@@ -554,22 +554,56 @@
     added();
   }
 
+  // A line cut in the middle of a sentence (short pause or longest-line setting) joins the speaker's open bubble
+  // instead of starting a new one; the bubble closes when a sentence ends, the other side speaks, or 12 s pass.
+  const openBubbles = new Map();   // source -> { row, otext, tbox, text, lang, time }
+  function endsSentence(text, lang) {
+    const t = text.trim();
+    if (/(\.\.\.|…)$/.test(t)) return false;
+    return /[.?!。？！]["')\]”’]*$/.test(t) || (lang === "ko" && /[다요죠까네]$/.test(t));
+  }
+  function secondsOf(t) { const [h, m, s] = (t || "0:0:0").split(":").map(Number); return h * 3600 + m * 60 + s; }
+  function joinable(b, e) {
+    if (!b || !b.row.isConnected || b.lang !== e.lang || endsSentence(b.text, b.lang) || b.text.length > 500) return false;
+    const next = b.row.nextElementSibling;
+    if (next && !next.classList.contains("live")) return false;   // someone else spoke in between
+    return Math.abs(secondsOf(e.time) - secondsOf(b.time)) <= 12;
+  }
+
   function addLine(e) {
     clearPartial(e.source);
     $("empty").style.display = "none";
+    const prev = openBubbles.get(e.source);
+    if (joinable(prev, e)) {
+      const seg = el("span", "", e.text);
+      prev.otext.append(" ", seg);
+      const cell = el("span", translateOn ? "pending" : "none", translateOn ? "" : "—");
+      cell.row = prev.row;
+      prev.tbox.append(" ", cell);
+      prev.text += " " + e.text;
+      prev.time = e.time;
+      lines.set(e.id, cell);
+      added();
+      return;
+    }
     const me = e.source === "MIC";
     const row = el("div", "grid row" + (me ? " me" : ""));
     const meta = el("div", "meta");
     meta.append(el("span", "who", me ? "나" : "상대"), el("span", "", e.time), el("span", "lang", e.lang.toUpperCase()));
     const original = el("div", "col-original");
-    original.append(el("div", "text", e.text));
+    const otext = el("div", "text", e.text);
+    original.append(otext);
     const translation = el("div", "col-translation");
-    const cell = translateOn ? el("div", "text pending") : el("div", "text none", "—");
-    translation.append(cell);
+    const tbox = el("div", "text");
+    const cell = el("span", translateOn ? "pending" : "none", translateOn ? "" : "—");
+    cell.row = row;
+    tbox.append(cell);
+    translation.append(tbox);
     row.append(meta, original, translation);
     rowsEl.append(row);
     for (const p of partials.values()) rowsEl.append(p.row);   // a line still being spoken stays last
     lines.set(e.id, cell);
+    openBubbles.set(e.source, { row, otext, tbox, text: e.text, lang: e.lang, time: e.time });
     added();
   }
 
@@ -577,12 +611,12 @@
     const cell = lines.get(e.id);
     if (!cell) return;
     const failed = e.text.startsWith("(translation failed");
-    cell.className = "text" + (failed ? " failed" : "");
+    cell.className = failed ? "failed" : "";
     cell.textContent = e.text;
     if (e.revised && !replaying) {
-      cell.parentElement.classList.remove("flash");
-      void cell.parentElement.offsetWidth;  // restart the animation
-      cell.parentElement.classList.add("flash");
+      cell.row.classList.remove("flash");
+      void cell.row.offsetWidth;  // restart the animation
+      cell.row.classList.add("flash");
       cell.title = "Revised with the next line";
     }
   }
@@ -591,7 +625,7 @@
   function setPartialTranslation(e) {
     const cell = lines.get(e.id);
     if (!cell || replaying) return;
-    cell.className = "text";
+    cell.className = "";
     cell.textContent = e.text;
     added();
   }
@@ -1008,7 +1042,7 @@
     $("paused").classList.toggle("show", paused);
     $("live").classList.toggle("live", running);
     if (e.new) {                       // a new meeting: start with an empty page
-      rowsEl.replaceChildren(); lines.clear(); partials.clear();
+      rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear();
       $("ask-body").replaceChildren(); asks.clear();
       $("summary-panel").hidden = true;
       $("empty").style.display = "";
@@ -1070,7 +1104,7 @@
     source = new EventSource("/events");
     source.onopen = () => {
       replaying = true;
-      rowsEl.replaceChildren(); lines.clear(); partials.clear();
+      rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear();
       $("ask-body").replaceChildren(); asks.clear();
       $("empty").style.display = "";
       $("banner").classList.remove("show");

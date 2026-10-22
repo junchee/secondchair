@@ -412,8 +412,10 @@ class Engine:
                 if source is mic and level < settings.mic_min_level():
                     continue  # a click or room noise, not Jun: skip it before Whisper
                 translating = self.translator is not None and settings.translate
+                started = time.time()
                 language = detect_language(segment, self.model) if translating else "en"
                 text = transcribe(segment, self.model, language)
+                print(f"[timing] {source.label} speech {len(segment) / 16000:.1f}s, whisper {time.time() - started:.1f}s", file=sys.stderr, flush=True)
                 if not text:
                     self._hide_bubble(source)  # nothing was said after all
                     continue

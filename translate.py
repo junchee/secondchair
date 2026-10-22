@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import sys
 import time
 import unicodedata
 import ssl
@@ -285,6 +286,7 @@ class Translator:
     def _work(self):
         while True:
             line, context, following, revised = self.jobs.get()
+            started = time.time()
             target = TARGET[line["lang"]]
             try:
                 # A first translation arrives piece by piece (the page shows the Korean from the first word);
@@ -293,6 +295,7 @@ class Translator:
                 text = translate(line["text"], target, context, following, self.client, on_text=partial)
             except Exception as error:  # network or API error: show it, keep going
                 text = f"(translation failed: {error})"
+            print(f"[timing] #{line['id']} {'revision' if revised else 'translation'} {time.time() - started:.1f}s, waiting jobs {self.jobs.qsize()}", file=sys.stderr, flush=True)
             if revised and self.shown.get(line["id"]) == text:
                 continue  # the same words again: nothing to update on the page
             self.shown[line["id"]] = text
