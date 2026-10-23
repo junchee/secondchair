@@ -218,6 +218,17 @@
   #jump { bottom: 220px; }
 
   /* ---- Composer: English to say, from what Jun says in Korean or types */
+  .flag { font-size: 20px; line-height: 1; }
+  .dots { display: inline-flex; gap: 3px; align-items: center; }
+  .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: dot 1.2s infinite ease-in-out both; }
+  .dots i:nth-child(2) { animation-delay: .2s; }
+  .dots i:nth-child(3) { animation-delay: .4s; }
+  @keyframes dot { 0%, 80%, 100% { opacity: .15; } 40% { opacity: 1; } }
+  #draft.stale { color: var(--muted); }
+  #composer-toggle svg { transition: transform .15s; }
+  body.composer-folded #composer .pair > :not(.pane:first-child), body.composer-folded #type-form { display: none; }
+  body.composer-folded .pair { grid-template-columns: 1fr; }
+  body.composer-folded #composer-toggle svg { transform: rotate(-90deg); }
   .pair { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
   .pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .pane-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 26px; }
@@ -360,24 +371,15 @@
   <div class="spacer"></div>
   <div class="controls">
     <div class="panel-wrap">
-      <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" aria-label="Settings" data-tip="Settings: translation, view, line length and text size." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" aria-label="Settings" data-tip="Settings: translation, line length and text size." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
       <div id="settings-panel" hidden>
         <h3>View</h3>
         <div class="setting">
-          <label class="switch" id="translate-switch" style="justify-content:flex-start">
-            <input type="checkbox" id="translate">
-            <span class="track"></span>
-            <span>Translate English &#8644; Korean</span>
-          </label>
-          <p>Sends the text to the translation service. Shortcut T.</p>
-        </div>
-        <div class="setting">
-          <div class="segmented" id="view-buttons" role="group" aria-label="View">
-            <button data-view="both" aria-pressed="true">Both</button>
-            <button data-view="original" aria-pressed="false">Original</button>
-            <button data-view="translation" aria-pressed="false">Translation</button>
+          <div class="segmented" id="translate-mode" role="group" aria-label="Translation">
+            <button type="button" data-on="1" aria-pressed="true">Translate (original + translation)</button>
+            <button type="button" data-on="0" aria-pressed="false">Original only</button>
           </div>
-          <p>What to show in each bubble. Shortcut V.</p>
+          <p>Translation sends the text to the translation service. Original only keeps everything on this Mac.</p>
         </div>
         <div class="setting">
           <button class="icon-btn" id="compact-btn" type="button" aria-pressed="false">Compact view</button>
@@ -415,12 +417,6 @@
           <p>Clicks and room noise can show up as a made-up line like “Thank you.” Raise this if that happens; lower it if your quiet speech is missed.</p>
         </div>
         <h3>Look</h3>
-        <div class="setting">
-          <div class="segmented" id="layout-buttons" role="group" aria-label="Layout">
-            <button data-layout="bubbles" aria-pressed="true">Bubbles</button>
-            <button data-layout="table" aria-pressed="false">Table</button>
-          </div>
-        </div>
         <div class="setting" style="display:flex; gap:8px; align-items:center;">
           <span style="color:var(--muted); min-width:96px">English text</span>
           <button class="icon-btn" id="smaller" aria-label="Smaller text">A−</button>
@@ -460,39 +456,35 @@
 </main>
 <button id="jump">↓ New lines</button>
 
-<section id="composer" aria-label="Translate">
-  <div class="out-head">
-    <span class="warn" id="draft-warn"></span>
-  </div>
+<section id="composer" aria-label="Typing translator">
   <div class="pair">
     <div class="pane">
       <div class="pane-head">
-        <strong>Korean</strong>
+        <button class="icon-btn" id="composer-toggle" type="button" aria-expanded="true" aria-label="Fold the translator" data-tip="Fold or open the typing translator."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        <span class="flag" id="in-flag" aria-label="Korean">🇰🇷</span>
         <div class="segmented" id="type-mode" role="group" aria-label="What to do with the text" title="Start with ? to ask">
-          <button type="button" data-kind="translate" aria-pressed="true">Translate</button>
-          <button type="button" data-kind="ask" aria-pressed="false">Ask</button>
+          <button type="button" data-kind="translate" aria-pressed="true">번역</button>
+          <button type="button" data-kind="ask" aria-pressed="false">질문</button>
         </div>
+        <span class="warn" id="draft-warn"></span>
       </div>
       <form id="type-form" autocomplete="off">
-        <textarea id="type-input" rows="2" placeholder="Type Korean and press Enter (/)" aria-label="Type Korean to translate or a question about the meeting"></textarea>
+        <textarea id="type-input" rows="2" placeholder="여기 입력" aria-label="Type Korean to translate, or a question about the meeting"></textarea>
         <button type="submit" id="type-go" hidden>Translate</button>
       </form>
     </div>
     <div class="arrow" aria-hidden="true">&rarr;</div>
     <div class="pane">
       <div class="pane-head">
-        <strong id="out-title">English</strong>
-        <span id="out-source"></span>
+        <span class="flag" id="out-title" aria-label="English">🇬🇧</span>
+        <span class="dots" id="dots" hidden aria-label="Translating"><i></i><i></i><i></i></span>
         <span class="spacer"></span>
-        <button class="icon-btn" id="discard" type="button" aria-label="Clear" data-tip="Clear (Esc): empty this box." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button class="icon-btn" id="discard" type="button" aria-label="Clear" data-tip="Clear (Esc): empty both boxes." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <textarea id="draft" rows="2" placeholder="The English appears here. It also appears when you speak Korean." readonly></textarea>
-      <button class="ghost" id="load-latest" hidden>Load new voice draft</button>
+      <textarea id="draft" rows="2" readonly aria-label="Translation"></textarea>
     </div>
   </div>
-  <div id="history" aria-label="Earlier typed translations"></div>
 </section>
-
 
 <aside id="summary-panel" hidden aria-label="Summary and questions">
   <div class="sp-head">
@@ -537,7 +529,7 @@
   const lines = new Map();          // line id -> translation cell element
   let translateOn = false, translateAvailable = false, replaying = true, source = null;
   let micAvailable = true;
-  let voice = { available: false, mode: "direct" }, micOn = false, serverDraft = "", draftDirty = false;
+  let voice = { available: false, mode: "direct" }, micOn = false;
 
   const store = {
     get(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
@@ -841,9 +833,11 @@
     }
     translateOn = e.translate;
     translateAvailable = e.translate_available;
-    $("translate").checked = translateOn;
-    $("translate").disabled = !translateAvailable;
-    $("translate-switch").classList.toggle("disabled", !translateAvailable);
+    document.querySelectorAll("#translate-mode button").forEach((b) => {
+      b.setAttribute("aria-pressed", (b.dataset.on === "1") === translateOn);
+      b.disabled = b.dataset.on === "1" && !translateAvailable;
+    });
+    setView(translateOn ? "both" : "original");
     $("empty-hint").textContent = translateAvailable ? ""
       : "Translation is off: OPENROUTER_API_KEY is not set in the terminal that runs app.py.";
     if (document.activeElement !== $("max-line")) $("max-line").value = e.max_line_seconds;
@@ -857,7 +851,7 @@
   $("translate-model").addEventListener("change", () => post("/settings", { translate_model: $("translate-model").value }));
   $("mic-filter").addEventListener("change", () => post("/settings", { mic_filter: $("mic-filter").value }));
 
-  $("translate").addEventListener("change", () => post("/settings", { translate: $("translate").checked }));
+  document.querySelectorAll("#translate-mode button").forEach((b) => b.onclick = () => post("/settings", { translate: b.dataset.on === "1" }));
 
   for (const [id, key, digits] of [["max-line", "max_line_seconds", 0], ["pause", "pause_seconds", 1]]) {
     $(id).addEventListener("input", () => { $(id + "-out").textContent = `${Number($(id).value).toFixed(digits)} s`; });
@@ -875,79 +869,76 @@
     $("draft-warn").textContent = !translateOn ? "Translation is off: turn it on to get English." : "";
   }
 
-  // ---- Composer: one box for the English to say. It is filled by what Jun says in Korean
-  // mode (the server's draft) or by a typed translation. Typed text is never recorded.
-  let origin = null;          // "voice" | "typed" | null: where the box's text came from
-  let target = "English";     // language of the box's text
+  // ---- Typing translator: what Jun types (only that) is translated as he types: Korean -> English to say,
+  // English -> Korean to check the meaning. Spoken lines are translated in their bubbles, not here.
+  // Typed text is never recorded.
   let latestTyped = 0;        // id of the newest typing request, so older answers do not overwrite
-  const history = [];         // earlier typed translations, newest first
+  let lastSent = "", typeTimer = null;
+  const TYPE_PAUSE_MS = 600;  // a pause in typing this long sends what is there
 
-  function updateButtons() {
-    const has = !!$("draft").value.trim() && !$("draft").classList.contains("translating");
-  }
-  function setOutput(text, from, label, language = "English") {
-    $("draft").classList.remove("translating");
+  function updateButtons() {}
+  function setOutput(text, language = "English") {
+    $("dots").hidden = true;
+    $("draft").classList.remove("stale");
     $("draft").value = text;
-    origin = text ? from : null;
-    target = language;
-    draftDirty = false;
-    $("out-title").textContent = language === "English" ? "English" : "Meaning in Korean";
-    $("out-source").textContent = text ? label : "";
-    $("load-latest").hidden = true;
-    updateButtons();
+    $("out-title").textContent = language === "English" ? "🇬🇧" : "🇰🇷";
+    $("out-title").setAttribute("aria-label", language);
   }
-  function clearOutput() { setOutput("", null, ""); }
-
-  function setDraft(text) {      // the server's draft from Jun's spoken Korean
-    serverDraft = text;
-    const busy = (origin === "typed" || draftDirty) && $("draft").value.trim();
-    if (text && busy) { $("load-latest").hidden = false; return; }  // do not overwrite: offer it
-    if (text) setOutput(text, "voice", "From your Korean");
-    else if (origin === "voice") clearOutput();
-  }
-  $("load-latest").onclick = () => setOutput(serverDraft, "voice", "From your Korean");
-  $("draft").addEventListener("input", () => {
-    draftDirty = origin !== "voice" || $("draft").value !== serverDraft;
-    updateButtons();
-  });
-
   function discard() {
-    if (origin === "voice" || serverDraft) post("/discard");
-    clearOutput();
+    clearTimeout(typeTimer);
+    lastSent = "";
+    $("type-input").value = "";
+    setOutput("");
   }
   $("discard").onclick = discard;
-  $("draft").addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { e.preventDefault(); discard(); }
-  });
+  $("draft").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); discard(); } });
 
-  // The bottom line does two things: Translate (Korean -> English to read out, or English ->
-  // Korean to check the meaning) or Ask (a question about the meeting, answered in the side
-  // panel). A leading "?" asks whatever the mode.
+  function sendTyped() {
+    clearTimeout(typeTimer);
+    const text = $("type-input").value.trim();
+    if (!translateAvailable || typeKind !== "translate" || /^[?？]/.test(text)) return;
+    if (!text) { lastSent = ""; setOutput(""); return; }
+    if (text === lastSent) return;
+    lastSent = text;
+    post("/type", { text });
+  }
+
+  // Translate (as you type) or Ask (a question about the meeting, answered in the side panel, sent with Enter).
+  // A leading "?" asks whatever the mode.
   let typeKind = "translate";
   function setTypeKind(kind) {
     typeKind = kind;
     document.querySelectorAll("#type-mode button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.kind === kind));
-    $("type-go").textContent = kind === "ask" ? "Ask" : "Translate";
-    $("type-input").placeholder = kind === "ask"
-      ? "Ask about the meeting, e.g. 방금 무슨 얘기야? (/)"
-      : "Type Korean to get English you can say (/)";
+    $("type-input").placeholder = kind === "ask" ? "질문 입력 후 Enter" : "여기 입력";
   }
+  $("type-input").addEventListener("input", () => {
+    clearTimeout(typeTimer);
+    typeTimer = setTimeout(sendTyped, TYPE_PAUSE_MS);
+  });
   $("type-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("type-form").requestSubmit(); }
+    if (e.key === "Escape") { e.preventDefault(); discard(); }
   });
   document.querySelectorAll("#type-mode button").forEach((b) => b.onclick = () => { setTypeKind(b.dataset.kind); $("type-input").focus(); });
   $("type-form").addEventListener("submit", (e) => {
     e.preventDefault();
     let text = $("type-input").value.trim();
     if (!text || !translateAvailable) return;
-    const ask = typeKind === "ask" || /^[?？]/.test(text);
-    if (ask) {
+    if (typeKind === "ask" || /^[?？]/.test(text)) {
       text = text.replace(/^[?？]\s*/, "");
       if (!text) return;
       post("/ask", { question: text });
-    } else post("/type", { text });
-    $("type-input").value = "";
+      $("type-input").value = "";
+    } else sendTyped();
   });
+
+  function setFolded(folded) {
+    document.body.classList.toggle("composer-folded", folded);
+    $("composer-toggle").setAttribute("aria-expanded", !folded);
+    store.set("folded", folded ? "1" : "0");
+  }
+  $("composer-toggle").onclick = () => setFolded(!document.body.classList.contains("composer-folded"));
+  setFolded(store.get("folded", "0") === "1");
 
   const asks = new Map();   // ask id -> answer element
   function onAsking(e) {
@@ -970,44 +961,20 @@
   function onTyping(e) {
     latestTyped = Math.max(latestTyped, e.id);
     if (replaying) return;
-    $("draft").classList.add("translating");
-    $("draft").value = "Translating…";
-    $("out-source").textContent = `“${e.source}”`;
-    origin = "typed";
-    updateButtons();
+    $("draft").classList.add("stale");   // the earlier translation stays, dimmed, until the new one arrives
+    $("dots").hidden = false;
   }
   function onTyped(e) {
-    if (e.target) {
-      history.unshift(e);
-      history.length = Math.min(history.length, 5);
-      renderHistory();
-    }
     if (replaying || e.id !== latestTyped) return;
-    if (!e.target) {
-      setOutput("", null, "");
-      $("out-source").textContent = e.text;
-      return;
-    }
-    setOutput(e.text, "typed", `“${e.source}”`, e.target);
-  }
-  function renderHistory() {
-    $("history").replaceChildren(...history.map((item) => {
-      const chip = el("button", "", item.source);
-      chip.title = `${item.source} → ${item.text}`;
-      chip.onclick = () => setOutput(item.text, "typed", `“${item.source}”`, item.target);
-      return chip;
-    }));
+    if (!e.target) { setOutput(e.text || ""); return; }
+    setOutput(e.text, e.target);
   }
 
   // ---- View, text size, settings panel, stop
   function setView(view) {
     document.body.classList.remove("view-both", "view-original", "view-translation");
     document.body.classList.add("view-" + view);
-    document.querySelectorAll("#view-buttons button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === view));
-    store.set("view", view);
   }
-  document.querySelectorAll("#view-buttons button").forEach((b) => b.onclick = () => setView(b.dataset.view));
-  setView(store.get("view", "both"));
 
   let size = Number(store.get("size", 17));
   function setSize(px) {
@@ -1019,14 +986,6 @@
   $("smaller").onclick = () => setSize(size - 2);
   $("larger").onclick = () => setSize(size + 2);
   setSize(size);
-
-  function setLayout(name) {
-    document.body.classList.toggle("layout-bubbles", name === "bubbles");
-    document.querySelectorAll("#layout-buttons button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.layout === name));
-    store.set("layout", name);
-  }
-  document.querySelectorAll("#layout-buttons button").forEach((b) => b.onclick = () => setLayout(b.dataset.layout));
-  setLayout(store.get("layout", "bubbles") === "table" ? "table" : "bubbles");
 
   let tsize = Number(store.get("tsize", 16));
   function setTSize(px) {
@@ -1113,12 +1072,6 @@
     if (e.key === "s") requestSummary();
     if (e.key === "c") $("compact-btn").click();
     if (e.key === "p" && !$("btn-pause").disabled) $("btn-pause").click();
-    if (e.key === "t" && translateAvailable) $("translate").click();
-    if (e.key === "v") {
-      const order = ["both", "original", "translation"];
-      const current = order.find((v) => document.body.classList.contains("view-" + v));
-      setView(order[(order.indexOf(current) + 1) % order.length]);
-    }
   });
 
   // ---- Live events. On every (re)connect the server replays the session, so start clean.
@@ -1165,7 +1118,7 @@
         case "prep_result": onPrepResult(e); break;
         case "session": onSession(e); break;
         case "voice": setVoice(e); break;
-        case "draft": setDraft(e.text); break;
+        case "draft": break;   // spoken Korean is translated in its bubble; the bottom box is for typing only
         case "spoken": addSpoken(e); break;
         case "summarizing": onSummarizing(e); break;
         case "summary": onSummary(e); break;

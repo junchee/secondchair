@@ -531,7 +531,8 @@ class Engine:
                     continue  # a click or room noise, not Jun: skip it before Whisper
                 translating = self.translator is not None and settings.translate
                 started = time.time()
-                language, share = language_guess(segment, self.model) if translating else ("en", 1.0)
+                # Always detected, also with translation off: Korean speech is then written in Korean, not turned into English.
+                language, share = language_guess(segment, self.model)
                 if share < MIN_LANGUAGE_SHARE:
                     print("[timing] dropped: neither English nor Korean (noise)", file=sys.stderr, flush=True)
                     self._hide_bubble(source)

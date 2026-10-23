@@ -74,6 +74,8 @@ Draft first, clean up when the bubble is final. Server side, in this order (the 
 
 - **To do (Jun, 2026-10-23):** after Quit with a summary, leave the browser tab and the Terminal window open and say so on the page: "Summary saved. You can close this tab and the Terminal window." (the tab already stays open when a final summary was shown; the page text still says only "You can close this tab"; the Terminal window is never closed by the program).
 
+- **Settings and the typing translator (2026-10-23):** Settings has one choice "Translate (original + translation)" / "Original only" (no translation-only view, no table layout: bubbles only; shortcuts T and V removed). The language is detected also with translation off, so Korean speech stays Korean. The bottom box is for typed text only (spoken Korean is translated in its bubble; `draft` events are ignored by the page): flags instead of labels (🇰🇷 → 🇬🇧, 🇰🇷 when English was typed), placeholder "여기 입력", translated as you type (a 0.6 s pause sends it, Enter at once; `/type`, Qwen), three blinking dots while waiting with the old text dimmed, no history chips, a fold button (state in localStorage). 번역 | 질문 stays (질문 with Enter only).
+
 ## To do next: secondchair, next version (Jun, 2026-10-22; record only, build when Jun says so)
 - The bottom box: Korean on the left, the English translation on the right, with an arrow between them, so the direction is clear at a glance (now one "English to say" box).
 - Leave the Avatar voice (computer voice, Beta footer, virtual mic passthrough, voice picker, monitor) out of the next version. Remove it from the page and settings; decide with Jun whether the code stays on a branch or is deleted.
