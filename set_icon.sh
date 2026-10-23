@@ -4,8 +4,9 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET="${1:-}"
 if [ -z "$TARGET" ]; then
-  for name in "Anne.command" "SecondChair.command" "secondchair 시작.command"; do
-    [ -e "$HOME/Desktop/$name" ] && TARGET="$HOME/Desktop/$name" && break
+  # Any desktop launcher that starts secondchair, whatever it was renamed to
+  for file in "$HOME"/Desktop/*.command; do
+    [ -e "$file" ] && grep -q "app.py" "$file" && TARGET="$file" && break
   done
 fi
 [ -e "$TARGET" ] || { echo "바탕화면에서 시작 아이콘을 찾지 못했습니다. 경로를 함께 적어 주세요."; exit 1; }
