@@ -1117,10 +1117,12 @@
     clearPartials();
     $("live").classList.remove("live");
     $("banner").classList.remove("show");
-    $("stopped").textContent = e.saved
-      ? `secondchair closed. Transcript saved: ${e.saved}`
-      : "secondchair closed. Nothing was said, so nothing was saved.";
+    $("stopped").textContent = (e.saved
+      ? `Anne closed. Transcript saved: ${e.saved}`
+      : "Anne closed. Nothing was said, so nothing was saved.") + " You can close this tab.";
     $("stopped").classList.add("show");
+    // A tab opened by the program itself (one history entry) may close itself; if the browser refuses, the message stays.
+    setTimeout(() => { try { window.close(); } catch {} }, 1200);
     document.body.classList.remove("interpreting");
     for (const id of ["btn-start", "btn-pause", "btn-end", "summary-btn", "sp-again", "type-input"]) $(id).disabled = true;
     $("paused").classList.remove("show");
