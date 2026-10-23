@@ -104,6 +104,9 @@
   .segmented button[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 600; }
   .segmented button:disabled { cursor: not-allowed; opacity: .5; }
   .segmented.voice button[data-mode="interpret"][aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .quit-btn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); padding: 4px 7px; line-height: 0; }
+  .quit-btn svg { width: 16px; height: 16px; }
+  .quit-btn:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
   .icon-btn { border: 1px solid var(--border); background: transparent; border-radius: 8px; padding: 4px 8px; cursor: pointer; color: var(--muted); }
   .icon-btn:hover, .segmented button:not(:disabled):hover { color: var(--text); }
   .stop-btn { border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); color: var(--danger);
@@ -195,11 +198,19 @@
   #beta .beta-row input[type=range] { flex: 1; accent-color: var(--accent); }
   #beta p { margin: 0; }
   #speak { display: none; }
-  body.interpreting #speak { display: inline-block; }
 
   #jump { bottom: 220px; }
 
   /* ---- Composer: English to say, from what Jun says in Korean or types */
+  .pair { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
+  .pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .pane-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 26px; }
+  .pane-head strong { font-size: 13px; }
+  .arrow { align-self: center; font-size: 26px; color: var(--accent); line-height: 1; }
+  #type-form { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; flex: 1; }
+  #type-input { width: 100%; min-height: 56px; max-height: 160px; resize: vertical; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); font-size: calc(var(--text-size) + 2px); line-height: 1.45; }
+  #type-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  @media (max-width: 640px) { .pair { grid-template-columns: 1fr; } .arrow { transform: rotate(90deg); justify-self: center; } }
   #composer {
     border-top: 1px solid var(--border); background: var(--surface);
     padding: 10px 16px 12px; display: flex; gap: 8px; flex-direction: column;
@@ -314,7 +325,6 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="output-icon"></svg>
       <span id="output-text">Output: waiting</span>
     </span>
-    <span class="chip on" id="avatar-chip" hidden title="The meeting hears the computer's English voice, not your own voice">Avatar voice on</span>
     <span class="chip" id="mic-chip" title="Your microphone">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>
       <span id="mic-text">Mic: waiting</span>
@@ -388,11 +398,6 @@
         <div class="setting">
           <p>Colours the Korean so it stands out from the English.</p>
         </div>
-        <h3>Program</h3>
-        <div class="setting">
-          <button class="stop-btn" id="quit" type="button" title="Close secondchair completely (a running meeting is ended and saved first)">Quit secondchair</button>
-          <p>To use it again, double-click the secondchair icon.</p>
-        </div>
       </div>
     </div>
     <button class="icon-btn" id="compact-btn" aria-pressed="false" title="Compact view (C): only the buttons and the transcript, for a small window">Compact</button>
@@ -402,6 +407,7 @@
       <button id="btn-pause" data-action="pause" title="Stop listening for a moment (P). The sound stays connected." aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg></button>
       <button id="btn-end" class="stop" data-action="end" title="End the meeting: summarize, save and give the sound back" aria-label="End"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg></button>
     </div>
+    <button class="icon-btn quit-btn" id="quit" type="button" aria-label="Quit" title="Quit Anne completely (a running meeting is ended and saved first). To use it again, double-click the Anne icon."><svg viewBox="0 0 24 24"><path d="M12 3v9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M6.6 6.8a8 8 0 1 0 10.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
   </div>
 </header>
 <div class="banner" id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
@@ -423,61 +429,42 @@
 </main>
 <button id="jump">↓ New lines</button>
 
-<section id="composer" aria-label="English to say">
+<section id="composer" aria-label="Translate">
   <div class="out-head">
-    <strong id="out-title">English to say</strong>
-    <span id="out-source"></span>
-    <span class="spacer"></span>
     <span class="warn" id="draft-warn"></span>
-    <span id="speaking"></span>
-  </div>
-  <textarea id="draft" rows="2" placeholder="Type Korean below, or speak Korean: the English appears here to read out."></textarea>
-  <div class="row-actions">
-    <button class="primary" id="speak" disabled title="Say it in the meeting with the Avatar voice">Speak</button>
-    <button class="ghost" id="copy" disabled>Copy</button>
-    <button class="ghost" id="discard" title="Esc">Clear</button>
-    <button class="ghost" id="load-latest" hidden>Load new voice draft</button>
     <span class="hint" id="out-hint"></span>
   </div>
-  <form id="type-form" autocomplete="off">
-    <div class="segmented" id="type-mode" role="group" aria-label="What to do with the text" title="Start with ? to ask">
-      <button type="button" data-kind="translate" aria-pressed="true">Translate</button>
-      <button type="button" data-kind="ask" aria-pressed="false">Ask</button>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane-head">
+        <strong>Korean</strong>
+        <div class="segmented" id="type-mode" role="group" aria-label="What to do with the text" title="Start with ? to ask">
+          <button type="button" data-kind="translate" aria-pressed="true">Translate</button>
+          <button type="button" data-kind="ask" aria-pressed="false">Ask</button>
+        </div>
+      </div>
+      <form id="type-form" autocomplete="off">
+        <textarea id="type-input" rows="2" placeholder="Type Korean to get English you can say (/)" aria-label="Type Korean to translate or a question about the meeting"></textarea>
+        <button class="primary" type="submit" id="type-go">Translate</button>
+      </form>
     </div>
-    <input id="type-input" placeholder="Type Korean to get English you can say (/)" aria-label="Type Korean to translate or a question about the meeting">
-    <button class="ghost" type="submit" id="type-go">Translate</button>
-  </form>
+    <div class="arrow" aria-hidden="true">&rarr;</div>
+    <div class="pane">
+      <div class="pane-head">
+        <strong id="out-title">English to say</strong>
+        <span id="out-source"></span>
+      </div>
+      <textarea id="draft" rows="2" placeholder="The English appears here. It also appears when you speak Korean."></textarea>
+      <div class="row-actions">
+        <button class="ghost" id="copy" disabled>Copy</button>
+        <button class="ghost" id="discard" title="Esc">Clear</button>
+        <button class="ghost" id="load-latest" hidden>Load new voice draft</button>
+      </div>
+    </div>
+  </div>
   <div id="history" aria-label="Earlier typed translations"></div>
 </section>
 
-<footer id="beta">
-  <details>
-    <summary>Beta · Avatar voice: the computer says my English in the meeting</summary>
-    <div class="beta-body">
-      <label class="switch" id="avatar-switch" style="justify-content:flex-start">
-        <input type="checkbox" id="avatar">
-        <span class="track"></span>
-        <span>Avatar voice</span>
-      </label>
-      <p class="small">Off: the meeting hears your own voice. On: the meeting hears only the computer's English voice, and your Korean stays private. Say “오케이” or press Speak to send the English.</p>
-      <div class="beta-row">
-        <label for="voice-select">Voice</label>
-        <select id="voice-select"></select>
-        <button class="ghost" id="voice-preview" type="button" title="Hear it in your headphones only">Preview</button>
-      </div>
-      <div class="beta-row">
-        <label class="switch" id="monitor-switch">
-          <input type="checkbox" id="monitor">
-          <span class="track"></span>
-          <span>Hear it too</span>
-        </label>
-        <input type="range" id="monitor-volume" min="0" max="1" step="0.05" aria-label="Volume">
-        <output id="monitor-volume-out"></output>
-      </div>
-      <p class="small" id="voice-info">—</p>
-    </div>
-  </details>
-</footer>
 
 <aside id="summary-panel" hidden aria-label="Summary and questions">
   <div class="sp-head">
@@ -762,60 +749,16 @@
     $(id).addEventListener("change", () => post("/settings", { [key]: Number($(id).value) }));
   }
 
-  // ---- Avatar voice (beta): the computer says Jun's English in the meeting
+  // The voice state is only remembered: the Avatar voice is not in the page any more.
   function setVoice(e) {
     voice = e;
-    const on = e.mode === "interpret";
-    $("avatar").checked = on;
-    $("avatar").disabled = !e.available;
-    $("avatar-switch").classList.toggle("disabled", !e.available);
-    $("avatar-chip").hidden = !on;
-    document.body.classList.toggle("interpreting", on);
-    const select = $("voice-select");
-    const key = JSON.stringify([e.voices.map((v) => v.id), e.voice]);
-    if (select.dataset.key !== key) {         // rebuild only when the list or the choice changed
-      select.dataset.key = key;
-      select.replaceChildren(...e.voices.map((v) => {
-        const option = el("option", "", [v.name, v.language, v.gender, v.quality === "standard" ? "" : v.quality]
-          .filter(Boolean).join(" · "));
-        option.value = v.id;
-        return option;
-      }));
-      select.value = e.voice;
-    }
-    select.disabled = !e.available || !e.voices.length;
-    $("voice-preview").disabled = select.disabled;
-    const premium = e.voices.some((v) => v.quality !== "standard");
-    $("voice-info").textContent = e.available
-      ? `In Zoom or Teams, choose "${e.device}" as the microphone: with Avatar voice off it passes your own voice through, with it on the meeting hears the computer voice. ` +
-        (premium ? "" : "No Premium voices are installed yet: add natural ones in System Settings › Accessibility › Spoken Content › System voice › Manage Voices.")
-      : `${e.device} is not installed, so the Avatar voice is unavailable. Install with: brew install --cask blackhole-16ch`;
-    $("monitor").checked = e.monitor;
-    $("monitor").disabled = !e.available;
-    $("monitor-switch").classList.toggle("disabled", !e.available);
-    if (document.activeElement !== $("monitor-volume")) $("monitor-volume").value = e.monitor_volume;
-    $("monitor-volume").disabled = !e.available || !e.monitor;
-    $("monitor-volume-out").textContent = `${Math.round(e.monitor_volume * 100)}%`;
     updateDraftWarning();
     updateButtons();
   }
-  $("avatar").addEventListener("change", () => post("/voice", { mode: $("avatar").checked ? "interpret" : "direct" }));
-  $("voice-select").addEventListener("change", () => post("/voice", { voice: $("voice-select").value, preview: true }));
-  $("voice-preview").addEventListener("click", () => post("/voice", { voice: $("voice-select").value, preview: true }));
-  $("monitor").addEventListener("change", () => post("/voice", { monitor: $("monitor").checked }));
-  $("monitor-volume").addEventListener("input", () => {
-    $("monitor-volume-out").textContent = `${Math.round($("monitor-volume").value * 100)}%`;
-  });
-  $("monitor-volume").addEventListener("change", () => post("/voice", { monitor_volume: Number($("monitor-volume").value) }));
 
   function updateDraftWarning() {
-    const avatar = voice.mode === "interpret";
-    $("draft-warn").textContent =
-      !translateOn ? "Translation is off: turn it on to get English." :
-      avatar && !micOn ? "Mic is off on speakers: use headphones for the Avatar voice." : "";
-    $("out-hint").textContent = avatar
-      ? "Say “오케이” to send it with the Avatar voice, “다시” to clear it."
-      : "Read it out yourself. Say “다시” to clear it, or just speak Korean again.";
+    $("draft-warn").textContent = !translateOn ? "Translation is off: turn it on to get English." : "";
+    $("out-hint").textContent = "Read the English out yourself. Say “다시” to clear it, or just speak Korean again.";
   }
 
   // ---- Composer: one box for the English to say. It is filled by what Jun says in Korean
@@ -827,7 +770,6 @@
 
   function updateButtons() {
     const has = !!$("draft").value.trim() && !$("draft").classList.contains("translating");
-    $("speak").disabled = !has || !voice.available || target !== "English";
     $("copy").disabled = !has;
   }
   function setOutput(text, from, label, language = "English") {
@@ -856,17 +798,6 @@
     updateButtons();
   });
 
-  function speak() {
-    if (voice.mode !== "interpret") return;   // Speak and Enter are for the Avatar voice only
-    const text = $("draft").value.trim();
-    if (!text || $("speak").disabled) return;
-    if (/[가-힣]/.test(text)) {   // an English voice cannot say Korean: translate it first
-      post("/type", { text });
-      return;
-    }
-    post("/speak", { text });
-    clearOutput();
-  }
   function discard() {
     if (origin === "voice" || serverDraft) post("/discard");
     clearOutput();
@@ -878,11 +809,9 @@
     $("copy").textContent = "Copied";
     setTimeout(() => { $("copy").textContent = "Copy"; }, 1200);
   }
-  $("speak").onclick = speak;
   $("discard").onclick = discard;
   $("copy").onclick = copy;
   $("draft").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); speak(); }
     if (e.key === "Escape") { e.preventDefault(); discard(); }
   });
 
@@ -898,6 +827,9 @@
       ? "Ask about the meeting, e.g. 방금 무슨 얘기야? (/)"
       : "Type Korean to get English you can say (/)";
   }
+  $("type-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("type-form").requestSubmit(); }
+  });
   document.querySelectorAll("#type-mode button").forEach((b) => b.onclick = () => { setTypeKind(b.dataset.kind); $("type-input").focus(); });
   $("type-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -960,13 +892,6 @@
       chip.onclick = () => setOutput(item.text, "typed", `“${item.source}”`, item.target);
       return chip;
     }));
-  }
-
-  let speakingTimer = null;
-  function showSpeaking(seconds) {
-    $("speaking").textContent = "Speaking…";
-    clearTimeout(speakingTimer);
-    speakingTimer = setTimeout(() => { $("speaking").textContent = ""; }, seconds * 1000);
   }
 
   // ---- View, text size, settings panel, stop
@@ -1068,7 +993,7 @@
     post("/session", { action: b.dataset.action });
   });
   $("quit").onclick = () => {
-    if (confirm("Quit secondchair? A running meeting is ended and saved first.")) post("/quit");
+    if (confirm("Quit Anne? A running meeting is ended and saved first.")) post("/quit");
   };
 
   document.addEventListener("keydown", (e) => {
@@ -1084,7 +1009,6 @@
     if (e.key === "c") $("compact-btn").click();
     if (e.key === "p" && !$("btn-pause").disabled) $("btn-pause").click();
     if (e.key === "t" && translateAvailable) $("translate").click();
-    if (e.key === "Enter" && !$("speak").disabled) { e.preventDefault(); speak(); }
     if (e.key === "v") {
       const order = ["both", "original", "translation"];
       const current = order.find((v) => document.body.classList.contains("view-" + v));
@@ -1103,7 +1027,7 @@
       : "secondchair closed. Nothing was said, so nothing was saved.";
     $("stopped").classList.add("show");
     document.body.classList.remove("interpreting");
-    for (const id of ["btn-start", "btn-pause", "btn-end", "summary-btn", "sp-again", "speak", "type-input"]) $(id).disabled = true;
+    for (const id of ["btn-start", "btn-pause", "btn-end", "summary-btn", "sp-again", "type-input"]) $(id).disabled = true;
     $("paused").classList.remove("show");
   }
 
@@ -1133,7 +1057,7 @@
         case "session": onSession(e); break;
         case "voice": setVoice(e); break;
         case "draft": setDraft(e.text); break;
-        case "spoken": addSpoken(e); if (!replaying) showSpeaking(e.seconds); break;
+        case "spoken": addSpoken(e); break;
         case "summarizing": onSummarizing(e); break;
         case "summary": onSummary(e); break;
         case "typing": onTyping(e); break;
