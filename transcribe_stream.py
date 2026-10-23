@@ -220,6 +220,14 @@ def detect_language(audio, model):
     return language_guess(audio, model)[0]
 
 
+def token_limit(seconds, language):
+    """Most tokens Whisper may write for this much speech. Korean needs about 2.5 times as many as English:
+    a limit made for English cut Korean speech short and left nothing (2026-10-23)."""
+    if language == "en":
+        return min(MAX_TOKENS, 16 + int(12 * seconds))
+    return min(MAX_TOKENS, 48 + int(30 * seconds))
+
+
 def transcribe(audio, model, language="en", prompt=None):
     """`prompt` (English only) starts Whisper's prompt: what the meeting is about and its names and terms."""
     result = mlx_whisper.transcribe(
@@ -229,9 +237,11 @@ def transcribe(audio, model, language="en", prompt=None):
         initial_prompt=prompt if language == "en" and prompt else None,
         condition_on_previous_text=False,
         temperature=0.0,  # no retries at higher temperatures, which made loops slow
-        sample_len=min(MAX_TOKENS, 16 + int(12 * len(audio) / 16000)),  # a short line cannot hold a long loop
+        sample_len=token_limit(len(audio) / 16000, language),  # a short line cannot hold a long loop
     )
     segments = result.get("segments")
+    if not result["text"].strip() and len(audio) > 16000:
+        print(f"[timing] Whisper wrote nothing for {len(audio) / 16000:.1f}s of {language} speech", file=sys.stderr, flush=True)
     if segments:
         # Keys, coughs and room noise: Whisper itself is unsure there is speech and unsure of the words.
         # Slightly stricter than its own default (0.6 / -1.0); dropped parts are logged.
