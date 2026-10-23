@@ -104,6 +104,18 @@
   .segmented button[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 600; }
   .segmented button:disabled { cursor: not-allowed; opacity: .5; }
   .segmented.voice button[data-mode="interpret"][aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .icon-btn svg { width: 17px; height: 17px; display: block; }
+  .icon-btn:has(> svg) { line-height: 0; padding: 5px 7px; }
+  /* A short explanation under a button when the pointer rests on it (like Windows settings) */
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after, [data-tip]:focus-visible::after {
+    content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    width: max-content; max-width: 230px; padding: 7px 10px; border-radius: 8px; z-index: 60; pointer-events: none;
+    background: var(--text); color: var(--bg); font-size: 12px; line-height: 1.4; font-weight: 400; text-align: left;
+    white-space: normal; box-shadow: var(--shadow); animation: tip-in .12s .45s both;
+  }
+  [data-tip][data-tip-align="right"]:hover::after, [data-tip][data-tip-align="right"]:focus-visible::after { left: auto; right: 0; transform: none; }
+  @keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
   .quit-btn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); padding: 4px 7px; line-height: 0; }
   .quit-btn svg { width: 16px; height: 16px; }
   .quit-btn:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
@@ -305,7 +317,7 @@
   body.layout-bubbles .row.live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 
   /* ---- Compact: only the meeting buttons and the transcript, for a small window */
-  body.compact header .chips, body.compact #translate-switch, body.compact #view-buttons, body.compact #summary-btn,
+  body.compact header .chips, body.compact #prep-btn, body.compact #summary-btn,
   body.compact #composer, body.compact #beta, body.compact .brand .beta, body.compact .meta .lang { display: none; }
   body.compact header { padding: 6px 10px; gap: 8px; }
   body.compact.layout-bubbles #rows { padding: 8px 8px 16px; gap: 6px; }
@@ -335,21 +347,41 @@
       <span id="mic-text">Mic: waiting</span>
     </span>
   </div>
+  <div class="controls">
+    <div class="segmented session" id="session-buttons" role="group" aria-label="Meeting">
+      <button id="btn-start" class="go" data-action="start" data-tip="Start: begin a new meeting." aria-label="Start"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></button>
+      <button id="btn-pause" data-action="pause" data-tip="Pause (P): stop listening for a moment. The sound stays connected." aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg></button>
+      <button id="btn-end" class="stop" data-action="end" data-tip="End: summarize the meeting, save it and give the sound back." aria-label="End"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg></button>
+    </div>
+    <button class="icon-btn" id="prep-btn" type="button" aria-label="Prep" data-tip="Prep: tell Anne what the meeting is about and add documents, so names and terms come out right."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 12l1.5 1.5 2.5-3M14 12.5h2.5M8.5 17.5l1.5 1.5 2.5-3M14 18h2.5"/></svg></button>
+    <button class="icon-btn" id="summary-btn" type="button" aria-label="Summary" data-tip="Summary (S): summarize the meeting so far. The meeting keeps going."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg></button>
+  </div>
   <div class="spacer"></div>
   <div class="controls">
-    <label class="switch" id="translate-switch" title="Translate English ⇄ Korean (T). Sends text to OpenRouter.">
-      <input type="checkbox" id="translate">
-      <span class="track"></span>
-      <span>Translate</span>
-    </label>
-    <div class="segmented" id="view-buttons" role="group" aria-label="View" title="View (V)">
-      <button data-view="both" aria-pressed="true">Both</button>
-      <button data-view="original" aria-pressed="false">Original</button>
-      <button data-view="translation" aria-pressed="false">Translation</button>
-    </div>
     <div class="panel-wrap">
-      <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" title="Settings">Settings</button>
+      <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" aria-label="Settings" data-tip="Settings: translation, view, line length and text size." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
       <div id="settings-panel" hidden>
+        <h3>View</h3>
+        <div class="setting">
+          <label class="switch" id="translate-switch" style="justify-content:flex-start">
+            <input type="checkbox" id="translate">
+            <span class="track"></span>
+            <span>Translate English &#8644; Korean</span>
+          </label>
+          <p>Sends the text to the translation service. Shortcut T.</p>
+        </div>
+        <div class="setting">
+          <div class="segmented" id="view-buttons" role="group" aria-label="View">
+            <button data-view="both" aria-pressed="true">Both</button>
+            <button data-view="original" aria-pressed="false">Original</button>
+            <button data-view="translation" aria-pressed="false">Translation</button>
+          </div>
+          <p>What to show in each bubble. Shortcut V.</p>
+        </div>
+        <div class="setting">
+          <button class="icon-btn" id="compact-btn" type="button" aria-pressed="false">Compact view</button>
+          <p>Only the meeting buttons and the transcript, for a small window. Shortcut C.</p>
+        </div>
         <h3>Lines</h3>
         <div class="setting">
           <label for="max-line">Longest line <output id="max-line-out"></output></label>
@@ -405,15 +437,7 @@
         </div>
       </div>
     </div>
-    <button class="icon-btn" id="compact-btn" aria-pressed="false" title="Compact view (C): only the buttons and the transcript, for a small window">Compact</button>
-    <button class="icon-btn" id="prep-btn" title="Before the meeting: what it is about, documents, names and terms">Prep</button>
-    <button class="icon-btn" id="summary-btn" title="Summarize the meeting so far (S). The meeting keeps going.">Summary</button>
-    <div class="segmented session" id="session-buttons" role="group" aria-label="Meeting">
-      <button id="btn-start" class="go" data-action="start" title="Start a new meeting" aria-label="Start"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></button>
-      <button id="btn-pause" data-action="pause" title="Stop listening for a moment (P). The sound stays connected." aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg></button>
-      <button id="btn-end" class="stop" data-action="end" title="End the meeting: summarize, save and give the sound back" aria-label="End"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg></button>
-    </div>
-    <button class="icon-btn quit-btn" id="quit" type="button" aria-label="Quit" title="Quit Anne completely (a running meeting is ended and saved first). To use it again, double-click the Anne icon."><svg viewBox="0 0 24 24"><path d="M12 3v9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M6.6 6.8a8 8 0 1 0 10.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    <button class="icon-btn quit-btn" id="quit" type="button" aria-label="Quit" data-tip="Quit: close Anne completely. A running meeting is saved first. To use it again, double-click the Anne icon." data-tip-align="right"><svg viewBox="0 0 24 24"><path d="M12 3v9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M6.6 6.8a8 8 0 1 0 10.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
   </div>
 </header>
 <div class="banner" id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
@@ -1022,7 +1046,7 @@
   function setCompact(on) {
     document.body.classList.toggle("compact", on);
     $("compact-btn").setAttribute("aria-pressed", on);
-    $("compact-btn").textContent = on ? "Expand" : "Compact";
+    $("compact-btn").textContent = on ? "Back to the normal view" : "Compact view";
     store.set("compact", on ? "1" : "0");
   }
   $("compact-btn").onclick = () => setCompact(!document.body.classList.contains("compact"));
@@ -1052,9 +1076,9 @@
     $("btn-pause").innerHTML = paused ? ICON.play : ICON.pause;
     $("btn-pause").setAttribute("aria-label", paused ? "Resume" : "Pause");
     $("btn-pause").dataset.action = paused ? "resume" : "pause";
-    $("btn-pause").title = paused ? "Listen again (P)" : "Stop listening for a moment (P). The sound stays connected.";
+    $("btn-pause").dataset.tip = paused ? "Resume (P): listen again." : "Pause (P): stop listening for a moment. The sound stays connected.";
     $("btn-end").disabled = !(running || paused);
-    $("btn-end").title = e.state === "ending" ? "Ending…" : "End the meeting: summarize, save and give the sound back";
+    $("btn-end").dataset.tip = e.state === "ending" ? "Ending: summarizing and saving…" : "End: summarize the meeting, save it and give the sound back.";
     $("paused").classList.toggle("show", paused);
     $("live").classList.toggle("live", running);
     if (e.new) {                       // a new meeting: start with an empty page

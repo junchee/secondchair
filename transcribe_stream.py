@@ -50,6 +50,12 @@ SHOW_EMPTY_BUBBLE = False
 DRAFT_SECONDS = 1.0
 DRAFT_MIN_SECONDS = 0.8  # no draft for a shorter line
 MAX_TOKENS = 160  # enough for the longest allowed line (20 s); caps the length of any loop
+NO_SPEECH_PROB = 0.5   # a part is dropped when Whisper thinks it is probably not speech ...
+MIN_AVG_LOGPROB = -0.8  # ... and is also unsure of the words
+MIN_LANGUAGE_SHARE = 0.5  # of Whisper's language guess, English + Korean must be at least this
+# What Whisper writes for silence and noise (from its YouTube training data): never worth a line.
+NOISE_PHRASES = {"thanksforwatching", "thankyouforwatching", "pleasesubscribe", "subscribe", "bye", "byebye",
+                 "시청해주셔서감사합니다", "구독과좋아요", "mbcnews", "字幕"}
 LANGUAGES = ("en", "ko")  # with --translate, each line is detected as one of these
 
 # Segmenting. A frame counts as speech when it is clearly louder than the background
@@ -199,13 +205,19 @@ def drop_repeats(text):
     return " ".join(out)
 
 
-def detect_language(audio, model):
-    """English or Korean, whichever Whisper finds more likely. Other languages are ignored,
-    so a short or unclear line cannot come out as, say, Japanese."""
+def language_guess(audio, model):
+    """(English or Korean, whichever Whisper finds more likely; how much of its guess was English or Korean, 0-1).
+    Other languages are ignored for the choice, so a short or unclear line cannot come out as, say, Japanese.
+    Keys, coughs and other noise are guessed as some other language: a low share means this is not speech we can use."""
     whisper = ModelHolder.get_model(model, mx.float16)
     mel = log_mel_spectrogram(audio, n_mels=whisper.dims.n_mels, padding=N_SAMPLES)
     _, probs = whisper.detect_language(pad_or_trim(mel, N_FRAMES, axis=-2).astype(mx.float16))
-    return max(LANGUAGES, key=lambda code: probs.get(code, 0.0))
+    best = max(LANGUAGES, key=lambda code: probs.get(code, 0.0))
+    return best, sum(probs.get(code, 0.0) for code in LANGUAGES)
+
+
+def detect_language(audio, model):
+    return language_guess(audio, model)[0]
 
 
 def transcribe(audio, model, language="en", prompt=None):
@@ -219,7 +231,24 @@ def transcribe(audio, model, language="en", prompt=None):
         temperature=0.0,  # no retries at higher temperatures, which made loops slow
         sample_len=min(MAX_TOKENS, 16 + int(12 * len(audio) / 16000)),  # a short line cannot hold a long loop
     )
-    return drop_repeats(result["text"].strip())
+    segments = result.get("segments")
+    if segments:
+        # Keys, coughs and room noise: Whisper itself is unsure there is speech and unsure of the words.
+        # Slightly stricter than its own default (0.6 / -1.0); dropped parts are logged.
+        kept = []
+        for part in segments:
+            if part.get("no_speech_prob", 0.0) > NO_SPEECH_PROB and part.get("avg_logprob", 0.0) < MIN_AVG_LOGPROB:
+                print(f"[timing] dropped as noise: {part['text'].strip()[:50]!r}", file=sys.stderr, flush=True)
+                continue
+            kept.append(part["text"].strip())
+        text = " ".join(kept)
+    else:
+        text = result["text"].strip()
+    text = drop_repeats(text.strip())
+    if re.sub(r"[\W_]+", "", text).lower() in NOISE_PHRASES:
+        print(f"[timing] dropped as a made-up phrase: {text!r}", file=sys.stderr, flush=True)
+        return ""
+    return text
 
 
 LOCK_PATH = "/tmp/secondchair.lock"
@@ -506,7 +535,11 @@ class Engine:
                     continue  # a click or room noise, not Jun: skip it before Whisper
                 translating = self.translator is not None and settings.translate
                 started = time.time()
-                language = detect_language(segment, self.model) if translating else "en"
+                language, share = language_guess(segment, self.model) if translating else ("en", 1.0)
+                if share < MIN_LANGUAGE_SHARE:
+                    print("[timing] dropped: neither English nor Korean (noise)", file=sys.stderr, flush=True)
+                    self._hide_bubble(source)
+                    continue
                 text = transcribe(segment, self.model, language, self._prompt())
                 print(f"[timing] {source.label} speech {len(segment) / 16000:.1f}s, whisper {time.time() - started:.1f}s", file=sys.stderr, flush=True)
                 if not text:
