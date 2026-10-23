@@ -787,7 +787,9 @@
   function onSummarizing(e) {
     if (!replaying && e.final) openSummaryPanel("Meeting summary", null, "Summarizing the meeting…");
   }
+  let finalSummaryShown = false;   // the meeting summary was put on the screen: the tab stays open after Quit
   function onSummary(e) {
+    if (e.final && e.text && !replaying) finalSummaryShown = true;
     if (!e.text) {
       if (!replaying) openSummaryPanel("Summary so far", null, "Nothing has been said yet.");
       return;
@@ -1122,7 +1124,8 @@
       : "Anne closed. Nothing was said, so nothing was saved.") + " You can close this tab.";
     $("stopped").classList.add("show");
     // A tab opened by the program itself (one history entry) may close itself; if the browser refuses, the message stays.
-    setTimeout(() => { try { window.close(); } catch {} }, 1200);
+    // It stays open when the meeting summary was just shown, so it can be read first.
+    if (!finalSummaryShown) setTimeout(() => { try { window.close(); } catch {} }, 1200);
     document.body.classList.remove("interpreting");
     for (const id of ["btn-start", "btn-pause", "btn-end", "summary-btn", "sp-again", "type-input"]) $(id).disabled = true;
     $("paused").classList.remove("show");

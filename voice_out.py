@@ -147,7 +147,8 @@ class VoiceOut:
         self.playing = None  # float32 speech being played
         self.position = 0
         self.korean_mic_lines = set()  # ids of Jun's Korean lines since the draft was cleared
-        self.parts = {}  # line id -> English translation, for the draft
+        self.parts = {}  # bubble id -> English translation, for the draft
+        self.draft_bubble = None  # the bubble of Jun's Korean that the draft translates
         self.last_line_time = 0.0  # when the draft's latest Korean line was said
         self.rendered = (None, None)  # (text, audio) rendered ahead of Enter
         # Monitor: Jun also hears what the meeting hears, quietly, on his real output device.
@@ -284,17 +285,16 @@ class VoiceOut:
             elif command == "clear":
                 self.discard()
             elif event["lang"] == "ko":
-                if self.korean_mic_lines and time.time() - self.last_line_time > NEW_DRAFT_AFTER_SECONDS:
-                    self.discard()  # Jun said it again: the new version replaces the draft
+                bubble = event.get("bubble", event["id"])
+                if self.draft_bubble is not None and bubble != self.draft_bubble:
+                    self.discard()  # a new sentence: it replaces the draft
+                self.draft_bubble = bubble
                 self.korean_mic_lines.add(event["id"])
                 self.last_line_time = time.time()
-        elif event["type"] == "translation" and event["id"] in self.korean_mic_lines:
+        elif event["type"] == "translation" and self.draft_bubble is not None and event["id"] == self.draft_bubble:
             if not event["text"].startswith("(translation failed"):
-                # A bubble is translated as a whole: its text counts under its last line, the others are covered.
-                ids = [i for i in (event.get("ids") or [event["id"]]) if i in self.korean_mic_lines]
-                for line_id in ids:
-                    self.parts[line_id] = ""
-                self.parts[ids[-1]] = event["text"]
+                # A bubble is translated as a whole and again as it grows: the newest text is the draft.
+                self.parts = {event["id"]: event["text"]}
                 self._draft_changed()
 
     def _send_when_translated(self):
@@ -335,6 +335,7 @@ class VoiceOut:
         threading.Thread(target=work, daemon=True).start()
 
     def discard(self):
+        self.draft_bubble = None
         self.korean_mic_lines.clear()
         self.last_line_time = 0.0
         had_draft = bool(self.parts)
