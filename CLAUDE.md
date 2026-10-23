@@ -1,7 +1,7 @@
 # Meeting Copilot (Jun)
 
 Two Mac apps by Jun in one repo (https://github.com/junchee/secondchair, **public**):
-- **secondchair** (Jun calls the current beta "hajung"): listens to Zoom/Teams/Meet audio, shows a live transcript with English<->Korean translation in a browser page, plus summaries, Ask, typed translation and an optional computer ("Avatar") voice.
+- **secondchair** (the page shows the name **Anne** with Jun's drawing `ui/anne.png` since 2026-10-23; Start/Pause/End are icon buttons; Jun calls the current beta "hajung"): listens to Zoom/Teams/Meet audio, shows a live transcript with English<->Korean translation in a browser page, plus summaries, Ask, typed translation and an optional computer ("Avatar") voice.
 - **yourAccent**: English pronunciation practice (listening training, reading a script aloud and judged, a review list). A separate program with its own icon, port and data folder.
 
 Every earlier decision, test result and reason: `notes/CLAUDE_full_2026-10-22.md` (the whole earlier CLAUDE.md, word for word). Business notes (pricing, competitor, roadmap): `private/` on Jun's Mac only (git ignores it).

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>secondchair · hajung beta</title>
+<title>Anne</title>
+<link rel="icon" type="image/png" href="/anne.png">
 <style>
   :root {
     --bg: #f7f7f5;
@@ -66,6 +67,8 @@
     border-bottom: 1px solid var(--border);
     position: relative; z-index: 3;
   }
+  .logo { width: 26px; height: 26px; object-fit: contain; }
+  .session button svg { width: 16px; height: 16px; fill: currentColor; display: block; }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -0.01em; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
   .dot.live { background: var(--ok); animation: pulse 2s infinite; }
@@ -305,7 +308,7 @@
 </head>
 <body class="view-both layout-bubbles">
 <header>
-  <div class="brand"><span class="dot" id="live"></span>secondchair<span class="beta" title="Beta version name">hajung beta</span></div>
+  <div class="brand"><span class="dot" id="live"></span><img class="logo" src="/anne.png" alt="">Anne<span class="beta" title="Beta version">beta</span></div>
   <div class="chips">
     <span class="chip" id="output-chip" title="Where the meeting audio plays">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="output-icon"></svg>
@@ -395,9 +398,9 @@
     <button class="icon-btn" id="compact-btn" aria-pressed="false" title="Compact view (C): only the buttons and the transcript, for a small window">Compact</button>
     <button class="icon-btn" id="summary-btn" title="Summarize the meeting so far (S). The meeting keeps going.">Summary</button>
     <div class="segmented session" id="session-buttons" role="group" aria-label="Meeting">
-      <button id="btn-start" class="go" data-action="start" title="Start a new meeting">Start</button>
-      <button id="btn-pause" data-action="pause" title="Stop listening for a moment (P). The sound stays connected.">Pause</button>
-      <button id="btn-end" class="stop" data-action="end" title="End the meeting: summarize, save and give the sound back">End</button>
+      <button id="btn-start" class="go" data-action="start" title="Start a new meeting" aria-label="Start"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></button>
+      <button id="btn-pause" data-action="pause" title="Stop listening for a moment (P). The sound stays connected." aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg></button>
+      <button id="btn-end" class="stop" data-action="end" title="End the meeting: summarize, save and give the sound back" aria-label="End"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg></button>
     </div>
   </div>
 </header>
@@ -1027,16 +1030,22 @@
 
   // ---- The meeting: Start | Pause / Resume | End. Quit (in Settings) closes the program.
   let sessionState = "running";
+  const ICON = {
+    play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg>',
+    stop: '<svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg>',
+  };
   function onSession(e) {
     sessionState = e.state;
     const running = e.state === "running", paused = e.state === "paused";
     $("btn-start").disabled = e.state !== "idle";
     $("btn-pause").disabled = !(running || paused);
-    $("btn-pause").textContent = paused ? "Resume" : "Pause";
+    $("btn-pause").innerHTML = paused ? ICON.play : ICON.pause;
+    $("btn-pause").setAttribute("aria-label", paused ? "Resume" : "Pause");
     $("btn-pause").dataset.action = paused ? "resume" : "pause";
     $("btn-pause").title = paused ? "Listen again (P)" : "Stop listening for a moment (P). The sound stays connected.";
     $("btn-end").disabled = !(running || paused);
-    $("btn-end").textContent = e.state === "ending" ? "Ending…" : "End";
+    $("btn-end").title = e.state === "ending" ? "Ending…" : "End the meeting: summarize, save and give the sound back";
     $("paused").classList.toggle("show", paused);
     $("live").classList.toggle("live", running);
     if (e.new) {                       // a new meeting: start with an empty page
