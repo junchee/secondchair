@@ -70,6 +70,24 @@ def has_foreign_script(text):
     return False
 
 
+MEETING = {"context": "", "terms": []}  # what Settings holds about this meeting (see prep.py)
+
+
+def set_meeting(context, terms):
+    MEETING["context"], MEETING["terms"] = context, terms
+
+
+def meeting_notes():
+    """Extra lines for the system prompt: what the meeting is about and its glossary."""
+    notes = ""
+    if MEETING["context"].strip():
+        notes += f" The meeting: {MEETING['context'].strip()}"
+    if MEETING["terms"]:
+        pairs = "; ".join(f"{t['en']} = {t['ko']}" if t["ko"] else t["en"] for t in MEETING["terms"])
+        notes += f" Glossary (English = Korean), to use in both directions: {pairs}."
+    return notes
+
+
 def build_request(text, target, context=(), following=None, model=MODEL, previous=None):
     """Chat request for one line. `context` holds earlier "LABEL: text" lines and `following`
     the next line; both are only there to make the meaning of a cut line clear."""
@@ -98,7 +116,7 @@ def build_request(text, target, context=(), following=None, model=MODEL, previou
                 "with '…'. Never add anything that is said only in a context line, even to finish "
                 "a sentence: those words get their own translation. "
                 "Translate every word of the line, including any words in other languages; keep "
-                "names of people and places." + script + " Reply with the translation only.",
+                "names of people and places." + meeting_notes() + script + " Reply with the translation only.",
             },
             {"role": "user", "content": "\n\n".join(parts)},
         ],

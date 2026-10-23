@@ -17,6 +17,7 @@ import argparse
 import itertools
 import json
 import os
+import prep
 import queue
 import threading
 import time
@@ -147,6 +148,39 @@ class Typing:
         threading.Thread(target=work, daemon=True).start()
 
 
+class PrepFinder:
+    """Finds the names and terms a meeting will need, from Jun's sentence about it and his documents
+    (text goes to the model under zero data retention; the files themselves stay on this Mac).
+    The proposed list arrives as a prep_result event; Jun edits it and saves it with the settings."""
+
+    def __init__(self, emit, available):
+        self.emit = emit
+        self.available = available
+        self.busy = False
+
+    def request(self, body):
+        if not self.available:
+            self.emit({"type": "prep_result", "error": "finding terms needs OPENROUTER_API_KEY"})
+            return
+        if self.busy:
+            return
+        self.busy = True
+        context = str(body.get("context", ""))[:500]
+        files = body.get("files") if isinstance(body.get("files"), list) else []
+
+        def work():
+            try:
+                text = prep.documents_text([f for f in files if isinstance(f, dict)])
+                terms = prep.find_terms(context, text)
+                self.emit({"type": "prep_result", "terms": terms})
+            except Exception as error:
+                self.emit({"type": "prep_result", "error": str(error)[:300]})
+            finally:
+                self.busy = False
+
+        threading.Thread(target=work, daemon=True).start()
+
+
 class Asking:
     """Jun's questions about the meeting, answered from the whole conversation so far.
     Questions and answers are not recorded: they were not said in the meeting."""
@@ -211,7 +245,7 @@ class Meeting(Hooks):
         return saved
 
 
-def make_handler(hub, settings, emit, controls, summaries, typing, asking):
+def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             pass  # keep the terminal for transcript lines
@@ -269,6 +303,8 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking):
                 voice.speak(str(body.get("text", "")))
             elif self.path == "/discard" and voice:
                 voice.discard()
+            elif self.path == "/prep/find":
+                prep_finder.request(body)
             elif self.path == "/summarize":
                 summaries.request()
             elif self.path == "/type":
@@ -322,7 +358,8 @@ def main():
     summaries = Summaries(recorder, emit, settings.translate_available)
     typing = Typing(recorder, emit, settings.translate_available)
     asking = Asking(recorder, emit, settings.translate_available)
-    handler = make_handler(hub, settings, emit, controls, summaries, typing, asking)
+    prep_finder = PrepFinder(emit, settings.translate_available)
+    handler = make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()

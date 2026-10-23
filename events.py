@@ -33,9 +33,11 @@ saved in the transcript and not used for the voice draft.
 import os
 
 import prefs
+import prep
+import translate
 
 # Events that only matter at the moment they happen.
-VOLATILE = ("partial", "translation_partial")
+VOLATILE = ("partial", "translation_partial", "prep_result")
 
 # Line cutting: a line ends after this much silence, or at the maximum length.
 LIMITS = {"max_line_seconds": (4.0, 20.0), "pause_seconds": (0.2, 1.5)}
@@ -63,6 +65,8 @@ class Settings:
         self.pause_seconds = pause_seconds
         self.mic_filter = "normal"
         self.translate_model = "auto"
+        self.meeting_context = ""
+        self.terms = []
         if persist:
             self._apply(prefs.load())
 
@@ -78,6 +82,11 @@ class Settings:
             self.mic_filter = change["mic_filter"]
         if change.get("translate_model") in TRANSLATION_MODES:
             self.translate_model = change["translate_model"]
+        if isinstance(change.get("meeting_context"), str):
+            self.meeting_context = change["meeting_context"][:500]
+        if "terms" in change:
+            self.terms = prep.clean_terms(change["terms"])
+        translate.set_meeting(self.meeting_context, self.terms)
         for key, (low, high) in LIMITS.items():
             if key in change:
                 try:
@@ -95,6 +104,8 @@ class Settings:
                 pause_seconds=self.pause_seconds,
                 mic_filter=self.mic_filter,
                 translate_model=self.translate_model,
+                meeting_context=self.meeting_context,
+                terms=self.terms,
             )
 
     def as_event(self):
@@ -106,6 +117,8 @@ class Settings:
             "pause_seconds": self.pause_seconds,
             "mic_filter": self.mic_filter,
             "translate_model": self.translate_model,
+            "meeting_context": self.meeting_context,
+            "terms": self.terms,
         }
 
 

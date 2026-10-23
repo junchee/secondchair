@@ -36,6 +36,7 @@ import audio_output
 from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
 from events import Settings, fan_out, print_event
 from bubbles import Grouper
+import prep
 from echo import EchoFilter
 from translate import Translator
 from voice_out import VoiceOut
@@ -207,11 +208,13 @@ def detect_language(audio, model):
     return max(LANGUAGES, key=lambda code: probs.get(code, 0.0))
 
 
-def transcribe(audio, model, language="en"):
+def transcribe(audio, model, language="en", prompt=None):
+    """`prompt` (English only) starts Whisper's prompt: what the meeting is about and its names and terms."""
     result = mlx_whisper.transcribe(
         audio,
         path_or_hf_repo=model,
         language=language,
+        initial_prompt=prompt if language == "en" and prompt else None,
         condition_on_previous_text=False,
         temperature=0.0,  # no retries at higher temperatures, which made loops slow
         sample_len=min(MAX_TOKENS, 16 + int(12 * len(audio) / 16000)),  # a short line cannot hold a long loop
@@ -406,7 +409,7 @@ class Engine:
             return
         started = time.time()
         language = self.draft_lang.get(source.label, "en")
-        text = transcribe(audio, self.model, language)
+        text = transcribe(audio, self.model, language, self._prompt())
         cost = time.time() - started
         print(f"[timing] draft {cost:.1f}s for {len(audio) / WHISPER_RATE:.1f}s of speech", file=sys.stderr, flush=True)
         self.drafts[source.label] = {"at": time.time(), "samples": len(audio), "text": text, "cost": cost}
@@ -420,6 +423,9 @@ class Engine:
             "time": time.strftime("%H:%M:%S"),
             "bubble": self.grouper.peek(source.label, text, language),
         })
+
+    def _prompt(self):
+        return prep.whisper_prompt(self.settings.meeting_context, self.settings.terms)
 
     def _note_echo(self, text):
         self.echo_drops += 1
@@ -501,7 +507,7 @@ class Engine:
                 translating = self.translator is not None and settings.translate
                 started = time.time()
                 language = detect_language(segment, self.model) if translating else "en"
-                text = transcribe(segment, self.model, language)
+                text = transcribe(segment, self.model, language, self._prompt())
                 print(f"[timing] {source.label} speech {len(segment) / 16000:.1f}s, whisper {time.time() - started:.1f}s", file=sys.stderr, flush=True)
                 if not text:
                     self._hide_bubble(source)  # nothing was said after all
