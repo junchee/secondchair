@@ -563,12 +563,28 @@ class Engine:
         if translating:
             self.translator.submit(line)
 
+    def _preload(self):
+        """Load Whisper (and on a new Mac download it, about 0.5 GB) before the first meeting, not when the first
+        words arrive: otherwise the first line waits for it. A second of silence also warms it up."""
+        self.emit({"type": "model", "state": "loading"})
+        print("Loading the speech model (Whisper)...", flush=True)
+        started = time.time()
+        silence = np.zeros(WHISPER_RATE, dtype=np.float32)
+        try:
+            language_guess(silence, self.model)
+            transcribe(silence, self.model, "en")
+            print(f"Speech model ready ({time.time() - started:.1f} s).", flush=True)
+        except Exception as error:  # the meeting can still try; the first line will show the real problem
+            print(f"Could not load the speech model yet: {error}", flush=True)
+        self.emit({"type": "model", "state": "ready"})
+
     def serve(self, autostart=True):
         """Run until Ctrl+C, SIGTERM or request_quit(). A meeting running at the end is ended
         properly (summary and save). Returns where the last meeting was saved."""
         if self.voice_out:
             self.voice_out.start()
         try:
+            self._preload()
             if autostart:
                 self._start()
             while not self.quit_requested:

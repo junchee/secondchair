@@ -439,6 +439,7 @@
     <button class="icon-btn quit-btn" id="quit" type="button" aria-label="Quit" data-tip="Quit: close Anne completely. A running meeting is saved first. To use it again, double-click the Anne icon." data-tip-align="right"><svg viewBox="0 0 24 24"><path d="M12 3v9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M6.6 6.8a8 8 0 1 0 10.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
   </div>
 </header>
+<div class="banner" id="loading">Preparing speech recognition… On a new Mac the first start downloads about 0.5 GB.</div>
 <div class="banner" id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
 <div class="banner" id="paused">Paused: nothing is being listened to or recorded. Press Resume to continue.</div>
 <div class="banner" id="stopped"></div>
@@ -1106,6 +1107,7 @@
         case "translation_partial": setPartialTranslation(e); break;
         case "status": setStatus(e); break;
         case "settings": setSettings(e); break;
+        case "model": $("loading").classList.toggle("show", e.state === "loading"); break;
         case "prep_result": onPrepResult(e); break;
         case "session": onSession(e); break;
         case "voice": setVoice(e); break;
