@@ -72,6 +72,8 @@ Draft first, clean up when the bubble is final. Server side, in this order (the 
 - **Menu (2026-10-23):** top row = Start/Pause/End, Prep and Summary as icons, then a gear (Settings) and the red power (Quit) at the right; Translate on/off, view (Both/Original/Translation) and Compact view moved into Settings > View (shortcuts T, V, C still work); every icon has a short tooltip (`data-tip`, shown after a short rest).
 - **Noise filter (2026-10-23):** a line is dropped when Whisper's language guess is under 50% English+Korean (keys, coughs), when a part has no_speech_prob > 0.5 and avg_logprob < -0.8, or when it is a stock made-up phrase ("Thanks for watching"); dropped parts are logged as `[timing] dropped ...`. Thresholds are guesses (`NO_SPEECH_PROB`, `MIN_AVG_LOGPROB`, `MIN_LANGUAGE_SHARE`); a real "Thank you." with a clear voice should still pass; not tested on real audio.
 
+- **To do (Jun, 2026-10-23):** after Quit with a summary, leave the browser tab and the Terminal window open and say so on the page: "Summary saved. You can close this tab and the Terminal window." (the tab already stays open when a final summary was shown; the page text still says only "You can close this tab"; the Terminal window is never closed by the program).
+
 ## To do next: secondchair, next version (Jun, 2026-10-22; record only, build when Jun says so)
 - The bottom box: Korean on the left, the English translation on the right, with an arrow between them, so the direction is clear at a glance (now one "English to say" box).
 - Leave the Avatar voice (computer voice, Beta footer, virtual mic passthrough, voice picker, monitor) out of the next version. Remove it from the page and settings; decide with Jun whether the code stays on a branch or is deleted.
