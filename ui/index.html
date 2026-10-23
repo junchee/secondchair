@@ -84,6 +84,10 @@
   }
   .chip svg { width: 14px; height: 14px; }
   .chip.on { color: var(--text); }
+  .mic-btn .mic-slash { display: none; }
+  .mic-btn.off { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+  .mic-btn.off .mic-slash { display: block; }
+  .mic-btn:disabled { opacity: .45; cursor: not-allowed; }
   .chip.off { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
   .spacer { flex: 1; }
   .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -342,10 +346,6 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="output-icon"></svg>
       <span id="output-text">Output: waiting</span>
     </span>
-    <span class="chip" id="mic-chip" title="Your microphone">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>
-      <span id="mic-text">Mic: waiting</span>
-    </span>
   </div>
   <div class="controls">
     <div class="segmented session" id="session-buttons" role="group" aria-label="Meeting">
@@ -353,6 +353,7 @@
       <button id="btn-pause" data-action="pause" data-tip="Pause (P): stop listening for a moment. The sound stays connected." aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg></button>
       <button id="btn-end" class="stop" data-action="end" data-tip="End: summarize the meeting, save it and give the sound back." aria-label="End"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg></button>
     </div>
+    <button class="icon-btn mic-btn" id="mic-chip" type="button" aria-pressed="true" aria-label="Microphone" data-tip="Microphone: on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/><path class="mic-slash" d="M4 4l16 16" stroke-width="2.2"/></svg><span id="mic-text" hidden></span></button>
     <button class="icon-btn" id="prep-btn" type="button" aria-label="Prep" data-tip="Prep: tell Anne what the meeting is about and add documents, so names and terms come out right."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 12l1.5 1.5 2.5-3M14 12.5h2.5M8.5 17.5l1.5 1.5 2.5-3M14 18h2.5"/></svg></button>
     <button class="icon-btn" id="summary-btn" type="button" aria-label="Summary" data-tip="Summary (S): summarize the meeting so far. The meeting keeps going."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg></button>
   </div>
@@ -535,6 +536,7 @@
   const rowsEl = $("rows"), scroller = $("scroller");
   const lines = new Map();          // line id -> translation cell element
   let translateOn = false, translateAvailable = false, replaying = true, source = null;
+  let micAvailable = true;
   let voice = { available: false, mode: "direct" }, micOn = false, serverDraft = "", draftDirty = false;
 
   const store = {
@@ -716,6 +718,7 @@
   $("tab-summary").onclick = () => showTab("summary");
   $("tab-ask").onclick = () => showTab("ask");
   $("tab-prep").onclick = () => showTab("prep");
+  $("mic-chip").onclick = () => post("/settings", { mic_enabled: !micOn });
   $("prep-btn").onclick = () => showTab("prep");
 
   // ---- Prep: what the meeting is about, documents, names and terms (saved with the settings)
@@ -818,10 +821,14 @@
     $("output-icon").innerHTML = ICONS[e.kind] || ICONS.speakers;
     $("output-text").textContent = e.output ? `Output: ${e.output}` : "Output: not switched";
     $("output-chip").className = "chip on";
-    $("mic-text").textContent = e.mic ? "Mic: on" : "Mic: off";
-    $("mic-chip").className = "chip " + (e.mic ? "on" : "off");
-    $("mic-chip").title = e.mic ? "Your microphone is transcribed"
-      : "On speakers the mic would pick up the meeting audio. Use headphones to include your own voice.";
+    micAvailable = e.mic_available !== false;
+    const mic = $("mic-chip");
+    mic.classList.toggle("off", !e.mic);
+    mic.setAttribute("aria-pressed", e.mic);
+    mic.disabled = !micAvailable;
+    mic.dataset.tip = !micAvailable ? "Microphone: not found, so only the meeting is transcribed."
+      : e.mic ? "Microphone: on. Your voice is transcribed. Click to turn it off."
+      : "Microphone: off. Your voice is not transcribed. Click to turn it on.";
     updateDraftWarning();
   }
 

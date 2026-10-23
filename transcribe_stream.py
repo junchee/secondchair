@@ -515,12 +515,13 @@ class Engine:
         route, mic, settings = self.route, self.mic, self.settings
         # On speakers the mic also records the meeting: echo lines are dropped below (see echo.py).
         on_speakers = bool(route and route.on_speakers())
-        mic_on = self.use_mic
+        mic_on = self.use_mic and settings.mic_enabled
         status = {
             "type": "status",
             "output": route.device if route else None,
             "kind": route.kind if route else None,
             "mic": mic_on,
+            "mic_available": bool(self.use_mic),
         }
         if status != self.last_status:
             if not self.last_status or mic_on != self.last_status["mic"]:

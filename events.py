@@ -65,6 +65,7 @@ class Settings:
         self.pause_seconds = pause_seconds
         self.mic_filter = "normal"
         self.translate_model = "auto"
+        self.mic_enabled = True  # the mic button in the top menu: off = my microphone is not listened to
         self.meeting_context = ""
         self.terms = []
         if persist:
@@ -80,6 +81,8 @@ class Settings:
             self.translate = change["translate"] and self.translate_available
         if change.get("mic_filter") in MIC_FILTER_LEVELS:
             self.mic_filter = change["mic_filter"]
+        if isinstance(change.get("mic_enabled"), bool):
+            self.mic_enabled = change["mic_enabled"]
         if change.get("translate_model") in TRANSLATION_MODES:
             self.translate_model = change["translate_model"]
         if isinstance(change.get("meeting_context"), str):
@@ -104,6 +107,7 @@ class Settings:
                 pause_seconds=self.pause_seconds,
                 mic_filter=self.mic_filter,
                 translate_model=self.translate_model,
+                mic_enabled=self.mic_enabled,
                 meeting_context=self.meeting_context,
                 terms=self.terms,
             )
@@ -117,6 +121,7 @@ class Settings:
             "pause_seconds": self.pause_seconds,
             "mic_filter": self.mic_filter,
             "translate_model": self.translate_model,
+            "mic_enabled": self.mic_enabled,
             "meeting_context": self.meeting_context,
             "terms": self.terms,
         }
