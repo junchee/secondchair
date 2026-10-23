@@ -165,7 +165,7 @@ class PrepFinder:
         if self.busy:
             return
         self.busy = True
-        context = str(body.get("context", ""))[:500]
+        context = str(body.get("context", ""))[:8000]
         files = body.get("files") if isinstance(body.get("files"), list) else []
 
         def work():
@@ -286,6 +286,8 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_
             voice = controls.get("voice")
             if self.path == "/settings":
                 settings.update(body)  # translate, line lengths, mic_filter
+                if "meeting_context" in body or "terms" in body:
+                    print(f"[prep] background saved: {len(settings.meeting_context)} characters, {len(settings.terms)} terms", flush=True)
                 emit(settings.as_event())
             elif self.path == "/voice" and voice:
                 if body.get("mode") == "interpret" and not settings.translate:

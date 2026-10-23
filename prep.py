@@ -27,11 +27,11 @@ def clean_terms(raw):
 
 def whisper_prompt(context, terms):
     """The text that starts Whisper's prompt: what the meeting is about and its names and terms."""
-    parts = []
-    if context.strip():
-        parts.append(context.strip().rstrip(".") + ".")
+    parts = []  # the terms first: a long background text must not push them out of the short prompt
     if terms:
         parts.append("Terms: " + ", ".join(t["en"] for t in terms) + ".")
+    if context.strip():
+        parts.append(" ".join(context.split()))
     return " ".join(parts)[:WHISPER_PROMPT_CHARS]
 
 

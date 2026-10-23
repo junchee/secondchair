@@ -86,7 +86,7 @@ class Settings:
         if change.get("translate_model") in TRANSLATION_MODES:
             self.translate_model = change["translate_model"]
         if isinstance(change.get("meeting_context"), str):
-            self.meeting_context = change["meeting_context"][:500]
+            self.meeting_context = change["meeting_context"][:8000]
         if "terms" in change:
             self.terms = prep.clean_terms(change["terms"])
         translate.set_meeting(self.meeting_context, self.terms)

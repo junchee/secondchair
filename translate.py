@@ -81,7 +81,7 @@ def meeting_notes():
     """Extra lines for the system prompt: what the meeting is about and its glossary."""
     notes = ""
     if MEETING["context"].strip():
-        notes += f" The meeting: {MEETING['context'].strip()}"
+        notes += f" The meeting: {MEETING['context'].strip()[:600]}"  # the start only: it goes with every line
     if MEETING["terms"]:
         pairs = "; ".join(f"{t['en']} = {t['ko']}" if t["ko"] else t["en"] for t in MEETING["terms"])
         notes += f" Glossary (English = Korean), to use in both directions: {pairs}."
