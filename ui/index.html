@@ -828,6 +828,7 @@
     mic.disabled = !micAvailable;
     mic.dataset.tip = !micAvailable ? "Microphone: not found, so only the meeting is transcribed."
       : e.mic ? "Microphone: on. Your voice is transcribed. Click to turn it off."
+      : e.kind === "speakers" ? "Microphone: off while the sound plays on the speakers (it would pick up the meeting). Use earphones to include your voice."
       : "Microphone: off. Your voice is not transcribed. Click to turn it on.";
     updateDraftWarning();
   }

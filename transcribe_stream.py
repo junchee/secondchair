@@ -37,7 +37,6 @@ from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
 from events import Settings, fan_out, print_event
 from bubbles import Grouper
 import prep
-from echo import EchoFilter
 from translate import Translator
 from voice_out import VoiceOut
 
@@ -48,7 +47,6 @@ POLL_SECONDS = 0.2  # how often the main loop collects new audio
 SHOW_EMPTY_BUBBLE = False
 # While a line is spoken, Whisper hears the audio so far again about this often (0 = never) and shows it as a draft.
 DRAFT_SECONDS = 1.0
-ECHO_WAIT_SECONDS = 3.0  # a mic line said while the meeting spoke waits this long for the meeting's own line
 DRAFT_MIN_SECONDS = 0.8  # no draft for a shorter line
 MAX_TOKENS = 160  # enough for the longest allowed line (20 s); caps the length of any loop
 NO_SPEECH_PROB = 0.5   # a part is dropped when Whisper thinks it is probably not speech ...
@@ -340,10 +338,6 @@ class Engine:
         self.emit = emit
         self.translator = Translator(emit, lambda: self.settings.translate_model) if self.settings.translate_available else None
         self.grouper = Grouper()
-        self.echo = EchoFilter()
-        self.system_speech_at = 0.0  # when the meeting last had speech (for the echo check on speakers)
-        self.echo_drops = 0
-        self.held = []  # mic lines waiting to be checked for echo
         if controls is not None:
             controls["engine"] = self
 
@@ -391,9 +385,6 @@ class Engine:
         self.drafts = {}
         self.draft_lang = {}
         self.grouper.reset()
-        self.echo.reset()
-        self.echo_drops = 0
-        self.held = []  # mic lines waiting to be checked for echo
         if self.translator:
             self.translator.reset()
         try:
@@ -469,12 +460,6 @@ class Engine:
     def _prompt(self):
         return prep.whisper_prompt(self.settings.meeting_context, self.settings.terms)
 
-    def _note_echo(self, text):
-        self.echo_drops += 1
-        print(f"[timing] mic line dropped as echo of the meeting: {text[:60]}", file=sys.stderr, flush=True)
-        if self.echo_drops == 3:
-            self.emit({"type": "info", "text": "The microphone is picking up the meeting from the speakers. Earphones give a cleaner transcript."})
-
     def _hide_bubble(self, source):
         if self.bubbles.pop(source.label, False):
             self.emit({"type": "partial", "source": source.label, "clear": True})
@@ -484,7 +469,6 @@ class Engine:
             self.emit({"type": "partial", "source": label, "clear": True})
         self.bubbles = {}
         self.drafts = {}
-        self.held = []  # paused or ended: mic lines still waiting for the echo check are dropped
 
     def _pause(self):
         self._drop_audio()
@@ -517,8 +501,8 @@ class Engine:
     def _listen(self):
         """One tick of a running meeting: report the status, then transcribe what was said."""
         route, mic, settings = self.route, self.mic, self.settings
-        # On speakers the mic also records the meeting: echo lines are dropped below (see echo.py).
-        mic_on = self.use_mic and settings.mic_enabled
+        # With speakers the mic re-records the meeting, so it only listens with headphones (and when Jun leaves it on).
+        mic_on = self.use_mic and settings.mic_enabled and not (route and route.on_speakers())
         status = {
             "type": "status",
             "output": route.device if route else None,
@@ -532,14 +516,11 @@ class Engine:
             self.emit(status)
             self.last_status = status
         time.sleep(POLL_SECONDS)
-        self._release_held()
         for source in self.sources:
             audio = to_whisper_rate(source.take(), source.rate)
             if source is mic and not mic_on:
                 continue
             segments = source.segmenter.feed(audio)
-            if source is not mic and (segments or source.segmenter.speaking):
-                self.system_speech_at = time.time()
             self._show_bubble(source, force=bool(segments))  # also while Whisper works on a short line
             if not segments:
                 self._draft(source)
@@ -560,15 +541,6 @@ class Engine:
                 if not text:
                     self._hide_bubble(source)  # nothing was said after all
                     continue
-                if source is mic and language == "en" and self.system_speech_at >= time.time() - len(segment) / 16000 - ECHO_WAIT_SECONDS:
-                    # The meeting was speaking while Jun's mic heard this: it may be the meeting through the speakers.
-                    # The meeting's own line can still be on its way, so a line that is not yet recognised as an
-                    # echo waits a few seconds and is checked again (_release_held).
-                    if self.echo.is_echo(text):
-                        self._note_echo(text)
-                    else:
-                        self.held.append((time.time() + ECHO_WAIT_SECONDS, language, text, level, translating))
-                    continue
                 self._emit_line(source, language, text, level, translating)
 
     def _emit_line(self, source, language, text, level, translating):
@@ -584,26 +556,11 @@ class Engine:
             line["level"] = round(level, 4)  # saved with the line, to tune mic_filter
         line["bubble"] = self.grouper.assign(line)  # lines cut mid-sentence share one bubble
         self.emit(line)
-        if source is not self.mic:
-            self.echo.note_system(text)
         self.bubbles.pop(source.label, None)  # the page replaced the bubble with this line
         self.drafts.pop(source.label, None)
         self.draft_lang[source.label] = language
         if translating:
             self.translator.submit(line)
-
-    def _release_held(self):
-        """Mic lines that waited to be checked against the meeting's own lines: an echo is dropped, the rest shown."""
-        still = []
-        for item in self.held:
-            deadline, language, text, level, translating = item
-            if self.echo.is_echo(text):
-                self._note_echo(text)
-            elif time.time() >= deadline:
-                self._emit_line(self.mic, language, text, level, translating)
-            else:
-                still.append(item)
-        self.held = still
 
     def serve(self, autostart=True):
         """Run until Ctrl+C, SIGTERM or request_quit(). A meeting running at the end is ended
