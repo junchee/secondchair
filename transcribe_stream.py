@@ -36,6 +36,7 @@ import audio_output
 from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
 from events import Settings, fan_out, print_event
 from bubbles import Grouper
+from echo import EchoFilter
 from translate import Translator
 from voice_out import VoiceOut
 
@@ -296,6 +297,9 @@ class Engine:
         self.emit = emit
         self.translator = Translator(emit, lambda: self.settings.translate_model) if self.settings.translate_available else None
         self.grouper = Grouper()
+        self.echo = EchoFilter()
+        self.system_speech_at = 0.0  # when the meeting last had speech (for the echo check on speakers)
+        self.echo_drops = 0
         if controls is not None:
             controls["engine"] = self
 
@@ -343,6 +347,8 @@ class Engine:
         self.drafts = {}
         self.draft_lang = {}
         self.grouper.reset()
+        self.echo.reset()
+        self.echo_drops = 0
         if self.translator:
             self.translator.reset()
         try:
@@ -415,6 +421,12 @@ class Engine:
             "bubble": self.grouper.peek(source.label, text, language),
         })
 
+    def _note_echo(self, text):
+        self.echo_drops += 1
+        print(f"[timing] mic line dropped as echo of the meeting: {text[:60]}", file=sys.stderr, flush=True)
+        if self.echo_drops == 3:
+            self.emit({"type": "info", "text": "The microphone is picking up the meeting from the speakers. Earphones give a cleaner transcript."})
+
     def _hide_bubble(self, source):
         if self.bubbles.pop(source.label, False):
             self.emit({"type": "partial", "source": source.label, "clear": True})
@@ -456,8 +468,9 @@ class Engine:
     def _listen(self):
         """One tick of a running meeting: report the status, then transcribe what was said."""
         route, mic, settings = self.route, self.mic, self.settings
-        # With speakers the mic re-records the system audio, so only listen with headphones.
-        mic_on = self.use_mic and not (route and route.on_speakers())
+        # On speakers the mic also records the meeting: echo lines are dropped below (see echo.py).
+        on_speakers = bool(route and route.on_speakers())
+        mic_on = self.use_mic
         status = {
             "type": "status",
             "output": route.device if route else None,
@@ -475,6 +488,8 @@ class Engine:
             if source is mic and not mic_on:
                 continue
             segments = source.segmenter.feed(audio)
+            if source is not mic and (segments or source.segmenter.speaking):
+                self.system_speech_at = time.time()
             self._show_bubble(source, force=bool(segments))  # also while Whisper works on a short line
             if not segments:
                 self._draft(source)
@@ -491,6 +506,10 @@ class Engine:
                 if not text:
                     self._hide_bubble(source)  # nothing was said after all
                     continue
+                if source is mic and on_speakers and self.system_speech_at >= time.time() - len(segment) / 16000 - 0.5 \
+                        and self.echo.is_echo(text):
+                    self._note_echo(text)
+                    continue  # the meeting heard through the speakers, not Jun
                 line = {
                     "type": "line",
                     "id": next(self.line_ids),
@@ -503,6 +522,8 @@ class Engine:
                     line["level"] = round(level, 4)  # saved with the line, to tune mic_filter
                 line["bubble"] = self.grouper.assign(line)  # lines cut mid-sentence share one bubble
                 self.emit(line)
+                if source is not mic:
+                    self.echo.note_system(text)
                 self.bubbles.pop(source.label, None)  # the page replaced the bubble with this line
                 self.drafts.pop(source.label, None)
                 self.draft_lang[source.label] = language

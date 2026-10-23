@@ -716,7 +716,7 @@
     $("output-icon").innerHTML = ICONS[e.kind] || ICONS.speakers;
     $("output-text").textContent = e.output ? `Output: ${e.output}` : "Output: not switched";
     $("output-chip").className = "chip on";
-    $("mic-text").textContent = e.mic ? "Mic: on" : (e.kind === "speakers" ? "Mic: off (speakers)" : "Mic: off");
+    $("mic-text").textContent = e.mic ? "Mic: on" : "Mic: off";
     $("mic-chip").className = "chip " + (e.mic ? "on" : "off");
     $("mic-chip").title = e.mic ? "Your microphone is transcribed"
       : "On speakers the mic would pick up the meeting audio. Use headphones to include your own voice.";
