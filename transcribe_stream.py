@@ -458,7 +458,7 @@ class Engine:
         })
 
     def _prompt(self):
-        return prep.whisper_prompt(self.settings.meeting_context, self.settings.terms)
+        return prep.whisper_prompt(self.settings.meeting_topic, self.settings.terms)
 
     def _hide_bubble(self, source):
         if self.bubbles.pop(source.label, False):

@@ -70,21 +70,23 @@ def has_foreign_script(text):
     return False
 
 
-MEETING = {"context": "", "terms": []}  # what Settings holds about this meeting (see prep.py)
+MEETING = {"topic": "", "terms": []}  # made from Jun's 배경지식 (see prep.py)
 
 
-def set_meeting(context, terms):
-    MEETING["context"], MEETING["terms"] = context, terms
+def set_meeting(topic, terms):
+    MEETING["topic"], MEETING["terms"] = topic, terms
 
 
-def meeting_notes():
-    """Extra lines for the system prompt: what the meeting is about and its glossary."""
+def meeting_notes(text):
+    """Extra words for the system prompt: the meeting's topic, and only the glossary terms this line contains."""
     notes = ""
-    if MEETING["context"].strip():
-        notes += f" The meeting: {MEETING['context'].strip()[:600]}"  # the start only: it goes with every line
-    if MEETING["terms"]:
-        pairs = "; ".join(f"{t['en']} = {t['ko']}" if t["ko"] else t["en"] for t in MEETING["terms"])
-        notes += f" Glossary (English = Korean), to use in both directions: {pairs}."
+    if MEETING["topic"].strip():
+        notes += f" The meeting: {MEETING['topic'].strip()}."
+    lower = text.lower()
+    used = [t for t in MEETING["terms"] if t["en"].lower() in lower or (t["ko"] and t["ko"] in text)]
+    if used:
+        pairs = "; ".join(f"{t['en']} = {t['ko']}" if t["ko"] else t["en"] for t in used)
+        notes += f" Use these terms (English = Korean): {pairs}."
     return notes
 
 
@@ -116,7 +118,7 @@ def build_request(text, target, context=(), following=None, model=MODEL, previou
                 "with '…'. Never add anything that is said only in a context line, even to finish "
                 "a sentence: those words get their own translation. "
                 "Translate every word of the line, including any words in other languages; keep "
-                "names of people and places." + meeting_notes() + script + " Reply with the translation only.",
+                "names of people and places." + meeting_notes(text + " " + (previous or "")) + script + " Reply with the translation only.",
             },
             {"role": "user", "content": "\n\n".join(parts)},
         ],

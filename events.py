@@ -66,7 +66,8 @@ class Settings:
         self.mic_filter = "normal"
         self.translate_model = "auto"
         self.mic_enabled = True  # the mic button in the top menu: off = my microphone is not listened to
-        self.meeting_context = ""
+        self.meeting_context = ""  # the background text as Jun wrote it (kept for him, not sent with each line)
+        self.meeting_topic = ""    # one line made from it
         self.terms = []
         if persist:
             self._apply(prefs.load())
@@ -87,9 +88,11 @@ class Settings:
             self.translate_model = change["translate_model"]
         if isinstance(change.get("meeting_context"), str):
             self.meeting_context = change["meeting_context"][:8000]
+        if isinstance(change.get("meeting_topic"), str):
+            self.meeting_topic = change["meeting_topic"][:200]
         if "terms" in change:
             self.terms = prep.clean_terms(change["terms"])
-        translate.set_meeting(self.meeting_context, self.terms)
+        translate.set_meeting(self.meeting_topic, self.terms)
         for key, (low, high) in LIMITS.items():
             if key in change:
                 try:
@@ -109,6 +112,7 @@ class Settings:
                 translate_model=self.translate_model,
                 mic_enabled=self.mic_enabled,
                 meeting_context=self.meeting_context,
+                meeting_topic=self.meeting_topic,
                 terms=self.terms,
             )
 
@@ -123,6 +127,7 @@ class Settings:
             "translate_model": self.translate_model,
             "mic_enabled": self.mic_enabled,
             "meeting_context": self.meeting_context,
+            "meeting_topic": self.meeting_topic,
             "terms": self.terms,
         }
 

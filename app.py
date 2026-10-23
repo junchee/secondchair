@@ -148,33 +148,41 @@ class Typing:
         threading.Thread(target=work, daemon=True).start()
 
 
-class PrepFinder:
-    """Finds the names and terms a meeting will need, from Jun's sentence about it and his documents
-    (text goes to the model under zero data retention; the files themselves stay on this Mac).
-    The proposed list arrives as a prep_result event; Jun edits it and saves it with the settings."""
+class PrepDigest:
+    """Saves Jun's 배경지식 and makes the topic and the key terms from it (prep.digest, once per save).
+    The text goes to the model under zero data retention. Results: a settings event and a prep_result event."""
 
-    def __init__(self, emit, available):
+    def __init__(self, settings, emit, available):
+        self.settings = settings
         self.emit = emit
         self.available = available
         self.busy = False
 
     def request(self, body):
+        background = str(body.get("context", ""))[:8000]
+        self.settings.update({"meeting_context": background})
+        self.emit(self.settings.as_event())
+        if not background.strip():
+            self.settings.update({"meeting_topic": "", "terms": []})
+            self.emit(self.settings.as_event())
+            self.emit({"type": "prep_result", "topic": "", "terms": []})
+            return
         if not self.available:
-            self.emit({"type": "prep_result", "error": "finding terms needs OPENROUTER_API_KEY"})
+            self.emit({"type": "prep_result", "error": "saved, but finding terms needs OPENROUTER_API_KEY"})
             return
         if self.busy:
             return
         self.busy = True
-        context = str(body.get("context", ""))[:8000]
-        files = body.get("files") if isinstance(body.get("files"), list) else []
 
         def work():
             try:
-                text = prep.documents_text([f for f in files if isinstance(f, dict)])
-                terms = prep.find_terms(context, text)
-                self.emit({"type": "prep_result", "terms": terms})
+                topic, terms = prep.digest(background)
+                self.settings.update({"meeting_topic": topic, "terms": terms})
+                self.emit(self.settings.as_event())
+                self.emit({"type": "prep_result", "topic": topic, "terms": terms})
+                print(f"[prep] background saved: {len(background)} characters -> topic and {len(terms)} terms", flush=True)
             except Exception as error:
-                self.emit({"type": "prep_result", "error": str(error)[:300]})
+                self.emit({"type": "prep_result", "error": f"saved, but the terms could not be made: {str(error)[:200]}"})
             finally:
                 self.busy = False
 
@@ -360,7 +368,7 @@ def main():
     summaries = Summaries(recorder, emit, settings.translate_available)
     typing = Typing(recorder, emit, settings.translate_available)
     asking = Asking(recorder, emit, settings.translate_available)
-    prep_finder = PrepFinder(emit, settings.translate_available)
+    prep_finder = PrepDigest(settings, emit, settings.translate_available)
     handler = make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     server.daemon_threads = True

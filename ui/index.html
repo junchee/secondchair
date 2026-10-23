@@ -504,18 +504,18 @@
   <div id="prep-body" hidden>
     <label for="prep-context"><strong>배경지식</strong></label>
     <textarea id="prep-context" rows="20" maxlength="8000" placeholder="회의 주제, 참석자 이름, 자주 나올 용어나 관련 자료를 적거나 붙여 넣으세요."></textarea>
-    <div class="prep-row"><button class="primary" id="prep-find" type="button">Find terms</button><span class="hint" id="prep-status"></span></div>
-    <div><strong>Names and terms</strong> <span class="hint">English = Korean. Edit freely.</span></div>
+    <div class="prep-row"><button class="primary" id="prep-save" type="button">저장하고 용어 정리</button><span class="dots" id="prep-dots" hidden><i></i><i></i><i></i></span><span class="hint" id="prep-status"></span></div>
+    <div class="hint" id="prep-topic"></div>
+    <div><strong>주요 용어</strong> <span class="hint">English = 한국어. 고친 뒤 "목록 저장"을 누르세요.</span></div>
     <div id="prep-terms"></div>
-    <div class="prep-row"><button class="ghost" id="prep-add" type="button">+ Add</button><button class="ghost" id="prep-clear" type="button">Clear all</button></div>
+    <div class="prep-row"><button class="ghost" id="prep-add" type="button">+ 추가</button><button class="ghost" id="prep-save-terms" type="button">목록 저장</button></div>
   </div>
   <div class="sp-foot" id="foot-summary">
     <button class="primary" id="sp-again">Summarize again</button>
     <span class="hint">Covers everything said so far. The meeting keeps going.</span>
   </div>
   <div class="sp-foot" id="foot-prep" hidden>
-    <button class="primary" id="prep-save" type="button">저장</button>
-    <span class="hint">Helps the speech recognizer and the translation. Kept for the next meetings until you change it. "Find terms" sends this text to the translation service (zero data retention).</span>
+    <span class="hint">저장하면 이 글을 한 번 읽어 회의 주제 한 줄과 주요 용어(영어 = 한국어)를 만듭니다. 회의 중에는 이 주제와, 그 문장에 나온 용어만 번역에 함께 보냅니다. 이 글은 번역 서비스로 한 번 나갑니다(데이터 보관 금지). 바꾸기 전까지 다음 회의에도 쓰입니다.</span>
   </div>
   <div class="sp-foot" id="foot-ask" hidden>
     <span class="hint">Ask about the meeting in the bottom box: choose Ask, or start with ?. Answers come only from what was said.</span>
@@ -713,8 +713,8 @@
   $("mic-chip").onclick = () => post("/settings", { mic_enabled: !micOn });
   $("prep-btn").onclick = () => showTab("prep");
 
-  // ---- Prep: what the meeting is about, documents, names and terms (saved with the settings)
-  let prepTerms = [], prepDirty = false;
+  // ---- 배경지식: Jun's text is saved; the server makes a topic line and the key terms from it (once per save).
+  let prepTerms = [], prepDirty = false, prepBusy = false;
   function renderTerms() {
     $("prep-terms").replaceChildren(...prepTerms.map((t, i) => {
       const row = el("div", "term");
@@ -728,39 +728,35 @@
     }));
   }
   $("prep-add").onclick = () => { prepTerms.push({ en: "", ko: "" }); prepDirty = true; renderTerms(); };
-  $("prep-clear").onclick = () => { prepTerms = []; $("prep-context").value = ""; prepDirty = true; renderTerms(); };
   $("prep-context").addEventListener("input", () => { prepDirty = true; });
+  function prepWorking(on, message) {
+    prepBusy = on;
+    $("prep-save").disabled = on;
+    $("prep-dots").hidden = !on;
+    $("prep-status").textContent = message;
+  }
   $("prep-save").onclick = () => {
+    const text = $("prep-context").value;
+    if (text.trim() && !translateAvailable) { $("prep-status").textContent = "번역 키(OPENROUTER_API_KEY)가 없어 용어를 만들 수 없습니다."; }
+    prepWorking(!!text.trim(), text.trim() ? "저장했습니다. 용어를 정리하는 중…" : "비웠습니다.");
+    prepDirty = false;
+    post("/prep/find", { context: text });
+  };
+  $("prep-save-terms").onclick = () => {
     prepTerms = prepTerms.filter((t) => t.en.trim());
-    post("/settings", { meeting_context: $("prep-context").value, terms: prepTerms });
+    post("/settings", { terms: prepTerms });
     prepDirty = false;
     renderTerms();
-    savePending = true;
-    $("prep-save").textContent = "저장 중…";
+    $("prep-status").textContent = "용어 목록을 저장했습니다.";
   };
-  let savePending = false;
-  function prepSaved() {   // the server sent the settings back: the text is saved
-    if (!savePending) return;
-    savePending = false;
-    $("prep-save").textContent = "저장됨 ✓";
-    $("prep-status").textContent = "저장했습니다. 다음 문장부터 쓰입니다.";
-    setTimeout(() => { $("prep-save").textContent = "저장"; }, 2500);
-  }
-  $("prep-find").onclick = () => {
-    if (!translateAvailable) { $("prep-status").textContent = "Needs the translation key (OPENROUTER_API_KEY)."; return; }
-    if (!$("prep-context").value.trim()) { $("prep-status").textContent = "배경지식을 먼저 적어 주세요."; return; }
-    $("prep-find").disabled = true;
-    $("prep-status").textContent = "Finding terms… (a few seconds)";
-    post("/prep/find", { context: $("prep-context").value, files: [] });
-  };
+  function showTopic(topic) { $("prep-topic").textContent = topic ? `주제: ${topic}` : ""; }
   function onPrepResult(e) {
-    $("prep-find").disabled = false;
-    if (e.error) { $("prep-status").textContent = e.error; return; }
-    const have = new Set(prepTerms.map((t) => t.en.toLowerCase()));
-    prepTerms = prepTerms.concat(e.terms.filter((t) => !have.has(t.en.toLowerCase())));
-    prepDirty = true;
+    if (e.error) { prepWorking(false, e.error); return; }
+    prepTerms = (e.terms || []).map((t) => ({ ...t }));
+    prepDirty = false;
     renderTerms();
-    $("prep-status").textContent = `${e.terms.length} terms proposed. Edit, then press Save.`;
+    showTopic(e.topic);
+    prepWorking(false, `저장됨 ✓  주요 용어 ${prepTerms.length}개. 다음 문장부터 쓰입니다.`);
   }
   function openSummaryPanel(title, markdown, message) {
     showTab("summary");
@@ -820,8 +816,8 @@
   }
 
   function setSettings(e) {
-    prepSaved();
-    if (!prepDirty && document.activeElement !== $("prep-context")) {
+    if (!prepDirty && !prepBusy && document.activeElement !== $("prep-context")) {
+      showTopic(e.meeting_topic || "");
       $("prep-context").value = e.meeting_context || "";
       prepTerms = (e.terms || []).map((t) => ({ ...t }));
       renderTerms();
