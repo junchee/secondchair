@@ -462,7 +462,6 @@
 <section id="composer" aria-label="Translate">
   <div class="out-head">
     <span class="warn" id="draft-warn"></span>
-    <span class="hint" id="out-hint"></span>
   </div>
   <div class="pair">
     <div class="pane">
@@ -474,22 +473,20 @@
         </div>
       </div>
       <form id="type-form" autocomplete="off">
-        <textarea id="type-input" rows="2" placeholder="Type Korean to get English you can say (/)" aria-label="Type Korean to translate or a question about the meeting"></textarea>
-        <button class="primary" type="submit" id="type-go">Translate</button>
+        <textarea id="type-input" rows="2" placeholder="Type Korean and press Enter (/)" aria-label="Type Korean to translate or a question about the meeting"></textarea>
+        <button type="submit" id="type-go" hidden>Translate</button>
       </form>
     </div>
     <div class="arrow" aria-hidden="true">&rarr;</div>
     <div class="pane">
       <div class="pane-head">
-        <strong id="out-title">English to say</strong>
+        <strong id="out-title">English</strong>
         <span id="out-source"></span>
+        <span class="spacer"></span>
+        <button class="icon-btn" id="discard" type="button" aria-label="Clear" data-tip="Clear (Esc): empty this box." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <textarea id="draft" rows="2" placeholder="The English appears here. It also appears when you speak Korean."></textarea>
-      <div class="row-actions">
-        <button class="ghost" id="copy" disabled>Copy</button>
-        <button class="ghost" id="discard" title="Esc">Clear</button>
-        <button class="ghost" id="load-latest" hidden>Load new voice draft</button>
-      </div>
+      <textarea id="draft" rows="2" placeholder="The English appears here. It also appears when you speak Korean." readonly></textarea>
+      <button class="ghost" id="load-latest" hidden>Load new voice draft</button>
     </div>
   </div>
   <div id="history" aria-label="Earlier typed translations"></div>
@@ -866,7 +863,6 @@
 
   function updateDraftWarning() {
     $("draft-warn").textContent = !translateOn ? "Translation is off: turn it on to get English." : "";
-    $("out-hint").textContent = "Read the English out yourself. Say “다시” to clear it, or just speak Korean again.";
   }
 
   // ---- Composer: one box for the English to say. It is filled by what Jun says in Korean
@@ -878,7 +874,6 @@
 
   function updateButtons() {
     const has = !!$("draft").value.trim() && !$("draft").classList.contains("translating");
-    $("copy").disabled = !has;
   }
   function setOutput(text, from, label, language = "English") {
     $("draft").classList.remove("translating");
@@ -886,7 +881,7 @@
     origin = text ? from : null;
     target = language;
     draftDirty = false;
-    $("out-title").textContent = language === "English" ? "English to say" : "Meaning in Korean";
+    $("out-title").textContent = language === "English" ? "English" : "Meaning in Korean";
     $("out-source").textContent = text ? label : "";
     $("load-latest").hidden = true;
     updateButtons();
@@ -910,15 +905,7 @@
     if (origin === "voice" || serverDraft) post("/discard");
     clearOutput();
   }
-  async function copy() {
-    const text = $("draft").value.trim();
-    try { await navigator.clipboard.writeText(text); }
-    catch { $("draft").select(); document.execCommand("copy"); }
-    $("copy").textContent = "Copied";
-    setTimeout(() => { $("copy").textContent = "Copy"; }, 1200);
-  }
   $("discard").onclick = discard;
-  $("copy").onclick = copy;
   $("draft").addEventListener("keydown", (e) => {
     if (e.key === "Escape") { e.preventDefault(); discard(); }
   });
