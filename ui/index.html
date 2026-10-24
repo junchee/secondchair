@@ -299,6 +299,19 @@
   #sp-body li { margin: 3px 0; }
   #sp-body p { margin: 4px 0; }
   #sp-body .waiting { color: var(--muted); padding-top: 16px; }
+  #tune-reset-all { white-space: nowrap; flex: none; }
+  #tune-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
+  #tune-body details { border-bottom: 1px solid var(--border); padding: 6px 0; }
+  #tune-body summary { cursor: pointer; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+  #tune-body .gdesc { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  .tune { display: grid; grid-template-columns: 1fr 96px; gap: 2px 10px; align-items: center; margin: 8px 0; }
+  .tune label { font-weight: 550; display: flex; align-items: center; gap: 6px; }
+  .tune .h { grid-column: 1 / -1; color: var(--muted); font-size: 12px; line-height: 1.35; }
+  .tune input[type=number] { width: 96px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .tune textarea { grid-column: 1 / -1; width: 100%; min-height: 54px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+  .tune .def { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); visibility: hidden; flex: none; }
+  .tune.changed .def { visibility: visible; }
+  .tune.bool { grid-template-columns: 1fr auto; }
   #prep-body { flex: 1; overflow-y: auto; padding: 8px 20px 16px; display: flex; flex-direction: column; gap: 8px; }
   #prep-context { min-height: 0; max-height: 50vh; resize: vertical; overflow-y: auto; line-height: 1.45; font: inherit; }
   #prep-body input[type=text], #prep-context { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
@@ -400,6 +413,14 @@
         </div>
         <h3>Developer</h3>
         <div class="setting">
+          <label class="switch" id="dev-switch" style="justify-content:flex-start">
+            <input type="checkbox" id="dev-tools">
+            <span class="track"></span>
+            <span>Tuning 탭 보이기</span>
+          </label>
+          <p>소음 걸러내기, 받아 적기 등의 값을 직접 조절해 보는 개발자용 탭입니다.</p>
+        </div>
+        <div class="setting">
           <label for="translate-model">Translation model</label>
           <select id="translate-model" style="width:100%; padding:6px 8px; border-radius:8px; border:1px solid var(--border); background:var(--bg);">
             <option value="auto">Auto: DeepSeek, Qwen as backup</option>
@@ -495,6 +516,7 @@
       <button role="tab" id="tab-summary" aria-selected="true">Summary</button>
       <button role="tab" id="tab-ask" aria-selected="false">Ask</button>
       <button role="tab" id="tab-prep" aria-selected="false">배경지식</button>
+      <button role="tab" id="tab-tune" aria-selected="false" hidden>Tuning</button>
     </div>
     <span id="sp-title"></span>
     <span class="spacer"></span>
@@ -502,6 +524,7 @@
   </div>
   <div id="sp-body"></div>
   <div id="ask-body" hidden></div>
+  <div id="tune-body" hidden></div>
   <div id="prep-body" hidden>
     <label for="prep-context"><strong>배경지식</strong></label>
     <textarea id="prep-context" rows="20" maxlength="8000" placeholder="회의 주제, 참석자 이름, 자주 나올 용어나 관련 자료를 적거나 붙여 넣으세요."></textarea>
@@ -517,6 +540,10 @@
   </div>
   <div class="sp-foot" id="foot-prep" hidden>
     <span class="hint">저장하면 이 글을 한 번 읽어 회의 주제 한 줄과 주요 용어(영어 = 한국어)를 만듭니다. 회의 중에는 이 주제와, 그 문장에 나온 용어만 번역에 함께 보냅니다. 이 글은 번역 서비스로 한 번 나갑니다(데이터 보관 금지). 바꾸기 전까지 다음 회의에도 쓰입니다.</span>
+  </div>
+  <div class="sp-foot" id="foot-tune" hidden>
+    <button class="ghost" id="tune-reset-all" type="button">모두 기본값으로</button>
+    <span class="hint">값을 바꾸면 다음 줄부터 바로 적용됩니다(저장도 됩니다). 파란 점이 있는 것은 기본값과 다른 것입니다.</span>
   </div>
   <div class="sp-foot" id="foot-ask" hidden>
     <span class="hint">Ask about the meeting in the bottom box: choose Ask, or start with ?. Answers come only from what was said.</span>
@@ -698,7 +725,9 @@
   }
   function summaryTitle(e) { return e.final ? `Meeting summary · ${e.time}` : `Summary so far · ${e.time}`; }
   function showTab(name) {
-    for (const t of ["summary", "ask", "prep"]) $("tab-" + t).setAttribute("aria-selected", t === name);
+    for (const t of ["summary", "ask", "prep", "tune"]) $("tab-" + t).setAttribute("aria-selected", t === name);
+    $("tune-body").hidden = name !== "tune";
+    $("foot-tune").hidden = name !== "tune";
     $("sp-body").hidden = name !== "summary";
     $("foot-summary").hidden = name !== "summary";
     $("ask-body").hidden = name !== "ask";
@@ -711,6 +740,70 @@
   $("tab-summary").onclick = () => showTab("summary");
   $("tab-ask").onclick = () => showTab("ask");
   $("tab-prep").onclick = () => showTab("prep");
+  $("tab-tune").onclick = () => showTab("tune");
+
+  // ---- Tuning (developer): the server sends the list of values with groups, ranges and explanations
+  let tuneSchema = null, tuneValues = {};
+  function renderTuning(t) {
+    if (!t) return;
+    const typing = document.activeElement && $("tune-body").contains(document.activeElement);
+    tuneValues = t.values;
+    if (tuneSchema && typing) {   // do not rebuild under the cursor: only the dots
+      for (const row of t.schema) {
+        const box = document.querySelector(`.tune[data-key="${row.key}"]`);
+        if (box) box.classList.toggle("changed", t.values[row.key] !== row.default);
+      }
+      return;
+    }
+    tuneSchema = t.schema;
+    const body = $("tune-body");
+    const open = new Set([...body.querySelectorAll("details[open]")].map((d) => d.dataset.group));
+    body.replaceChildren(...t.groups.map(([id, title, desc]) => {
+      const box = el("details");
+      box.dataset.group = id;
+      if (open.has(id) || !body.children.length && id === "noise") box.open = true;
+      const head = el("summary", "", title);
+      const reset = el("button", "ghost", "이 묶음 기본값");
+      reset.type = "button";
+      reset.style.marginLeft = "auto";
+      reset.onclick = (ev) => { ev.preventDefault(); post("/settings", { tuning_reset: id }); };
+      head.append(reset);
+      box.append(head, el("div", "gdesc", desc));
+      for (const row of t.schema.filter((r) => r.group === id)) box.append(tuneRow(row, t.values[row.key]));
+      return box;
+    }));
+  }
+  function tuneRow(row, value) {
+    const box = el("div", "tune" + (row.kind === "bool" ? " bool" : "") + (value !== row.default ? " changed" : ""));
+    box.dataset.key = row.key;
+    const label = el("label"); label.append(el("span", "def"), el("span", "", row.label));
+    box.append(label);
+    const send = (v) => post("/settings", { tuning: { [row.key]: v } });
+    if (row.kind === "bool") {
+      const input = el("input"); input.type = "checkbox"; input.checked = !!value;
+      input.onchange = () => send(input.checked);
+      box.append(input);
+    } else if (row.kind === "text") {
+      const area = el("textarea"); area.value = value;
+      area.onchange = () => send(area.value);
+      box.append(area);
+    } else {
+      const input = el("input"); input.type = "number"; input.value = value;
+      input.min = row.low; input.max = row.high; input.step = row.step;
+      input.onchange = () => send(Number(input.value));
+      box.append(input);
+    }
+    box.append(el("div", "h", `${row.help}${row.kind === "number" ? `  (기본 ${row.default}, 범위 ${row.low} ~ ${row.high})` : ""}`));
+    return box;
+  }
+  $("tune-reset-all").onclick = () => { if (confirm("모든 튜닝 값을 기본값으로 되돌릴까요?")) post("/settings", { tuning_reset: "all" }); };
+  function setDevTools(on) {
+    $("dev-tools").checked = on;
+    $("tab-tune").hidden = !on;
+    store.set("devtools", on ? "1" : "0");
+  }
+  $("dev-tools").addEventListener("change", () => setDevTools($("dev-tools").checked));
+  setDevTools(store.get("devtools", "1") === "1");
   $("mic-chip").onclick = () => post("/settings", { mic_enabled: !micOn });
   $("prep-btn").onclick = () => showTab("prep");
 
@@ -817,6 +910,7 @@
   }
 
   function setSettings(e) {
+    renderTuning(e.tuning);
     if (!prepDirty && !prepBusy && document.activeElement !== $("prep-context")) {
       showTopic(e.meeting_topic || "");
       $("prep-context").value = e.meeting_context || "";

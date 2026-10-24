@@ -33,6 +33,7 @@ saved in the transcript and not used for the voice draft.
 import os
 
 import prefs
+import tuning
 import prep
 import translate
 
@@ -71,6 +72,7 @@ class Settings:
         self.terms = []
         if persist:
             self._apply(prefs.load())
+            tuning.apply(prefs.load().get("tuning"))
 
     def mic_min_level(self):
         """Quietest speech-frame RMS that still counts as Jun speaking."""
@@ -88,6 +90,10 @@ class Settings:
             self.translate_model = change["translate_model"]
         if isinstance(change.get("meeting_context"), str):
             self.meeting_context = change["meeting_context"][:8000]
+        if isinstance(change.get("tuning"), dict):
+            tuning.apply(change["tuning"])
+        if change.get("tuning_reset"):
+            tuning.reset(str(change["tuning_reset"]))
         if isinstance(change.get("meeting_topic"), str):
             self.meeting_topic = change["meeting_topic"][:200]
         if "terms" in change:
@@ -114,6 +120,7 @@ class Settings:
                 meeting_context=self.meeting_context,
                 meeting_topic=self.meeting_topic,
                 terms=self.terms,
+                tuning=tuning.changed(),
             )
 
     def as_event(self):
@@ -129,6 +136,7 @@ class Settings:
             "meeting_context": self.meeting_context,
             "meeting_topic": self.meeting_topic,
             "terms": self.terms,
+            "tuning": {"groups": tuning.GROUPS, "schema": tuning.SCHEMA, "values": tuning.values()},
         }
 
 

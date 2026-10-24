@@ -3,6 +3,7 @@ setting, or a full stop Whisper put on a mere pause) continues its speaker's ope
 
 A bubble is named by the id of its first line; every line event carries it as "bubble".
 """
+import tuning
 from translate import ends_sentence
 
 MAX_BUBBLE_CHARS = 500
@@ -38,8 +39,8 @@ class Grouper:
 
     @staticmethod
     def _continues(current, line):
-        if current["lang"] != line["lang"] or len(current["text"]) > MAX_BUBBLE_CHARS:
+        if current["lang"] != line["lang"] or len(current["text"]) > tuning.get("max_bubble_chars"):
             return False
         # Whisper often puts a full stop where it only paused: a small letter at the start continues the sentence.
-        small_letter = line["lang"] == "en" and line["text"][:1].islower()
+        small_letter = tuning.get("small_letter_continues") and line["lang"] == "en" and line["text"][:1].islower()
         return small_letter or not ends_sentence(current["text"])

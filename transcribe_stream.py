@@ -37,6 +37,7 @@ from audio_test import MIC_NAME, SYSTEM_NAME, find_input, find_mic
 from events import Settings, fan_out, print_event
 from bubbles import Grouper
 import prep
+import tuning
 from translate import Translator
 from voice_out import VoiceOut
 
@@ -94,7 +95,7 @@ class Segmenter:
     @property
     def speaking(self):
         """True while a segment with real speech (as long as the shortest kept) is being collected."""
-        return self.speech_seconds >= MIN_SPEECH_SECONDS
+        return self.speech_seconds >= tuning.get("min_speech_seconds")
 
     def _is_speech(self, frame):
         rms = float(np.sqrt(np.mean(np.square(frame))))
@@ -103,7 +104,7 @@ class Segmenter:
             self.noise_floor = rms
         else:
             self.noise_floor = 0.999 * self.noise_floor + 0.001 * rms
-        speech = rms > max(self.noise_floor * SPEECH_RATIO, MIN_SPEECH_RMS)
+        speech = rms > max(self.noise_floor * tuning.get("speech_ratio"), tuning.get("min_speech_rms"))
         if speech:
             self.speech_energy += rms * rms
         return speech
@@ -124,14 +125,14 @@ class Segmenter:
 
             if self.speech_seconds == 0:
                 # Still waiting for speech: keep only the pre-roll.
-                keep = int(PREROLL_SECONDS / FRAME_SECONDS)
+                keep = int(tuning.get("preroll_seconds") / FRAME_SECONDS)
                 del self.frames[:-keep]
                 continue
 
             length = len(self.frames) * FRAME_SECONDS
             pause, longest = self.settings.pause_seconds, self.settings.max_line_seconds
             if self.silence_seconds >= pause or length >= longest:
-                if self.speech_seconds >= MIN_SPEECH_SECONDS:
+                if self.speech_seconds >= tuning.get("min_speech_seconds"):
                     frames_of_speech = self.speech_seconds / FRAME_SECONDS
                     level = float(np.sqrt(self.speech_energy / frames_of_speech))
                     segments.append((np.concatenate(self.frames), level))
@@ -222,9 +223,10 @@ def detect_language(audio, model):
 def token_limit(seconds, language):
     """Most tokens Whisper may write for this much speech. Korean needs about 2.5 times as many as English:
     a limit made for English cut Korean speech short and left nothing (2026-10-23)."""
+    top = tuning.get("max_tokens")
     if language == "en":
-        return min(MAX_TOKENS, 16 + int(12 * seconds))
-    return min(MAX_TOKENS, 48 + int(30 * seconds))
+        return min(top, int(tuning.get("en_tokens_base") + tuning.get("en_tokens_per_second") * seconds))
+    return min(top, int(tuning.get("ko_tokens_base") + tuning.get("ko_tokens_per_second") * seconds))
 
 
 def transcribe(audio, model, language="en", prompt=None):
@@ -246,15 +248,17 @@ def transcribe(audio, model, language="en", prompt=None):
         # Slightly stricter than its own default (0.6 / -1.0); dropped parts are logged.
         kept = []
         for part in segments:
-            if part.get("no_speech_prob", 0.0) > NO_SPEECH_PROB and part.get("avg_logprob", 0.0) < MIN_AVG_LOGPROB:
-                print(f"[timing] dropped as noise: {part['text'].strip()[:50]!r}", file=sys.stderr, flush=True)
+            silent, unsure = part.get("no_speech_prob", 0.0), part.get("avg_logprob", 0.0)
+            if silent > tuning.get("no_speech_prob") and unsure < tuning.get("min_avg_logprob"):
+                print(f"[timing] dropped as noise (no_speech_prob {silent:.2f} > {tuning.get('no_speech_prob')}, "
+                      f"avg_logprob {unsure:.2f} < {tuning.get('min_avg_logprob')}): {part['text'].strip()[:50]!r}", file=sys.stderr, flush=True)
                 continue
             kept.append(part["text"].strip())
         text = " ".join(kept)
     else:
         text = result["text"].strip()
     text = drop_repeats(text.strip())
-    if re.sub(r"[\W_]+", "", text).lower() in NOISE_PHRASES:
+    if re.sub(r"[\W_]+", "", text).lower() in tuning.noise_phrases():
         print(f"[timing] dropped as a made-up phrase: {text!r}", file=sys.stderr, flush=True)
         return ""
     return text
@@ -430,14 +434,14 @@ class Engine:
         Every second or so the audio collected so far goes to Whisper again, so the English grows on the page
         before the pause that ends the line. Never for the mic, and never more often than Whisper can keep up with.
         """
-        if source is self.mic or not DRAFT_SECONDS:
+        if source is self.mic or not tuning.get("draft_seconds"):
             return
         audio = source.segmenter.current()
         state = self.drafts.get(source.label)
-        if audio is None or len(audio) < DRAFT_MIN_SECONDS * WHISPER_RATE:
+        if audio is None or len(audio) < tuning.get("draft_min_seconds") * WHISPER_RATE:
             self.drafts.pop(source.label, None)
             return
-        if state and (time.time() - state["at"] < max(DRAFT_SECONDS, state["cost"])
+        if state and (time.time() - state["at"] < max(tuning.get("draft_seconds"), state["cost"])
                       or len(audio) - state["samples"] < 0.4 * WHISPER_RATE):
             return
         started = time.time()
@@ -458,6 +462,8 @@ class Engine:
         })
 
     def _prompt(self):
+        if not tuning.get("use_hint"):
+            return None
         return prep.whisper_prompt(self.settings.meeting_topic, self.settings.terms)
 
     def _hide_bubble(self, source):
@@ -533,8 +539,8 @@ class Engine:
                 started = time.time()
                 # Always detected, also with translation off: Korean speech is then written in Korean, not turned into English.
                 language, share = language_guess(segment, self.model)
-                if share < MIN_LANGUAGE_SHARE:
-                    print("[timing] dropped: neither English nor Korean (noise)", file=sys.stderr, flush=True)
+                if share < tuning.get("min_language_share"):
+                    print(f"[timing] dropped: neither English nor Korean (share {share:.2f} < {tuning.get('min_language_share')})", file=sys.stderr, flush=True)
                     self._hide_bubble(source)
                     continue
                 text = transcribe(segment, self.model, language, self._prompt())

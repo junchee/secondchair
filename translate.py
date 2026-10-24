@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import tuning
 import sys
 import time
 import traceback
@@ -80,6 +81,8 @@ def set_meeting(topic, terms):
 def meeting_notes(text):
     """Extra words for the system prompt: the meeting's topic, and only the glossary terms this line contains."""
     notes = ""
+    if not tuning.get("use_notes"):
+        return notes
     if MEETING["topic"].strip():
         notes += f" The meeting: {MEETING['topic'].strip()}."
     lower = text.lower()
@@ -186,7 +189,7 @@ class Client:
                     data = response.read()
                     raise RuntimeError(f"HTTP {response.status}: {data[:200].decode(errors='replace')}")
                 text, last = "", 0.0
-                deadline = time.monotonic() + STREAM_DEADLINE_SECONDS
+                deadline = time.monotonic() + tuning.get("stream_deadline_seconds")
                 while True:
                     raw = response.readline()
                     if not raw:
@@ -194,7 +197,7 @@ class Client:
                     if time.monotonic() > deadline:
                         # OpenRouter keeps sending keep-alive comments while a provider stalls, so the socket
                         # timeout never fires: give up on our own, or the translator waits here for ever.
-                        raise StreamStalled(f"no complete answer in {STREAM_DEADLINE_SECONDS} s")
+                        raise StreamStalled(f"no complete answer in {tuning.get('stream_deadline_seconds')} s")
                     line = raw.decode("utf-8", "replace").strip()
                     if not line.startswith("data:"):
                         continue  # a comment or a keep-alive
@@ -315,7 +318,7 @@ class Translator:
         self.client = Client(timeout=10)  # a bubble translation takes about a second; 10 s means it is stuck
         self.cv = threading.Condition()
         self.waiting = OrderedDict()  # bubble id -> job, oldest first
-        self.recent = deque(maxlen=CONTEXT_LINES)  # [bubble id, "LABEL: text"] of the latest bubbles
+        self.recent = deque()  # [bubble id, "LABEL: text"] of the latest bubbles (kept to tuning's context_lines)
         self.bubbles = {}  # bubble id -> {"ids", "text", "lang", "context", "version"}
         self.shown = {}  # bubble id -> the translation the page shows now
         threading.Thread(target=self._work, daemon=True).start()
@@ -338,6 +341,8 @@ class Translator:
                 bubble = {"ids": [], "text": "", "lang": line["lang"], "context": context, "version": 0}
                 self.bubbles[bid] = bubble
                 self.recent.append([bid, ""])
+                while len(self.recent) > tuning.get("context_lines"):
+                    self.recent.popleft()
             bubble["ids"].append(line["id"])
             bubble["text"] = (bubble["text"] + " " + line["text"]).strip()
             for entry in self.recent:
@@ -359,7 +364,7 @@ class Translator:
             while not self.waiting:
                 self.cv.wait()
             bid, text, lang, context, ids, version = self.waiting.popitem(last=False)[1]
-            previous = self.shown.get(bid)  # what the page shows for this bubble now: keep its wording
+            previous = self.shown.get(bid) if tuning.get("use_previous") else None  # what the page shows for this bubble now: keep its wording
             if previous and previous.startswith("(translation failed"):
                 previous = None
             queued = len(self.waiting)
@@ -381,8 +386,8 @@ class Translator:
           except Exception as error:  # network or API error: try the backup, else show it and keep going
             result = f"(translation failed: {error})"
             if attempt + 1 < len(order):
-                self.backup_until = time.time() + BACKUP_SECONDS
-                print(f"[timing] {model} did not answer ({error}); using {order[attempt + 1]} for {BACKUP_SECONDS} s", file=sys.stderr, flush=True)
+                self.backup_until = time.time() + tuning.get("backup_seconds")
+                print(f"[timing] {model} did not answer ({error}); using {order[attempt + 1]} for {tuning.get('backup_seconds')} s", file=sys.stderr, flush=True)
                 self.emit({"type": "info", "text": "translation: DeepSeek did not answer, using Qwen for a minute"})
         print(f"[timing] {model.split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
         if version > 1 and self.shown.get(bid) == result:
