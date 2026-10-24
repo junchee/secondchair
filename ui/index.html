@@ -347,7 +347,7 @@
   body.layout-bubbles .row.live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 
   /* ---- Compact: only the meeting buttons and the transcript, for a small window */
-  body.compact header .chips, body.compact #prep-btn, body.compact #summary-btn,
+  body.compact header .chips, body.compact #prep-btn, body.compact #summary-btn, body.compact #tune-btn,
   body.compact #composer, body.compact #beta, body.compact .brand .beta, body.compact .meta .lang { display: none; }
   body.compact header { padding: 6px 10px; gap: 8px; }
   body.compact.layout-bubbles #rows { padding: 8px 8px 16px; gap: 6px; }
@@ -381,6 +381,7 @@
     </div>
     <button class="icon-btn mic-btn" id="mic-chip" type="button" aria-pressed="true" aria-label="Microphone" data-tip="Microphone: on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/><path class="mic-slash" d="M4 4l16 16" stroke-width="2.2"/></svg><span id="mic-text" hidden></span></button>
     <button class="icon-btn" id="prep-btn" type="button" aria-label="배경지식" data-tip="배경지식: tell Anne what the meeting is about, so names and terms come out right."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 12l1.5 1.5 2.5-3M14 12.5h2.5M8.5 17.5l1.5 1.5 2.5-3M14 18h2.5"/></svg></button>
+    <button class="icon-btn" id="tune-btn" type="button" aria-label="Tuning" hidden data-tip="Tuning: 소음 걸러내기, 받아 적기 등의 값을 직접 조절해 봅니다(개발자용)."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
     <button class="icon-btn" id="summary-btn" type="button" aria-label="Summary" data-tip="Summary (S): summarize the meeting so far. The meeting keeps going."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg></button>
   </div>
   <div class="spacer"></div>
@@ -741,6 +742,7 @@
   $("tab-ask").onclick = () => showTab("ask");
   $("tab-prep").onclick = () => showTab("prep");
   $("tab-tune").onclick = () => showTab("tune");
+  $("tune-btn").onclick = () => showTab("tune");
 
   // ---- Tuning (developer): the server sends the list of values with groups, ranges and explanations
   let tuneSchema = null, tuneValues = {};
@@ -800,6 +802,7 @@
   function setDevTools(on) {
     $("dev-tools").checked = on;
     $("tab-tune").hidden = !on;
+    $("tune-btn").hidden = !on;
     store.set("devtools", on ? "1" : "0");
   }
   $("dev-tools").addEventListener("change", () => setDevTools($("dev-tools").checked));
