@@ -42,4 +42,4 @@
 | **Window**, **Help** | **윈도우**, **도움말** |
 | In the page: [This meeting v] (Summary, Background), [View v], [Developer v], quit | 페이지 위쪽: [이 회의 v] (요약, 배경지식), [보기 v], [개발자 v], 종료 |
 
-How: the page keeps one table of texts (`en`, `ko`) and picks by the browser/system language (`navigator.language`); Anne.app uses `Localizable.strings` for the menu bar. Tooltips and messages come from the same table. Korean is the default if the language is neither.
+How: the page keeps one table of texts (`en`, `ko`) and picks by the browser/system language (`navigator.language`); Anne.app uses `Localizable.strings` for the menu bar. Tooltips and messages come from the same table. English is used if the language is neither Korean nor English.

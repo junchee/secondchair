@@ -27,7 +27,7 @@
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #141414;
       --surface: #1c1c1c;
       --surface-me: #1a2433;
@@ -46,7 +46,24 @@
       color-scheme: dark;
     }
   }
-
+  :root[data-theme="dark"] {
+    --bg: #141414;
+    --surface: #1c1c1c;
+    --surface-me: #1a2433;
+    --border: #2c2c2c;
+    --text: #ececea;
+    --muted: #9a9a95;
+    --faint: #66665f;
+    --accent: #6b9cf5;
+    --korean: #e8c64a;
+    --on-accent: #0d1420;
+    --ok: #3fbf74;
+    --warn: #d9a441;
+    --danger: #f07070;
+    --flash: #3a3417;
+    --shadow: 0 8px 28px rgb(0 0 0 / .5);
+    color-scheme: dark;
+  }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
@@ -135,6 +152,30 @@
 
   /* ---- Settings panel */
   .panel-wrap { position: relative; }
+  .txt-btn { display: inline-flex; align-items: center; gap: 6px; line-height: 1.2 !important; padding: 5px 10px !important; }
+  .txt-btn svg { width: 16px; height: 16px; }
+  .menu { position: absolute; top: calc(100% + 8px); min-width: 250px; max-width: 340px; z-index: 40; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; }
+  .menu.right { right: 0; }
+  .menu.wide { width: 330px; padding: 12px 14px; }
+  .menu h4 { margin: 8px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .menu h4:first-child { margin-top: 0; }
+  .menu-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent; color: var(--text);
+    padding: 8px 10px; border-radius: 8px; cursor: pointer; font: inherit; }
+  .menu-item:hover { background: var(--bg); }
+  .menu-item .sp { flex: 1; }
+  .menu-item kbd { color: var(--muted); font: inherit; font-size: 12px; }
+  .menu .note { color: var(--muted); font-size: 12px; padding: 2px 10px 6px; }
+  .menu .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .menu .row > span:first-child { color: var(--muted); min-width: 64px; }
+  .menu select, .menu .full { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .menu input[type=range] { width: 100%; accent-color: var(--accent); }
+  .menu .sizes { flex-wrap: nowrap; gap: 6px; }
+  .menu .sizes > span:first-child { min-width: 0; }
+  .menu .sizes .icon-btn { padding: 3px 8px; }
+  .menu .sizes output { display: none; }
+  .menu p { color: var(--muted); font-size: 12px; margin: 4px 0 10px; }
+
   #settings-panel {
     position: absolute; right: 0; top: calc(100% + 8px); width: 300px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
@@ -362,7 +403,7 @@
   body.layout-bubbles .row.live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 
   /* ---- Compact: only the meeting buttons and the transcript, for a small window */
-  body.compact header .chips, body.compact #prep-btn, body.compact #summary-btn, body.compact #tune-btn,
+  body.compact header .chips, body.compact #meeting-wrap, body.compact #dev-wrap,
   body.compact #composer, body.compact #beta, body.compact .brand .beta, body.compact .meta .lang { display: none; }
   body.compact header { padding: 6px 10px; gap: 8px; }
   body.compact.layout-bubbles #rows { padding: 8px 8px 16px; gap: 6px; }
@@ -375,110 +416,89 @@
     .col-original { border-right: 0; padding-bottom: 4px !important; }
     .col-translation { padding-top: 0 !important; }
     .col-translation .text { color: var(--muted); }
-    #settings-panel { position: fixed; left: 16px; right: 16px; width: auto; top: 64px; }
+    .menu.wide { width: min(330px, calc(100vw - 32px)); }
   }
 </style>
 </head>
 <body class="view-both layout-bubbles">
 <header>
-  <div class="brand"><span class="dot" id="live"></span><img class="logo" src="/anne.png" alt="">Anne<span class="beta" title="Beta version">beta</span></div>
+  <div class="brand"><span class="dot" id="live"></span><img class="logo" src="/anne.png" alt="">Anne<span class="beta" data-t-tip="tipBeta">beta</span></div>
   <div class="chips">
-    <span class="chip" id="output-chip" title="Where the meeting audio plays">
+    <span class="chip" id="output-chip" data-t-tip="tipOutput">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="output-icon"></svg>
       <span id="output-text">Output: waiting</span>
     </span>
   </div>
   <div class="controls">
-    <div class="segmented session" id="session-buttons" role="group" aria-label="Meeting">
-      <button id="btn-start" class="go" data-action="start" data-tip="Start: begin a new meeting." aria-label="Start"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></button>
-      <button id="btn-pause" data-action="pause" data-tip="Pause (P): stop listening for a moment. The sound stays connected." aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg></button>
-      <button id="btn-end" class="stop" data-action="end" data-tip="End: summarize the meeting, save it and give the sound back." aria-label="End"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg></button>
+    <div class="segmented session" id="session-buttons" role="group" data-t-aria="menuMeeting">
+      <button id="btn-start" class="go" data-action="start" data-t-tip="tipStart" data-t-aria="miStart"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></button>
+      <button id="btn-pause" data-action="pause" data-t-tip="tipPause" data-t-aria="miPause"><svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg></button>
+      <button id="btn-end" class="stop" data-action="end" data-t-tip="tipEnd" data-t-aria="miEnd"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/></svg></button>
     </div>
-    <button class="icon-btn mic-btn" id="mic-chip" type="button" aria-pressed="true" aria-label="Microphone" data-tip="Microphone: on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/><path class="mic-slash" d="M4 4l16 16" stroke-width="2.2"/></svg><span id="mic-text" hidden></span></button>
-    <button class="icon-btn" id="prep-btn" type="button" aria-label="배경지식" data-tip="배경지식: tell Anne what the meeting is about, so names and terms come out right."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 12l1.5 1.5 2.5-3M14 12.5h2.5M8.5 17.5l1.5 1.5 2.5-3M14 18h2.5"/></svg></button>
-    <button class="icon-btn" id="tune-btn" type="button" aria-label="Tuning" hidden data-tip="Tuning: 소음 걸러내기, 받아 적기 등의 값을 직접 조절해 봅니다(개발자용)."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
-    <button class="icon-btn" id="summary-btn" type="button" aria-label="Summary" data-tip="Summary (S): summarize the meeting so far. The meeting keeps going."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg></button>
+    <button class="icon-btn mic-btn" id="mic-chip" type="button" aria-pressed="true" data-t-aria="miMic" data-tip=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/><path class="mic-slash" d="M4 4l16 16" stroke-width="2.2"/></svg><span id="mic-text" hidden></span></button>
+    <div class="panel-wrap" id="meeting-wrap">
+      <button class="icon-btn txt-btn" id="menu-meeting-btn" type="button" aria-haspopup="true" aria-expanded="false" data-menu="menu-meeting" data-t-tip="tipMeeting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg><span data-t="menuMeeting"></span> <span aria-hidden="true">▾</span></button>
+      <div class="menu" id="menu-meeting" hidden>
+        <button class="menu-item" id="summary-btn" type="button"><span class="sp" data-t="miSummary"></span><kbd>S</kbd></button>
+        <button class="menu-item" id="prep-btn" type="button"><span class="sp" data-t="miBackground"></span></button>
+        <div class="note" id="active-bg-note"></div>
+      </div>
+    </div>
   </div>
   <div class="spacer"></div>
   <div class="controls">
     <div class="panel-wrap">
-      <button class="icon-btn" id="settings-btn" aria-expanded="false" aria-controls="settings-panel" aria-label="Settings" data-tip="Settings: translation, line length and text size." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-      <div id="settings-panel" hidden>
-        <h3>View</h3>
-        <div class="setting">
-          <div class="segmented" id="translate-mode" role="group" aria-label="Translation">
-            <button type="button" data-on="1" aria-pressed="true">Translate (original + translation)</button>
-            <button type="button" data-on="0" aria-pressed="false">Original only</button>
-          </div>
-          <p>Translation sends the text to the translation service. Original only keeps everything on this Mac.</p>
+      <button class="icon-btn txt-btn" id="menu-view-btn" type="button" aria-haspopup="true" aria-expanded="false" data-menu="menu-view" data-t-tip="tipView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span data-t="menuView"></span> <span aria-hidden="true">▾</span></button>
+      <div class="menu wide right" id="menu-view" hidden>
+        <h4 data-t="vTheme"></h4>
+        <div class="segmented" id="theme-buttons" role="group" data-t-aria="vTheme">
+          <button type="button" data-theme="light" data-t="vLight"></button>
+          <button type="button" data-theme="dark" data-t="vDark"></button>
+          <button type="button" data-theme="auto" data-t="vAuto"></button>
         </div>
-        <div class="setting">
-          <button class="icon-btn" id="compact-btn" type="button" aria-pressed="false">Compact view</button>
-          <p>Only the meeting buttons and the transcript, for a small window. Shortcut C.</p>
-        </div>
-        <h3>Lines</h3>
-        <div class="setting">
-          <label for="max-line">Longest line <output id="max-line-out"></output></label>
-          <input type="range" id="max-line" min="4" max="20" step="1">
-          <p>Shorter shows text sooner; longer keeps sentences whole.</p>
-        </div>
-        <div class="setting">
-          <label for="pause">Pause that ends a line <output id="pause-out"></output></label>
-          <input type="range" id="pause" min="0.2" max="1.5" step="0.1">
-          <p>Shorter splits more often; longer waits for real pauses.</p>
-        </div>
-        <h3>Developer</h3>
-        <div class="setting">
-          <label class="switch" id="dev-switch" style="justify-content:flex-start">
-            <input type="checkbox" id="dev-tools">
-            <span class="track"></span>
-            <span>Tuning 탭 보이기</span>
-          </label>
-          <p>소음 걸러내기, 받아 적기 등의 값을 직접 조절해 보는 개발자용 탭입니다.</p>
-        </div>
-        <div class="setting">
-          <label for="translate-model">Translation model</label>
-          <select id="translate-model" style="width:100%; padding:6px 8px; border-radius:8px; border:1px solid var(--border); background:var(--bg);">
-            <option value="auto">Auto: DeepSeek, Qwen as backup</option>
-            <option value="deepseek">DeepSeek only</option>
-            <option value="qwen">Qwen only</option>
-          </select>
-          <p>Auto switches to Qwen for a minute when DeepSeek does not answer. Takes effect from the next translation.</p>
-        </div>
-        <h3>My microphone</h3>
-        <div class="setting">
-          <label for="mic-filter">Ignore quiet sounds</label>
-          <select id="mic-filter" style="width:100%; padding:6px 8px; border-radius:8px; border:1px solid var(--border); background:var(--bg);">
-            <option value="off">Off: keep everything</option>
-            <option value="normal">Normal</option>
-            <option value="strong">Strong: only clear speech</option>
-          </select>
-          <p>Clicks and room noise can show up as a made-up line like “Thank you.” Raise this if that happens; lower it if your quiet speech is missed.</p>
-        </div>
-        <h3>Look</h3>
-        <div class="setting" style="display:flex; gap:8px; align-items:center;">
-          <span style="color:var(--muted); min-width:96px">English text</span>
-          <button class="icon-btn" id="smaller" aria-label="Smaller text">A−</button>
-          <button class="icon-btn" id="larger" aria-label="Larger text">A+</button>
-          <span id="size-out" style="color:var(--muted)"></span>
-        </div>
-        <div class="setting" style="display:flex; gap:8px; align-items:center;">
-          <span style="color:var(--muted); min-width:96px">Translation text</span>
-          <button class="icon-btn" id="t-smaller" aria-label="Smaller translation text">A−</button>
-          <button class="icon-btn" id="t-larger" aria-label="Larger translation text">A+</button>
-          <span id="tsize-out" style="color:var(--muted)"></span>
-        </div>
-        <div class="setting">
-          <p>Colours the Korean so it stands out from the English.</p>
-        </div>
+        <h4 data-t="vTextSize"></h4>
+        <div class="row sizes"><span data-t="vOriginal"></span><button class="icon-btn" id="smaller" type="button" aria-label="A−">A−</button><button class="icon-btn" id="larger" type="button" aria-label="A+">A+</button><output id="size-out"></output>
+          <span style="margin-left:10px" data-t="vTranslation"></span><button class="icon-btn" id="t-smaller" type="button" aria-label="A−">A−</button><button class="icon-btn" id="t-larger" type="button" aria-label="A+">A+</button><output id="tsize-out"></output></div>
+        <h4 data-t="vLayout"></h4>
+        <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="compact-switch"><span class="track"></span><span data-t="vCompact"></span></label>
+        <p data-t="vCompactHelp"></p>
+        <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="translate-off"><span class="track"></span><span data-t="vTransOff"></span></label>
+        <p data-t="vTransOffHelp"></p>
       </div>
     </div>
-    <button class="icon-btn quit-btn" id="quit" type="button" aria-label="Quit" data-tip="Quit: close Anne completely. A running meeting is saved first. To use it again, double-click the Anne icon." data-tip-align="right"><svg viewBox="0 0 24 24"><path d="M12 3v9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M6.6 6.8a8 8 0 1 0 10.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    <div class="panel-wrap" id="dev-wrap">
+      <button class="icon-btn txt-btn" id="menu-dev-btn" type="button" aria-haspopup="true" aria-expanded="false" data-menu="menu-dev" data-t-tip="tipDev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2.1 2.1 0 0 1-3-3z"/><path d="M14.7 6.3l2.6-2.6a4 4 0 0 0-1.6 6.6"/></svg><span data-t="menuDev"></span> <span aria-hidden="true">▾</span></button>
+      <div class="menu wide right" id="menu-dev" hidden>
+        <button class="menu-item" id="tune-btn" type="button"><span class="sp" data-t="dTuning"></span></button>
+        <h4 data-t="dModel"></h4>
+        <select id="translate-model">
+          <option value="auto" data-t="dModelAuto"></option>
+          <option value="deepseek" data-t="dModelDeepseek"></option>
+          <option value="qwen" data-t="dModelQwen"></option>
+        </select>
+        <p data-t="dModelHelp"></p>
+        <h4 data-t="dLines"></h4>
+        <label for="max-line" style="display:flex;justify-content:space-between"><span data-t="dLongest"></span><output id="max-line-out"></output></label>
+        <input type="range" id="max-line" min="4" max="20" step="1">
+        <label for="pause" style="display:flex;justify-content:space-between;margin-top:8px"><span data-t="dPause"></span><output id="pause-out"></output></label>
+        <input type="range" id="pause" min="0.2" max="1.5" step="0.1">
+        <h4 data-t="dMic"></h4>
+        <select id="mic-filter">
+          <option value="off" data-t="dMicOff"></option>
+          <option value="normal" data-t="dMicNormal"></option>
+          <option value="strong" data-t="dMicStrong"></option>
+        </select>
+        <p data-t="dMicHelp"></p>
+        <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="dev-tools"><span class="track"></span><span data-t="dShow"></span></label>
+        <p data-t="dShowHelp"></p>
+      </div>
+    </div>
+    <button class="icon-btn quit-btn" id="quit" type="button" data-t-aria="miQuit" data-t-tip="tipQuit" data-tip-align="right"><svg viewBox="0 0 24 24"><path d="M12 3v9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M6.6 6.8a8 8 0 1 0 10.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
   </div>
 </header>
-<div class="banner" id="loading">Preparing speech recognition… On a new Mac the first start downloads about 0.5 GB.</div>
-<div class="banner" id="banner">Not connected to secondchair. Is <code>python app.py</code> running? Reconnecting…</div>
-<div class="banner" id="paused">Paused: nothing is being listened to or recorded. Press Resume to continue.</div>
+<div class="banner" id="loading" data-t="bnLoading"></div>
+<div class="banner" id="banner" data-t="bnLost"></div>
+<div class="banner" id="paused" data-t="bnPaused"></div>
 <div class="banner" id="stopped"></div>
 
 <main id="scroller">
@@ -489,27 +509,27 @@
   </div>
   <div id="rows"></div>
   <div class="empty" id="empty">
-    <h2>Listening</h2>
-    <p>Lines appear here when someone speaks.</p>
+    <h2 id="empty-title"></h2>
+    <p id="empty-text"></p>
     <p id="empty-hint"></p>
   </div>
 </main>
-<button id="jump">↓ New lines</button>
+<button id="jump" data-t="jump"></button>
 
 <section id="composer" aria-label="Typing translator">
   <div class="pair">
     <div class="pane">
       <div class="pane-head">
-        <button class="icon-btn" id="composer-toggle" type="button" aria-expanded="true" aria-label="Fold the translator" data-tip="Fold or open the typing translator."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="icon-btn" id="composer-toggle" type="button" aria-expanded="true" data-t-aria="tipFold" data-t-tip="tipFold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <span class="flag" id="in-flag" aria-label="Korean">🇰🇷</span>
-        <div class="segmented" id="type-mode" role="group" aria-label="What to do with the text" title="Start with ? to ask">
-          <button type="button" data-kind="translate" aria-pressed="true">번역</button>
-          <button type="button" data-kind="ask" aria-pressed="false">질문</button>
+        <div class="segmented" id="type-mode" role="group" aria-label="What to do with the text" data-t-aria="tipAsk">
+          <button type="button" data-kind="translate" aria-pressed="true" data-t="kTranslate"></button>
+          <button type="button" data-kind="ask" aria-pressed="false" data-t="kAsk"></button>
         </div>
         <span class="warn" id="draft-warn"></span>
       </div>
       <form id="type-form" autocomplete="off">
-        <textarea id="type-input" rows="2" placeholder="여기 입력" aria-label="Type Korean to translate, or a question about the meeting"></textarea>
+        <textarea id="type-input" rows="2" data-t-ph="phType" data-t-aria="tipAsk"></textarea>
         <button type="submit" id="type-go" hidden>Translate</button>
       </form>
     </div>
@@ -520,7 +540,7 @@
         <span class="hint oneline" id="out-q"></span>
         <span class="dots" id="dots" hidden aria-label="Translating"><i></i><i></i><i></i></span>
         <span class="spacer"></span>
-        <button class="icon-btn" id="discard" type="button" aria-label="Clear" data-tip="Clear (Esc): empty both boxes." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button class="icon-btn" id="discard" type="button" data-t-aria="tipClear" data-t-tip="tipClear" data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <textarea id="draft" rows="2" readonly aria-label="Translation"></textarea>
     </div>
@@ -544,10 +564,10 @@
   </form>
 </dialog>
 
-<aside id="summary-panel" hidden aria-label="Summary and questions">
+<aside id="summary-panel" hidden data-t-aria="menuMeeting">
   <div class="sp-head">
     <div class="sp-tabs" role="tablist">
-      <button role="tab" id="tab-summary" aria-selected="true">Summary</button>
+      <button role="tab" id="tab-summary" aria-selected="true" data-t="miSummary"></button>
       <button role="tab" id="tab-prep" aria-selected="false">배경지식</button>
       <button role="tab" id="tab-tune" aria-selected="false" hidden>Tuning</button>
     </div>
@@ -563,8 +583,8 @@
     <div id="bg-list"></div>
   </div>
   <div class="sp-foot" id="foot-summary">
-    <button class="primary" id="sp-again">Summarize again</button>
-    <span class="hint">Covers everything said so far. The meeting keeps going.</span>
+    <button class="primary" id="sp-again" data-t="spAgain"></button>
+    <span class="hint" data-t="spHelp"></span>
   </div>
   <div class="sp-foot" id="foot-prep" hidden>
     <span class="hint" id="bg-foot"></span>
@@ -748,7 +768,7 @@
       } else { list = null; container.append(el("p", "", line.replace(/\*\*/g, ""))); }
     }
   }
-  function summaryTitle(e) { return e.final ? `Meeting summary · ${e.time}` : `Summary so far · ${e.time}`; }
+  function summaryTitle(e) { return e.final ? t("sumTitleFinal", e.time) : t("sumTitleSo", e.time); }
   function showTab(name) {
     for (const t of ["summary", "prep", "tune"]) $("tab-" + t).setAttribute("aria-selected", t === name);
     $("tune-body").hidden = name !== "tune";
@@ -823,7 +843,7 @@
   function setDevTools(on) {
     $("dev-tools").checked = on;
     $("tab-tune").hidden = !on;
-    $("tune-btn").hidden = !on;
+    $("dev-wrap").hidden = !on;
     store.set("devtools", on ? "1" : "0");
   }
   $("dev-tools").addEventListener("change", () => setDevTools($("dev-tools").checked));
@@ -832,7 +852,7 @@
   $("prep-btn").onclick = () => showTab("prep");
 
   // ---- Texts in two languages: the page follows the system language (Korean on a Korean Mac, English otherwise)
-  const LANG = (navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en";
+  const LANG = (new URLSearchParams(location.search).get("lang") || navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en";   // ?lang=ko or ?lang=en for a try-out
   const I18N = {
     en: {
       bgNew: "+ New background", bgIntro: "Notes about a meeting (topic, names, terms). One is chosen each time a meeting starts.",
@@ -845,6 +865,46 @@
       edTitle: "End the meeting?", edHelp: "Anne can make a summary now. The transcript is saved either way.",
       edYes: "Summarize and end", edNo: "End without summary", edCancel: "Cancel",
       tabBg: "Background", asking: "Looking through the meeting…",
+    "tipBeta": "Beta version", "tipOutput": "Where the meeting audio plays",
+    "tipStart": "Start: begin a new meeting.", "tipPause": "Pause (P): stop listening for a moment. The sound stays connected.",
+    "tipResume": "Resume (P): listen again.", "tipEnd": "End: save the meeting and give the sound back. Anne asks whether to summarize.",
+    "tipEnding": "Ending: saving…", "tipQuit": "Quit: close Anne completely. A running meeting is saved first.",
+    "tipMeeting": "This meeting: summary and background.", "tipView": "View: theme, text size, compact view, translation.",
+    "tipDev": "Developer: tuning and technical settings.", "tipFold": "Fold or open the typing translator.",
+    "tipAsk": "Type here. Translate turns it into the other language; Ask answers a question about the meeting (or start with ?).",
+    "tipClear": "Clear (Esc): empty both boxes.",
+    "miStart": "Start", "miPause": "Pause", "miResume": "Resume", "miEnd": "End", "miQuit": "Quit", "miMic": "Microphone",
+    "menuMeeting": "This meeting", "miSummary": "Summary", "miBackground": "Background", "bgActive": (t) => `In use: ${t}`, "bgNoneActive": "No background in use.",
+    "menuView": "View", "vTheme": "Theme", "vLight": "Light", "vDark": "Dark", "vAuto": "Auto", "vTextSize": "Text size",
+    "vOriginal": "Original", "vTranslation": "Translation", "vLayout": "Layout", "vCompact": "Compact view",
+    "vCompactHelp": "Only the meeting buttons and the transcript, for a small window. Shortcut C.",
+    "vTransOff": "Turn translation off", "vTransOffHelp": "Shows the original only. Nothing is sent to the translation service.",
+    "menuDev": "Developer", "dTuning": "Tuning…", "dModel": "Translation model", "dModelAuto": "Auto: DeepSeek, Qwen as backup",
+    "dModelDeepseek": "DeepSeek only", "dModelQwen": "Qwen only", "dModelHelp": "Auto switches to Qwen for a minute when DeepSeek does not answer.",
+    "dLines": "Lines", "dLongest": "Longest line", "dPause": "Pause that ends a line", "dMic": "My microphone",
+    "dMicOff": "Off: keep everything", "dMicNormal": "Ignore quiet sounds: normal", "dMicStrong": "Ignore quiet sounds: strong",
+    "dMicHelp": "Clicks and room noise can show up as a made-up line like “Thank you.” Raise this if that happens.",
+    "dShow": "Show the Developer menu", "dShowHelp": "To bring it back later press Alt+Shift+D.",
+    "bnLoading": "Preparing speech recognition… On a new Mac the first start downloads about 0.5 GB.",
+    "bnLost": "Not connected to Anne. Is the program running? Reconnecting…",
+    "bnPaused": "Paused: nothing is being listened to or recorded. Press Resume to continue.",
+    "emptyIdleTitle": "Ready", "emptyIdleText": "Press ▶ to start a meeting.", "emptyRunTitle": "Listening", "emptyRunText": "Lines appear here when someone speaks.",
+    "jump": "↓ New lines", "kTranslate": "Translate", "kAsk": "Ask", "phType": "Type here", "phAsk": "Type a question, then Enter",
+    "spAgain": "Summarize again", "spHelp": "Covers everything said so far. The meeting keeps going.",
+    "outputOn": (o) => `Output: ${o}`, "outputNone": "Output: not switched", "outputWait": "Output: waiting",
+    "micNone": "Microphone: not found, so only the meeting is transcribed.",
+    "micOn": "Microphone: on. Your voice is transcribed. Click to turn it off.",
+    "micSpeakers": "Microphone: off while the sound plays on the speakers (it would pick up the meeting). Use earphones to include your voice.",
+    "micOff": "Microphone: off. Your voice is not transcribed. Click to turn it on.",
+    "noKey": "Translation is off: OPENROUTER_API_KEY is not set for this program.", "transOffWarn": "Translation is off.",
+    "sEndedSaved": (f) => `Meeting ended. Saved: ${f}. Press Start for a new meeting.`,
+    "sEndedEmpty": "Meeting ended. Nothing was said, so nothing was saved. Press Start for a new meeting.",
+    "sClosedSaved": (f) => `Anne closed. Transcript saved: ${f}. You can close this tab.`, "sClosedEmpty": "Anne closed. Nothing was said, so nothing was saved. You can close this tab.",
+    "sumSoFar": "Summary so far", "sumWorking": "Summarizing everything said so far… The meeting keeps going.",
+    "sumFinal": "Meeting summary", "sumFinalWorking": "Summarizing the meeting…", "sumNothing": "Nothing has been said yet.",
+    "sumTitleFinal": (tm) => `Meeting summary · ${tm}`, "sumTitleSo": (tm) => `Summary so far · ${tm}`,
+    "sumNoteFinal": (tm) => `Meeting summary (${tm})`, "sumNoteSo": (tm) => `Summary at ${tm}`,
+    "quitConfirm": "Quit Anne? A running meeting is ended and saved first.",
     },
     ko: {
       bgNew: "+ 새 배경지식", bgIntro: "회의에 대한 메모(주제, 이름, 용어)입니다. 회의를 시작할 때마다 하나를 고릅니다.",
@@ -857,10 +917,63 @@
       edTitle: "회의를 끝낼까요?", edHelp: "지금 요약을 만들 수 있습니다. 어느 쪽이든 기록은 저장됩니다.",
       edYes: "요약하고 끝내기", edNo: "요약 없이 끝내기", edCancel: "취소",
       tabBg: "배경지식", asking: "회의 내용에서 찾는 중…",
+    "tipBeta": "베타 버전", "tipOutput": "회의 소리가 나오는 곳",
+    "tipStart": "시작: 새 회의를 시작합니다.", "tipPause": "일시정지 (P): 잠시 듣기를 멈춥니다. 소리 연결은 유지됩니다.",
+    "tipResume": "다시 시작 (P): 다시 듣습니다.", "tipEnd": "종료: 회의를 저장하고 소리를 원래대로 돌립니다. 요약할지 물어봅니다.",
+    "tipEnding": "끝내는 중: 저장하는 중…", "tipQuit": "종료: Anne을 완전히 끕니다. 진행 중인 회의는 먼저 저장합니다.",
+    "tipMeeting": "이 회의: 요약과 배경지식.", "tipView": "보기: 화면 색, 글자 크기, 간단히 보기, 번역.",
+    "tipDev": "개발자: 튜닝과 기술 설정.", "tipFold": "아래 번역기를 접거나 펼칩니다.",
+    "tipAsk": "여기에 입력합니다. 번역은 다른 언어로 바꿔 주고, 질문은 회의 내용에 답합니다(? 로 시작해도 됩니다).",
+    "tipClear": "지우기 (Esc): 두 칸을 비웁니다.",
+    "miStart": "시작", "miPause": "일시정지", "miResume": "다시 시작", "miEnd": "종료", "miQuit": "끝내기", "miMic": "마이크",
+    "menuMeeting": "이 회의", "miSummary": "요약", "miBackground": "배경지식", "bgActive": (t) => `사용 중: ${t}`, "bgNoneActive": "사용 중인 배경지식이 없습니다.",
+    "menuView": "보기", "vTheme": "화면 색", "vLight": "밝게", "vDark": "어둡게", "vAuto": "자동", "vTextSize": "글자 크기",
+    "vOriginal": "원문", "vTranslation": "번역", "vLayout": "보기 방식", "vCompact": "간단히 보기",
+    "vCompactHelp": "회의 버튼과 대화만 남겨 작은 창에서 씁니다. 단축키 C.",
+    "vTransOff": "번역 끄기", "vTransOffHelp": "원문만 보여 줍니다. 번역 서비스로 아무것도 보내지 않습니다.",
+    "menuDev": "개발자", "dTuning": "튜닝…", "dModel": "번역 모델", "dModelAuto": "자동: DeepSeek, 실패하면 Qwen",
+    "dModelDeepseek": "DeepSeek만", "dModelQwen": "Qwen만", "dModelHelp": "자동은 DeepSeek이 답하지 않으면 1분 동안 Qwen을 씁니다.",
+    "dLines": "줄 나누기", "dLongest": "가장 긴 줄", "dPause": "줄을 끝내는 쉬는 틈", "dMic": "내 마이크",
+    "dMicOff": "끔: 모두 받아 적기", "dMicNormal": "작은 소리 무시: 보통", "dMicStrong": "작은 소리 무시: 강하게",
+    "dMicHelp": "딸깍 소리나 방 소음이 “Thank you.” 같은 지어낸 줄로 나올 수 있습니다. 그럴 때 올려 보세요.",
+    "dShow": "개발자 메뉴 보이기", "dShowHelp": "나중에 다시 보이려면 Alt+Shift+D 를 누르세요.",
+    "bnLoading": "음성 인식을 준비하는 중… 새 Mac에서는 처음 한 번 약 0.5GB를 내려받습니다.",
+    "bnLost": "Anne에 연결되지 않았습니다. 프로그램이 켜져 있나요? 다시 연결하는 중…",
+    "bnPaused": "일시정지: 지금은 듣거나 기록하지 않습니다. 다시 시작을 누르면 이어집니다.",
+    "emptyIdleTitle": "준비되었습니다", "emptyIdleText": "▶ 를 눌러 회의를 시작하세요.", "emptyRunTitle": "듣는 중", "emptyRunText": "누군가 말하면 여기에 나옵니다.",
+    "jump": "↓ 새 줄", "kTranslate": "번역", "kAsk": "질문", "phType": "여기 입력", "phAsk": "질문 입력 후 Enter",
+    "spAgain": "다시 요약", "spHelp": "지금까지의 대화 전체를 요약합니다. 회의는 계속됩니다.",
+    "outputOn": (o) => `출력: ${o}`, "outputNone": "출력: 바꾸지 않음", "outputWait": "출력: 확인 중",
+    "micNone": "마이크: 찾지 못해서 회의 소리만 받아 적습니다.",
+    "micOn": "마이크: 켜짐. 내 목소리를 받아 적습니다. 누르면 끕니다.",
+    "micSpeakers": "마이크: 스피커로 듣는 동안은 꺼 둡니다(회의 소리가 섞여 들어옵니다). 내 목소리도 받으려면 이어폰을 쓰세요.",
+    "micOff": "마이크: 꺼짐. 내 목소리를 받아 적지 않습니다. 누르면 켭니다.",
+    "noKey": "번역이 꺼져 있습니다: 이 프로그램에 OPENROUTER_API_KEY가 설정되어 있지 않습니다.", "transOffWarn": "번역이 꺼져 있습니다.",
+    "sEndedSaved": (f) => `회의가 끝났습니다. 저장: ${f}. 새 회의는 시작을 누르세요.`,
+    "sEndedEmpty": "회의가 끝났습니다. 아무 말도 없어서 저장하지 않았습니다. 새 회의는 시작을 누르세요.",
+    "sClosedSaved": (f) => `Anne을 종료했습니다. 기록 저장: ${f}. 이 탭을 닫으셔도 됩니다.`, "sClosedEmpty": "Anne을 종료했습니다. 아무 말도 없어서 저장하지 않았습니다. 이 탭을 닫으셔도 됩니다.",
+    "sumSoFar": "지금까지의 요약", "sumWorking": "지금까지의 대화를 요약하는 중… 회의는 계속됩니다.",
+    "sumFinal": "회의 요약", "sumFinalWorking": "회의를 요약하는 중…", "sumNothing": "아직 말한 내용이 없습니다.",
+    "sumTitleFinal": (tm) => `회의 요약 · ${tm}`, "sumTitleSo": (tm) => `지금까지의 요약 · ${tm}`,
+    "sumNoteFinal": (tm) => `회의 요약 (${tm})`, "sumNoteSo": (tm) => `${tm} 요약`,
+    "quitConfirm": "Anne을 종료할까요? 진행 중인 회의는 먼저 끝내고 저장합니다.",
     },
   };
   const t = (key, ...args) => { const v = (I18N[LANG][key] ?? I18N.en[key] ?? key); return typeof v === "function" ? v(...args) : v; };
   document.documentElement.lang = LANG;
+  function applyI18n() {
+    document.querySelectorAll("[data-t]").forEach((n) => { n.textContent = t(n.dataset.t); });
+    document.querySelectorAll("[data-t-tip]").forEach((n) => { n.dataset.tip = t(n.dataset.tTip); });
+    document.querySelectorAll("[data-t-aria]").forEach((n) => { n.setAttribute("aria-label", t(n.dataset.tAria)); });
+    document.querySelectorAll("[data-t-ph]").forEach((n) => { n.placeholder = t(n.dataset.tPh); });
+    $("output-text").textContent = t("outputWait");
+    document.title = "Anne";
+  }
+  function showEmpty(running) {
+    $("empty-title").textContent = t(running ? "emptyRunTitle" : "emptyIdleTitle");
+    $("empty-text").textContent = t(running ? "emptyRunText" : "emptyIdleText");
+  }
+  applyI18n(); showEmpty(false);
 
   // ---- 배경지식: a list of titles; click one to see and edit its text and terms. Chosen at Start, never applied by itself.
   let backgrounds = [], activeBackground = null, recentBackground = null, openBackground = null;
@@ -953,6 +1066,8 @@
   function syncBackgrounds(e) {
     backgrounds = e.backgrounds || [];
     activeBackground = e.active_background || null;
+    const active = backgrounds.find((b) => b.id === activeBackground);
+    $("active-bg-note").textContent = active ? t("bgActive", active.title || active.topic) : t("bgNoneActive");
     recentBackground = e.recent_background || null;
     renderBackgrounds();
   }
@@ -995,21 +1110,21 @@
   function requestSummary() {
     if (!translateAvailable) return;
     post("/summarize");
-    openSummaryPanel("Summary so far", null, "Summarizing everything said so far… The meeting keeps going.");
+    openSummaryPanel(t("sumSoFar"), null, t("sumWorking"));
   }
   function onSummarizing(e) {
-    if (!replaying && e.final) openSummaryPanel("Meeting summary", null, "Summarizing the meeting…");
+    if (!replaying && e.final) openSummaryPanel(t("sumFinal"), null, t("sumFinalWorking"));
   }
   let finalSummaryShown = false;   // the meeting summary was put on the screen: the tab stays open after Quit
   function onSummary(e) {
     if (e.final && e.text && !replaying) finalSummaryShown = true;
     if (!e.text) {
-      if (!replaying) openSummaryPanel("Summary so far", null, "Nothing has been said yet.");
+      if (!replaying) openSummaryPanel(t("sumSoFar"), null, t("sumNothing"));
       return;
     }
     const row = el("div", "grid");
     const note = el("div", "note");
-    const button = el("button", "", e.final ? `Meeting summary (${e.time})` : `Summary at ${e.time}`);
+    const button = el("button", "", e.final ? t("sumNoteFinal", e.time) : t("sumNoteSo", e.time));
     button.onclick = () => openSummaryPanel(summaryTitle(e), e.text);
     note.append(button);
     row.append(note);
@@ -1029,17 +1144,14 @@
   function setStatus(e) {
     micOn = e.mic;
     $("output-icon").innerHTML = ICONS[e.kind] || ICONS.speakers;
-    $("output-text").textContent = e.output ? `Output: ${e.output}` : "Output: not switched";
+    $("output-text").textContent = e.output ? t("outputOn", e.output) : t("outputNone");
     $("output-chip").className = "chip on";
     micAvailable = e.mic_available !== false;
     const mic = $("mic-chip");
     mic.classList.toggle("off", !e.mic);
     mic.setAttribute("aria-pressed", e.mic);
     mic.disabled = !micAvailable;
-    mic.dataset.tip = !micAvailable ? "Microphone: not found, so only the meeting is transcribed."
-      : e.mic ? "Microphone: on. Your voice is transcribed. Click to turn it off."
-      : e.kind === "speakers" ? "Microphone: off while the sound plays on the speakers (it would pick up the meeting). Use earphones to include your voice."
-      : "Microphone: off. Your voice is not transcribed. Click to turn it on.";
+    mic.dataset.tip = !micAvailable ? t("micNone") : e.mic ? t("micOn") : e.kind === "speakers" ? t("micSpeakers") : t("micOff");
     updateDraftWarning();
   }
 
@@ -1048,13 +1160,11 @@
     syncBackgrounds(e);
     translateOn = e.translate;
     translateAvailable = e.translate_available;
-    document.querySelectorAll("#translate-mode button").forEach((b) => {
-      b.setAttribute("aria-pressed", (b.dataset.on === "1") === translateOn);
-      b.disabled = b.dataset.on === "1" && !translateAvailable;
-    });
+    $("translate-off").checked = !translateOn;
+    $("translate-off").disabled = !translateAvailable;
     setView(translateOn ? "both" : "original");
     $("empty-hint").textContent = translateAvailable ? ""
-      : "Translation is off: OPENROUTER_API_KEY is not set in the terminal that runs app.py.";
+      : t("noKey");
     if (document.activeElement !== $("max-line")) $("max-line").value = e.max_line_seconds;
     if (document.activeElement !== $("pause")) $("pause").value = e.pause_seconds;
     $("max-line-out").textContent = `${Number(e.max_line_seconds)} s`;
@@ -1066,7 +1176,7 @@
   $("translate-model").addEventListener("change", () => post("/settings", { translate_model: $("translate-model").value }));
   $("mic-filter").addEventListener("change", () => post("/settings", { mic_filter: $("mic-filter").value }));
 
-  document.querySelectorAll("#translate-mode button").forEach((b) => b.onclick = () => post("/settings", { translate: b.dataset.on === "1" }));
+  $("translate-off").addEventListener("change", () => post("/settings", { translate: !$("translate-off").checked }));
 
   for (const [id, key, digits] of [["max-line", "max_line_seconds", 0], ["pause", "pause_seconds", 1]]) {
     $(id).addEventListener("input", () => { $(id + "-out").textContent = `${Number($(id).value).toFixed(digits)} s`; });
@@ -1081,7 +1191,7 @@
   }
 
   function updateDraftWarning() {
-    $("draft-warn").textContent = !translateOn ? "Translation is off: turn it on to get English." : "";
+    $("draft-warn").textContent = !translateOn ? t("transOffWarn") : "";
   }
 
   // ---- Typing translator: what Jun types (only that) is translated as he types: Korean -> English to say,
@@ -1126,7 +1236,7 @@
   function setTypeKind(kind) {
     typeKind = kind;
     document.querySelectorAll("#type-mode button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.kind === kind));
-    $("type-input").placeholder = kind === "ask" ? "질문 입력 후 Enter" : "여기 입력";
+    $("type-input").placeholder = t(kind === "ask" ? "phAsk" : "phType");
   }
   $("type-input").addEventListener("input", () => {
     clearTimeout(typeTimer);
@@ -1222,21 +1332,33 @@
 
   function setCompact(on) {
     document.body.classList.toggle("compact", on);
-    $("compact-btn").setAttribute("aria-pressed", on);
-    $("compact-btn").textContent = on ? "Back to the normal view" : "Compact view";
+    $("compact-switch").checked = on;
     store.set("compact", on ? "1" : "0");
   }
-  $("compact-btn").onclick = () => setCompact(!document.body.classList.contains("compact"));
+  $("compact-switch").onchange = () => setCompact($("compact-switch").checked);
   setCompact(store.get("compact", "0") === "1");
 
-  function togglePanel(open) {
-    const panel = $("settings-panel");
-    open = open ?? panel.hidden;
-    panel.hidden = !open;
-    $("settings-btn").setAttribute("aria-expanded", open);
+  function closeMenus(except) {
+    document.querySelectorAll(".menu").forEach((m) => { if (m.id !== except) m.hidden = true; });
+    document.querySelectorAll("[data-menu]").forEach((b) => b.setAttribute("aria-expanded", !$(b.dataset.menu).hidden));
   }
-  $("settings-btn").onclick = (e) => { e.stopPropagation(); togglePanel(); };
-  document.addEventListener("click", (e) => { if (!e.target.closest(".panel-wrap")) togglePanel(false); });
+  document.querySelectorAll("[data-menu]").forEach((b) => b.onclick = (ev) => {
+    ev.stopPropagation();
+    const menu = $(b.dataset.menu), open = menu.hidden;
+    closeMenus(open ? menu.id : "");
+    menu.hidden = !open;
+    b.setAttribute("aria-expanded", open);
+  });
+  document.addEventListener("click", (ev) => { if (!ev.target.closest(".panel-wrap")) closeMenus(); });
+  document.querySelectorAll(".menu-item").forEach((b) => b.addEventListener("click", () => closeMenus()));
+
+  function setTheme(mode) {
+    if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode; else delete document.documentElement.dataset.theme;
+    document.querySelectorAll("#theme-buttons button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.theme === (mode || "auto")));
+    store.set("theme", mode || "auto");
+  }
+  document.querySelectorAll("#theme-buttons button").forEach((b) => b.onclick = () => setTheme(b.dataset.theme));
+  setTheme(store.get("theme", "auto"));
 
   // ---- The meeting: Start | Pause / Resume | End. Quit (in Settings) closes the program.
   let sessionState = "running";
@@ -1251,11 +1373,12 @@
     $("btn-start").disabled = e.state !== "idle";
     $("btn-pause").disabled = !(running || paused);
     $("btn-pause").innerHTML = paused ? ICON.play : ICON.pause;
-    $("btn-pause").setAttribute("aria-label", paused ? "Resume" : "Pause");
+    $("btn-pause").setAttribute("aria-label", t(paused ? "miResume" : "miPause"));
     $("btn-pause").dataset.action = paused ? "resume" : "pause";
-    $("btn-pause").dataset.tip = paused ? "Resume (P): listen again." : "Pause (P): stop listening for a moment. The sound stays connected.";
+    $("btn-pause").dataset.tip = t(paused ? "tipResume" : "tipPause");
     $("btn-end").disabled = !(running || paused);
-    $("btn-end").dataset.tip = e.state === "ending" ? "Ending: summarizing and saving…" : "End: summarize the meeting, save it and give the sound back.";
+    $("btn-end").dataset.tip = t(e.state === "ending" ? "tipEnding" : "tipEnd");
+    showEmpty(running || paused);
     $("paused").classList.toggle("show", paused);
     $("live").classList.toggle("live", running);
     if (e.new) {                       // a new meeting: start with an empty page
@@ -1268,9 +1391,7 @@
     if (e.state === "idle" && e.fresh) {
       $("stopped").classList.remove("show");   // the program just started: nothing has ended
     } else if (e.state === "idle") {
-      $("stopped").textContent = e.saved
-        ? `Meeting ended. Saved: ${e.saved}. Press Start for a new meeting.`
-        : "Meeting ended. Nothing was said, so nothing was saved. Press Start for a new meeting.";
+      $("stopped").textContent = e.saved ? t("sEndedSaved", e.saved) : t("sEndedEmpty");
       $("stopped").classList.add("show");
     }
   }
@@ -1280,7 +1401,7 @@
     post("/session", { action: b.dataset.action });
   });
   $("quit").onclick = () => {
-    if (confirm("Quit Anne? A running meeting is ended and saved first.")) post("/quit");
+    if (confirm(t("quitConfirm"))) post("/quit");
   };
 
   document.addEventListener("keydown", (e) => {
@@ -1289,11 +1410,12 @@
     const tag = e.target.tagName;
     if (e.metaKey || e.ctrlKey || e.altKey || ["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
     if (tag === "BUTTON" && (e.key === "Enter" || e.key === " ")) return;
-    if (e.key === "Escape") { togglePanel(false); $("summary-panel").hidden = true; }
+    if (e.key === "Escape") { closeMenus(); $("summary-panel").hidden = true; }
     if (e.key === "/") { e.preventDefault(); $("type-input").focus(); }
     if (e.key === "?") { e.preventDefault(); setTypeKind("ask"); $("type-input").focus(); }
     if (e.key === "s") requestSummary();
-    if (e.key === "c") $("compact-btn").click();
+    if (e.key === "c") $("compact-switch").click();
+    if (e.altKey && e.shiftKey && e.code === "KeyD") { $("dev-tools").click(); }
     if (e.key === "p" && !$("btn-pause").disabled) $("btn-pause").click();
   });
 
@@ -1303,9 +1425,7 @@
     clearPartials();
     $("live").classList.remove("live");
     $("banner").classList.remove("show");
-    $("stopped").textContent = (e.saved
-      ? `Anne closed. Transcript saved: ${e.saved}`
-      : "Anne closed. Nothing was said, so nothing was saved.") + " You can close this tab.";
+    $("stopped").textContent = e.saved ? t("sClosedSaved", e.saved) : t("sClosedEmpty");
     $("stopped").classList.add("show");
     // A tab opened by the program itself (one history entry) may close itself; if the browser refuses, the message stays.
     // It stays open when the meeting summary was just shown, so it can be read first.
