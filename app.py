@@ -17,6 +17,8 @@ import argparse
 import itertools
 import json
 import os
+import sys
+import keystore
 import models
 import prefs
 import prep
@@ -304,7 +306,47 @@ class Meeting(Hooks):
         return saved
 
 
-def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder):
+class Welcome:
+    """The first screen: the user agrees to the terms, then pastes the access key once. The key is checked with OpenRouter,
+    kept in the Keychain, and the program restarts itself so every part starts with the key."""
+
+    def __init__(self, settings, emit):
+        self.settings = settings
+        self.emit = emit
+
+    def request(self, body):
+        op = body.get("op")
+        if op == "accept" and body.get("agree") is True:
+            self.settings.accept_terms()
+            self.emit(self.settings.as_event())
+        elif op == "key":
+            key = str(body.get("key", "")).strip()
+            threading.Thread(target=self.take_key, args=(key,), daemon=True).start()
+
+    def take_key(self, key):
+        if not keystore.looks_valid(key):
+            self.emit({"type": "welcome", "error": "format"})
+            return
+        result = keystore.check(key)
+        if not result["ok"]:
+            self.emit({"type": "welcome", "error": result["reason"]})
+            return
+        try:
+            keystore.save(key)
+        except Exception:
+            self.emit({"type": "welcome", "error": "keychain"})
+            return
+        self.emit({"type": "welcome", "saved": True, "remaining": result.get("remaining"), "limit": result.get("limit")})
+        time.sleep(1.2)
+        restart()
+
+
+def restart():
+    """Start this program again (same command) so everything is built with the new key."""
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder, welcome):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             pass  # keep the terminal for transcript lines
@@ -364,6 +406,8 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_
                 voice.speak(str(body.get("text", "")))
             elif self.path == "/discard" and voice:
                 voice.discard()
+            elif self.path == "/welcome":
+                welcome.request(body)
             elif self.path == "/background":
                 prep_finder.request(body)
             elif self.path == "/summarize":
@@ -374,6 +418,8 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_
                 asking.request(str(body.get("question", "")))
             elif self.path == "/session" and controls.get("engine"):
                 action = str(body.get("action", ""))
+                if action == "start" and not settings.terms_ok():
+                    return False  # the first-run agreement comes first
                 if action == "start":
                     ids = body.get("backgrounds")
                     if ids is None and body.get("background"):
@@ -420,6 +466,7 @@ def main():
     parser.add_argument("--no-switch", action="store_true", help="leave the output device alone")
     args = parser.parse_args()
 
+    keystore.load_into_env()  # the key kept in the Keychain, when none is set in the environment
     models.start()  # which models exist and where the lists come from: checked in the background
     hub = Hub()
     recorder = Recorder()
@@ -430,7 +477,8 @@ def main():
     typing = Typing(recorder, emit, settings.translate_available)
     asking = Asking(recorder, emit, settings.translate_available)
     prep_finder = Backgrounds(settings, emit, settings.translate_available)
-    handler = make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder)
+    welcome = Welcome(settings, emit)
+    handler = make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder, welcome)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()

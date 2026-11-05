@@ -356,6 +356,15 @@
   .tune.changed .def { visibility: visible; }
   .tune.bool { grid-template-columns: 1fr auto; }
   #prep-body { flex: 1; overflow-y: auto; padding: 8px 20px 16px; display: flex; flex-direction: column; gap: 8px; }
+  #welcome { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 32px 16px; }
+  #welcome[hidden] { display: none; }
+  .wl-card { width: min(640px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px 28px; box-shadow: var(--shadow); }
+  .wl-logo { width: 56px; height: 56px; object-fit: contain; }
+  .wl-card h2 { margin: 8px 0 12px; font-size: 20px; }
+  #wl-points { padding-left: 20px; margin: 0 0 14px; }
+  #wl-points li { margin: 8px 0; line-height: 1.5; }
+  .wl-agree { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; margin: 12px 0 4px; }
+  #wl-key-input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 15px; }
   dialog { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); padding: 18px 20px; max-width: 420px; box-shadow: var(--shadow); }
   dialog::backdrop { background: rgb(0 0 0 / .35); }
   dialog h3 { margin: 0 0 6px; font-size: 16px; }
@@ -556,6 +565,26 @@
     </div>
   </div>
 </section>
+
+<div id="welcome" hidden>
+  <div class="wl-card">
+    <img class="wl-logo" src="/anne.png" alt="">
+    <div id="wl-terms">
+      <h2 id="wl-title"></h2>
+      <ul id="wl-points"></ul>
+      <label class="wl-agree"><input type="checkbox" id="wl-agree"> <span id="wl-agree-text"></span></label>
+      <p class="hint" id="wl-version"></p>
+      <div class="dlg-actions"><button class="ghost" id="wl-quit" type="button"></button><button class="primary" id="wl-continue" type="button" disabled></button></div>
+    </div>
+    <div id="wl-key" hidden>
+      <h2 id="wl-key-title"></h2>
+      <p id="wl-key-help"></p>
+      <input id="wl-key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-…">
+      <p class="warn" id="wl-key-msg"></p>
+      <div class="dlg-actions"><button class="ghost" id="wl-key-quit" type="button"></button><button class="primary" id="wl-key-ok" type="button"></button></div>
+    </div>
+  </div>
+</div>
 
 <dialog id="start-dialog">
   <form method="dialog">
@@ -875,6 +904,19 @@
       sdNone: "No briefing", sdStart: "Start", sdCancel: "Cancel", sdTermsN: (n) => `${n} key ${n === 1 ? "term" : "terms"}`, sdNoTerms: "This one has no terms yet; only its topic is used.",
       edTitle: "End the meeting?", edHelp: "Anne can make a summary now. The transcript is saved either way.",
       edYes: "Summarize and end", edNo: "End without summary", edCancel: "Cancel",
+      wlTitle: "How Anne works, and what you agree to",
+      wlP1: "Anne listens to the sound your Mac plays and to your microphone. It turns speech into text <b>on this Mac</b>. <b>The sound is not sent anywhere.</b>",
+      wlP2: "To translate, summarise and answer your questions, Anne sends the <b>text</b> (not the sound) to an outside AI service (OpenRouter, with zero data retention requested). The developer does not receive your audio or your transcripts.",
+      wlP3: "Your transcripts are saved only on this Mac, in the folder <code>transcripts</code>. You can delete them at any time.",
+      wlP4: "Anne can be wrong. Transcripts, translations, summaries and answers may contain mistakes or invented details. Do not rely on them for legal, medical, financial or safety decisions; check anything important yourself.",
+      wlP5: "<b>You</b> are responsible for telling the people in your meeting that it is being transcribed, and for using Anne only where that is allowed.",
+      wlP6: "Anne is provided <b>“as is”, without warranty</b>. To the extent the law allows, the developer (jk) is not liable for any loss or damage from using it, from mistakes in its output, or from interruptions of the outside services. Your legal rights are not affected.",
+      wlP7: "Your email address, if you give it to the developer, is used only for your receipt, your access key, support and notices about the terms. Questions and feedback: eyot@gmail.com. Governing law: England and Wales.",
+      wlAgree: "I have read and agree to the Terms and the Privacy notice.", wlContinue: "Agree and continue", wlQuit: "Quit", wlVersion: (v) => `Terms version ${v}`,
+      wlKeyTitle: "Your access key", wlKeyHelp: "Paste the key you received by email. It is kept only in this Mac's Keychain.", wlKeyOk: "Check and save", wlChecking: "Checking the key…",
+      wlSaved: "Key accepted. Restarting Anne…", wlErr_format: "This does not look like an access key. Paste it exactly as you received it (it starts with sk-or-).",
+      wlErr_rejected: "The key was not accepted. Check it, or ask for a new one.", wlErr_network: "Could not reach the key service. Check your internet connection and try again.",
+      wlErr_keychain: "The key could not be saved in the Keychain.",
       bgMax: (n) => `Up to ${n} briefings at a time.`, bgTermsBtn: (n) => `Terms (${n}) …`, bgTrash: "Delete", bgSelected: (names) => `In use: ${names}`, bgNoneSel: "No briefing ticked.", bgTick: "Use in this meeting",
       tabBg: "Briefing", asking: "Looking through the meeting…",
     "tipBeta": "Beta version", "tipOutput": "Where the meeting audio plays",
@@ -932,6 +974,19 @@
       sdNone: "브리핑 없이", sdStart: "시작", sdCancel: "취소", sdTermsN: (n) => `주요 용어 ${n}개`, sdNoTerms: "아직 용어가 없어 주제만 쓰입니다.",
       edTitle: "회의를 끝낼까요?", edHelp: "지금 요약을 만들 수 있습니다. 어느 쪽이든 기록은 저장됩니다.",
       edYes: "요약하고 끝내기", edNo: "요약 없이 끝내기", edCancel: "취소",
+      wlTitle: "Anne이 어떻게 동작하는지, 무엇에 동의하는지",
+      wlP1: "Anne은 Mac이 내보내는 소리와 마이크 소리를 듣고, 말을 <b>이 Mac 안에서</b> 글로 바꿉니다. <b>소리는 어디로도 보내지 않습니다.</b>",
+      wlP2: "번역, 요약, 질문 답변을 위해서는 소리가 아니라 <b>글자만</b> 외부 AI 서비스(OpenRouter, 데이터 보관 금지 요청)로 보냅니다. 개발자는 사용자의 소리나 대화 기록을 받지 않습니다.",
+      wlP3: "대화 기록은 이 Mac의 <code>transcripts</code> 폴더에만 저장되고, 언제든 지울 수 있습니다.",
+      wlP4: "Anne은 틀릴 수 있습니다. 받아 적은 글, 번역, 요약, 답변에 오류나 지어낸 내용이 있을 수 있습니다. 법률, 의료, 금융, 안전에 관한 판단에는 쓰지 말고, 중요한 것은 직접 확인하세요.",
+      wlP5: "회의 참석자에게 <b>기록하고 있음을 알리고</b>, 허용되는 곳에서만 쓰는 책임은 <b>사용자</b>에게 있습니다.",
+      wlP6: "Anne은 <b>현재 상태 그대로, 보증 없이</b> 제공됩니다. 법이 허용하는 범위에서 개발자(jk)는 사용, 결과물의 오류, 외부 서비스의 중단으로 생긴 손해에 책임지지 않습니다. 법이 사용자에게 주는 권리는 줄어들지 않습니다.",
+      wlP7: "개발자에게 알려 준 이메일 주소는 영수증, 접근 키 발송, 지원, 약관 변경 안내에만 씁니다. 문의와 의견: eyot@gmail.com. 준거법: 잉글랜드와 웨일스 법.",
+      wlAgree: "이용약관과 개인정보 안내를 읽고 동의합니다.", wlContinue: "동의하고 계속", wlQuit: "종료", wlVersion: (v) => `약관 버전 ${v}`,
+      wlKeyTitle: "접근 키", wlKeyHelp: "이메일로 받은 키를 붙여 넣으세요. 이 Mac의 키체인에만 저장됩니다.", wlKeyOk: "확인하고 저장", wlChecking: "키를 확인하는 중…",
+      wlSaved: "키가 확인되었습니다. Anne을 다시 시작합니다…", wlErr_format: "접근 키 모양이 아닙니다. 받은 그대로 붙여 넣어 주세요(sk-or- 로 시작합니다).",
+      wlErr_rejected: "키가 받아들여지지 않았습니다. 확인하시거나 새 키를 요청하세요.", wlErr_network: "키 서비스에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도하세요.",
+      wlErr_keychain: "키를 키체인에 저장하지 못했습니다.",
       bgMax: (n) => `한 번에 최대 ${n}개까지 쓸 수 있습니다.`, bgTermsBtn: (n) => `용어 (${n}) …`, bgTrash: "삭제", bgSelected: (names) => `사용 중: ${names}`, bgNoneSel: "체크한 브리핑이 없습니다.", bgTick: "이 회의에 사용",
       tabBg: "브리핑", asking: "회의 내용에서 찾는 중…",
     "tipBeta": "베타 버전", "tipOutput": "회의 소리가 나오는 곳",
@@ -1116,6 +1171,37 @@
     $("prep-status").textContent = e.error ? e.error : (e.terms ? t("bgDone", e.terms.length) : "");
     renderBackgrounds();
   }
+  // ---- First screen: agree to the terms, then paste the access key once
+  let welcomeVersion = "";
+  function updateWelcome(e) {
+    welcomeVersion = e.terms_version || "";
+    const step = !e.terms_ok ? "terms" : !e.has_key ? "key" : "";
+    $("welcome").hidden = !step;
+    $("wl-terms").hidden = step !== "terms";
+    $("wl-key").hidden = step !== "key";
+    if (step && !$("wl-points").children.length) {
+      $("wl-title").textContent = t("wlTitle");
+      $("wl-points").replaceChildren(...[1, 2, 3, 4, 5, 6, 7].map((i) => { const li = el("li"); li.innerHTML = t("wlP" + i); return li; }));
+      $("wl-agree-text").textContent = t("wlAgree");
+      $("wl-continue").textContent = t("wlContinue"); $("wl-quit").textContent = t("wlQuit"); $("wl-key-quit").textContent = t("wlQuit");
+      $("wl-version").textContent = t("wlVersion", e.terms_version || "");
+      $("wl-key-title").textContent = t("wlKeyTitle"); $("wl-key-help").textContent = t("wlKeyHelp"); $("wl-key-ok").textContent = t("wlKeyOk");
+    }
+  }
+  $("wl-agree").onchange = () => { $("wl-continue").disabled = !$("wl-agree").checked; };
+  $("wl-continue").onclick = () => post("/welcome", { op: "accept", agree: $("wl-agree").checked });
+  $("wl-quit").onclick = $("wl-key-quit").onclick = () => post("/quit");
+  $("wl-key-ok").onclick = () => {
+    $("wl-key-msg").textContent = t("wlChecking"); $("wl-key-ok").disabled = true;
+    post("/welcome", { op: "key", key: $("wl-key-input").value });
+  };
+  $("wl-key-input").addEventListener("keydown", (ev) => { if (ev.key === "Enter") $("wl-key-ok").click(); });
+  function onWelcome(e) {
+    $("wl-key-ok").disabled = false;
+    $("wl-key-msg").textContent = e.error ? t("wlErr_" + e.error) : (e.saved ? t("wlSaved") : "");
+    if (e.saved) { $("wl-key-ok").disabled = true; $("wl-key-input").disabled = true; }
+  }
+
   function syncBackgrounds(e) {
     backgrounds = e.backgrounds || [];
     activeBackgrounds = e.active_backgrounds || [];
@@ -1219,6 +1305,7 @@
 
   function setSettings(e) {
     renderTuning(e.tuning);
+    updateWelcome(e);
     syncBackgrounds(e);
     if (e.models) {
       const gone = Object.entries(e.models.missing || {}).map(([role, ids]) => `${role}: ${ids.join(", ")}`).join("; ");
@@ -1549,6 +1636,7 @@
         case "settings": setSettings(e); break;
         case "model": $("loading").classList.toggle("show", e.state === "loading"); break;
         case "prep_result": onPrepResult(e); break;
+        case "welcome": onWelcome(e); break;
         case "session": onSession(e); break;
         case "voice": setVoice(e); break;
         case "draft": break;   // spoken Korean is translated in its bubble; the bottom box is for typing only

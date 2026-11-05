@@ -55,6 +55,7 @@ TRANSLATION_MODES = ("auto", "deepseek", "qwen")
 
 
 MAX_BRIEFINGS = 3  # briefings that can be used together in one meeting
+TERMS_VERSION = "2026-11-05"  # change it when the terms change: everyone is asked to agree again
 
 
 class Settings:
@@ -80,11 +81,14 @@ class Settings:
         self.meeting_topic = ""
         self.terms = []
         self.summarize_at_end = True  # End asks "요약할까요?"; False = end and save without a summary
+        self.terms_accepted = {}      # {"version", "date"}: the first-run agreement
         if persist:
             saved = prefs.load()
             self._apply(saved)
             tuning.apply(saved.get("tuning"))
             self._load_backgrounds(saved)
+            if isinstance(saved.get("terms_accepted"), dict):
+                self.terms_accepted = saved["terms_accepted"]
 
     def mic_min_level(self):
         """Quietest speech-frame RMS that still counts as Jun speaking."""
@@ -124,6 +128,7 @@ class Settings:
                 translate_model=self.translate_model,
                 mic_enabled=self.mic_enabled,
                 backgrounds=self.backgrounds,
+                terms_accepted=self.terms_accepted,
                 tuning=tuning.changed(),
             )
 
@@ -150,6 +155,13 @@ class Settings:
             "updated": str(item.get("updated", ""))[:20],
             "used": str(item.get("used", ""))[:20],
         }
+
+    def terms_ok(self):
+        return self.terms_accepted.get("version") == TERMS_VERSION
+
+    def accept_terms(self):
+        self.terms_accepted = {"version": TERMS_VERSION, "date": time.strftime("%Y-%m-%d %H:%M")}
+        self.update({})
 
     def recent_background(self):
         """The id used most recently (else the newest saved), or None: the default choice at Start."""
@@ -213,6 +225,9 @@ class Settings:
             "mic_filter": self.mic_filter,
             "translate_model": self.translate_model,
             "mic_enabled": self.mic_enabled,
+            "terms_ok": self.terms_ok(),
+            "terms_version": TERMS_VERSION,
+            "has_key": bool(os.environ.get("OPENROUTER_API_KEY")),
             "backgrounds": self.backgrounds,
             "recent_background": self.recent_background(),
             "active_backgrounds": self.active_backgrounds,
