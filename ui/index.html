@@ -1338,6 +1338,16 @@
   $("compact-switch").onchange = () => setCompact($("compact-switch").checked);
   setCompact(store.get("compact", "0") === "1");
 
+  // The Mac app's menu bar (Anne.app) calls these; they do what the page's own buttons do.
+  window.anne = {
+    start: () => $("btn-start").click(), pauseResume: () => $("btn-pause").click(), end: () => $("btn-end").click(),
+    summary: () => requestSummary(), background: () => showTab("prep"), tuning: () => showTab("tune"),
+    ask: () => { setTypeKind("ask"); $("type-input").focus(); },
+    mic: () => $("mic-chip").click(), theme: (mode) => setTheme(mode), compact: () => $("compact-switch").click(),
+    translateOff: () => $("translate-off").click(), openView: () => $("menu-view-btn").click(), developerMenu: () => $("dev-tools").click(),
+    textSize: (step) => { if (step === 0) { setSize(17); setTSize(16); } else { setSize(size + 2 * step); setTSize(tsize + 2 * step); } },
+  };
+
   function closeMenus(except) {
     document.querySelectorAll(".menu").forEach((m) => { if (m.id !== except) m.hidden = true; });
     document.querySelectorAll("[data-menu]").forEach((b) => b.setAttribute("aria-expanded", !$(b.dataset.menu).hidden));

@@ -130,29 +130,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         completionHandler()
     }
 
-    // MARK: menu
+    // MARK: menu bar (names follow the system language; each item runs the page's own function, see window.anne)
+    let korean = (Locale.preferredLanguages.first ?? "en").hasPrefix("ko")
+    func tr(_ en: String, _ ko: String) -> String { korean ? ko : en }
+
     @objc func showLog() { NSWorkspace.shared.open(logURL) }
+    @objc func reload() { web.reload() }
+    @objc func openHelp() { NSWorkspace.shared.open(URL(string: "https://junchee.github.io/secondchair/")!) }
+    @objc func runJS(_ sender: NSMenuItem) {
+        if let code = sender.representedObject as? String { web.evaluateJavaScript(code, completionHandler: nil) }
+    }
 
     func buildMenu() {
         let bar = NSMenu()
-        func add(_ title: String, _ items: [(String, Selector?, String)]) {
+        func menu(_ title: String, _ build: (NSMenu) -> Void) {
             let top = NSMenuItem(); bar.addItem(top)
-            let menu = NSMenu(title: title); top.submenu = menu
-            for (label, action, key) in items {
-                if label == "-" { menu.addItem(.separator()); continue }
-                menu.addItem(NSMenuItem(title: label, action: action, keyEquivalent: key))
-            }
+            let m = NSMenu(title: title); top.submenu = m
+            build(m)
         }
-        add("Anne", [("Anne 종료", #selector(NSApplication.terminate(_:)), "q")])
-        add("편집", [("실행 취소", Selector(("undo:")), "z"), ("-", nil, ""), ("잘라내기", #selector(NSText.cut(_:)), "x"),
-                   ("복사", #selector(NSText.copy(_:)), "c"), ("붙여넣기", #selector(NSText.paste(_:)), "v"),
-                   ("전체 선택", #selector(NSText.selectAll(_:)), "a")])
-        add("보기", [("로그 보기", #selector(showLog), "l"), ("새로고침", #selector(reload), "r")])
-        add("윈도우", [("최소화", #selector(NSWindow.performMiniaturize(_:)), "m")])
+        func js(_ m: NSMenu, _ title: String, _ code: String, _ key: String = "", _ mods: NSEvent.ModifierFlags = [.command]) {
+            let item = NSMenuItem(title: title, action: #selector(runJS(_:)), keyEquivalent: key)
+            item.target = self
+            item.representedObject = "window.anne && window.anne.\(code)"
+            item.keyEquivalentModifierMask = mods
+            m.addItem(item)
+        }
+        func native(_ m: NSMenu, _ title: String, _ action: Selector, _ key: String = "", _ mods: NSEvent.ModifierFlags = [.command], target: AnyObject? = nil) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = mods
+            if let t = target { item.target = t }
+            m.addItem(item)
+        }
+        menu("Anne") { m in
+            native(m, tr("About Anne", "Anne에 대하여"), #selector(NSApplication.orderFrontStandardAboutPanel(_:)))
+            m.addItem(.separator())
+            js(m, tr("Settings…", "설정…"), "openView()", ",")
+            m.addItem(.separator())
+            native(m, tr("Quit Anne", "Anne 종료"), #selector(NSApplication.terminate(_:)), "q")
+        }
+        menu(tr("Meeting", "회의")) { m in
+            js(m, tr("Start", "시작"), "start()", "n")
+            js(m, tr("Pause / Resume", "일시정지 / 다시 시작"), "pauseResume()", "p")
+            js(m, tr("End", "종료"), "end()", ".")
+            m.addItem(.separator())
+            js(m, tr("Summary", "요약"), "summary()", "s", [.command, .shift])
+            js(m, tr("Ask", "질문"), "ask()", "/")
+            js(m, tr("Background…", "배경지식…"), "background()", "b")
+            m.addItem(.separator())
+            js(m, tr("Microphone on / off", "마이크 켜기 / 끄기"), "mic()", "m", [.command, .shift])
+        }
+        menu(tr("Edit", "편집")) { m in
+            native(m, tr("Undo", "실행 취소"), Selector(("undo:")), "z")
+            m.addItem(.separator())
+            native(m, tr("Cut", "잘라내기"), #selector(NSText.cut(_:)), "x")
+            native(m, tr("Copy", "복사"), #selector(NSText.copy(_:)), "c")
+            native(m, tr("Paste", "붙여넣기"), #selector(NSText.paste(_:)), "v")
+            native(m, tr("Select All", "전체 선택"), #selector(NSText.selectAll(_:)), "a")
+        }
+        menu(tr("View", "보기")) { m in
+            js(m, tr("Light", "밝게"), "theme('light')")
+            js(m, tr("Dark", "어둡게"), "theme('dark')")
+            js(m, tr("Automatic", "자동"), "theme('auto')")
+            m.addItem(.separator())
+            js(m, tr("Bigger text", "글자 키우기"), "textSize(1)", "+")
+            js(m, tr("Smaller text", "글자 줄이기"), "textSize(-1)", "-")
+            js(m, tr("Default text size", "기본 크기"), "textSize(0)", "0")
+            m.addItem(.separator())
+            js(m, tr("Compact view", "간단히 보기"), "compact()", "c", [.command, .shift])
+            js(m, tr("Turn translation off / on", "번역 끄기 / 켜기"), "translateOff()")
+            m.addItem(.separator())
+            native(m, tr("Reload", "새로고침"), #selector(reload), "r", target: self)
+        }
+        menu(tr("Developer", "개발자")) { m in
+            js(m, tr("Tuning…", "튜닝…"), "tuning()")
+            native(m, tr("Show log", "로그 보기"), #selector(showLog), "l", target: self)
+            js(m, tr("Show / hide the Developer menu in the page", "페이지의 개발자 메뉴 보이기 / 숨기기"), "developerMenu()")
+        }
+        menu(tr("Window", "윈도우")) { m in
+            native(m, tr("Minimize", "최소화"), #selector(NSWindow.performMiniaturize(_:)), "m")
+        }
+        menu(tr("Help", "도움말")) { m in
+            native(m, tr("Anne guide", "Anne 사용 안내"), #selector(openHelp), "", [], target: self)
+        }
         NSApp.mainMenu = bar
     }
-
-    @objc func reload() { web.reload() }
 }
 
 let app = NSApplication.shared
