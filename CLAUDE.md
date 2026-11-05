@@ -98,6 +98,12 @@ Why: on this 8 GB M1 swap was 10 GB used and transcription was 3-8x slower (disk
 4. Optional later: cloud transcription as an explicit choice (audio leaves the Mac; off by default). Biggest lever: the Swift app without Python/torch (see Installing).
 Measured on 2026-11-05: turbo needs about 1.5 GB disk and 2-2.5 GB RAM and ran about 5 s per call on this Mac (small about 1 s): not for 8 GB.
 
+## The Anne.app (step 1 of 3, 2026-11-05; Jun chose: shell app, source in `app/`, unsigned, family only)
+- `bash app/build.sh` builds `~/AnneApp/build/Anne.app` with the Command Line Tools only (outside iCloud: codesign refuses files iCloud has marked). Ad-hoc signed (no Apple account). Source: `app/Sources/main.swift` (AppKit + WKWebView), `make_icon.swift` (Jun's picture on a cream square).
+- What it does: if Anne is not running it starts the Python program (`app.py --no-browser`, through `zsh` so `~/.zshrc` gives the key; `AnneHome` in Info.plist is this repo, `ANNE_PYTHON` overrides the python) and shows the page in its own window; output goes to `~/Library/Logs/Anne.log` (menu 보기 > 로그 보기, Cmd+L); quitting (Cmd+Q, closing the window after a confirm) POSTs `/quit` and waits up to 60 s for the summary; if a server already runs on 8765 it only attaches and leaves it running. The page's `confirm()` works through a WKUIDelegate. Menus: Anne 종료, 편집 (copy/paste), 보기, 윈도우.
+- NOT tested: it was only built and signature-checked; nobody has run it (Jun must open it: first run shows the microphone permission for "Anne").
+- Next steps: **2** put Python, packages and `native/route` inside the app, key into the Keychain with a first-run screen, Whisper model downloaded at first run with progress; **3** RAM-based settings (see Design), BlackHole check, a zip for the family with the "그래도 열기" note, then a `.pkg` or notarization if Jun pays for the Apple account.
+
 ## Later (commercial)
 - Swift native app with a process tap (no BlackHole); the pkg/installer ideas above; progress display for long waits.
 - Premium voices (macOS -> cloud voice -> own-voice clone); direct Qwen API vs ZDR; a proxy that holds the API key; consent-based quality feedback (delays, translation quality); check trademark/domain for the names secondchair and yourAccent; Apple Developer signing and notarization for strangers.
