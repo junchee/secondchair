@@ -32,6 +32,8 @@ saved in the transcript and not used for the voice draft.
 
 import os
 
+import time
+
 import prefs
 import tuning
 import prep
@@ -67,12 +69,18 @@ class Settings:
         self.mic_filter = "normal"
         self.translate_model = "auto"
         self.mic_enabled = True  # the mic button in the top menu: off = my microphone is not listened to
-        self.meeting_context = ""  # the background text as Jun wrote it (kept for him, not sent with each line)
-        self.meeting_topic = ""    # one line made from it
+        # 배경지식: a list Jun keeps; ONE is chosen for each meeting when it starts (never applied by itself).
+        # meeting_topic and terms are those of the chosen one (empty when none is chosen).
+        self.backgrounds = []        # {"id", "title", "text", "topic", "terms", "updated", "used"}
+        self.active_background = None
+        self.meeting_topic = ""
         self.terms = []
+        self.summarize_at_end = True  # End asks "요약할까요?"; False = end and save without a summary
         if persist:
-            self._apply(prefs.load())
-            tuning.apply(prefs.load().get("tuning"))
+            saved = prefs.load()
+            self._apply(saved)
+            tuning.apply(saved.get("tuning"))
+            self._load_backgrounds(saved)
 
     def mic_min_level(self):
         """Quietest speech-frame RMS that still counts as Jun speaking."""
@@ -88,16 +96,10 @@ class Settings:
             self.mic_enabled = change["mic_enabled"]
         if change.get("translate_model") in TRANSLATION_MODES:
             self.translate_model = change["translate_model"]
-        if isinstance(change.get("meeting_context"), str):
-            self.meeting_context = change["meeting_context"][:8000]
         if isinstance(change.get("tuning"), dict):
             tuning.apply(change["tuning"])
         if change.get("tuning_reset"):
             tuning.reset(str(change["tuning_reset"]))
-        if isinstance(change.get("meeting_topic"), str):
-            self.meeting_topic = change["meeting_topic"][:200]
-        if "terms" in change:
-            self.terms = prep.clean_terms(change["terms"])
         translate.set_meeting(self.meeting_topic, self.terms)
         for key, (low, high) in LIMITS.items():
             if key in change:
@@ -117,11 +119,72 @@ class Settings:
                 mic_filter=self.mic_filter,
                 translate_model=self.translate_model,
                 mic_enabled=self.mic_enabled,
-                meeting_context=self.meeting_context,
-                meeting_topic=self.meeting_topic,
-                terms=self.terms,
+                backgrounds=self.backgrounds,
                 tuning=tuning.changed(),
             )
+
+    # ---- 배경지식 list
+    def _load_backgrounds(self, saved):
+        items = saved.get("backgrounds")
+        if not isinstance(items, list):
+            # first run of this version: the one background kept so far becomes the first item (the old keys stay in the file)
+            text, topic, terms = saved.get("meeting_context", ""), saved.get("meeting_topic", ""), saved.get("terms", [])
+            items = [{"id": "b0", "title": topic or text[:40], "text": text, "topic": topic, "terms": terms,
+                      "updated": time.strftime("%Y-%m-%d %H:%M"), "used": ""}] if text.strip() or terms else []
+        self.backgrounds = [self._clean_background(i) for i in items if isinstance(i, dict) and i.get("id")]
+        if "backgrounds" not in saved:
+            self.update({})
+
+    @staticmethod
+    def _clean_background(item):
+        return {
+            "id": str(item["id"])[:20],
+            "title": str(item.get("title", ""))[:80],
+            "text": str(item.get("text", ""))[:8000],
+            "topic": str(item.get("topic", ""))[:200],
+            "terms": prep.clean_terms(item.get("terms")),
+            "updated": str(item.get("updated", ""))[:20],
+            "used": str(item.get("used", ""))[:20],
+        }
+
+    def recent_background(self):
+        """The id used most recently (else the newest saved), or None: the default choice at Start."""
+        used = [b for b in self.backgrounds if b["used"]]
+        pool = used or self.backgrounds
+        if not pool:
+            return None
+        return max(pool, key=lambda b: (b["used"], b["updated"]))["id"]
+
+    def save_background(self, item):
+        """Create or change one background; returns its id. Only the fields given are changed."""
+        found = next((b for b in self.backgrounds if b["id"] == item.get("id")), None)
+        if found is None:
+            found = {"id": "b%x" % int(time.time() * 1000), "title": "", "text": "", "topic": "", "terms": [], "updated": "", "used": ""}
+            self.backgrounds.append(found)
+        for key in ("title", "text", "topic", "terms"):
+            if key in item:
+                found[key] = item[key]
+        found.update(self._clean_background(found))
+        found["updated"] = time.strftime("%Y-%m-%d %H:%M")
+        self.update({})
+        return found["id"]
+
+    def delete_background(self, background_id):
+        self.backgrounds = [b for b in self.backgrounds if b["id"] != background_id]
+        if self.active_background == background_id:
+            self.use_background(None)
+        self.update({})
+
+    def use_background(self, background_id):
+        """Choose the background for the meeting that starts now (None = none): its topic and terms go to Whisper and the translation."""
+        found = next((b for b in self.backgrounds if b["id"] == background_id), None)
+        self.active_background = found["id"] if found else None
+        self.meeting_topic = found["topic"] if found else ""
+        self.terms = found["terms"] if found else []
+        if found:
+            found["used"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        translate.set_meeting(self.meeting_topic, self.terms)
+        self.update({})
 
     def as_event(self):
         return {
@@ -133,9 +196,9 @@ class Settings:
             "mic_filter": self.mic_filter,
             "translate_model": self.translate_model,
             "mic_enabled": self.mic_enabled,
-            "meeting_context": self.meeting_context,
-            "meeting_topic": self.meeting_topic,
-            "terms": self.terms,
+            "backgrounds": self.backgrounds,
+            "recent_background": self.recent_background(),
+            "active_background": self.active_background,
             "tuning": {"groups": tuning.GROUPS, "schema": tuning.SCHEMA, "values": tuning.values()},
         }
 

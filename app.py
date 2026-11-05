@@ -148,9 +148,9 @@ class Typing:
         threading.Thread(target=work, daemon=True).start()
 
 
-class PrepDigest:
-    """Saves Jun's 배경지식 and makes the topic and the key terms from it (prep.digest, once per save).
-    The text goes to the model under zero data retention. Results: a settings event and a prep_result event."""
+class Backgrounds:
+    """Jun's 배경지식 list: save, edit, delete, and make a topic and key terms from a text (prep.digest, once per save,
+    the text goes to the model under zero data retention). Every change is sent back as a settings event."""
 
     def __init__(self, settings, emit, available):
         self.settings = settings
@@ -159,16 +159,33 @@ class PrepDigest:
         self.busy = False
 
     def request(self, body):
-        background = str(body.get("context", ""))[:8000]
-        self.settings.update({"meeting_context": background})
+        op = body.get("op")
+        if op == "delete":
+            self.settings.delete_background(str(body.get("id", "")))
+        elif op == "terms":   # edits to the title or the term list
+            item = {"id": str(body.get("id", "")), "terms": body.get("terms", [])}
+            if "title" in body:
+                item["title"] = str(body["title"])
+            self.settings.save_background(item)
+        elif op == "digest":
+            self.digest(body)
+            return
+        else:
+            return
         self.emit(self.settings.as_event())
-        if not background.strip():
-            self.settings.update({"meeting_topic": "", "terms": []})
-            self.emit(self.settings.as_event())
-            self.emit({"type": "prep_result", "topic": "", "terms": []})
+
+    def digest(self, body):
+        text = str(body.get("text", ""))[:8000]
+        item = {"id": body.get("id"), "text": text}
+        if "title" in body:
+            item["title"] = str(body["title"])
+        background_id = self.settings.save_background(item)
+        self.emit(self.settings.as_event())
+        if not text.strip():
+            self.emit({"type": "prep_result", "id": background_id, "terms": None})
             return
         if not self.available:
-            self.emit({"type": "prep_result", "error": "saved, but finding terms needs OPENROUTER_API_KEY"})
+            self.emit({"type": "prep_result", "id": background_id, "error": "saved, but finding terms needs OPENROUTER_API_KEY"})
             return
         if self.busy:
             return
@@ -176,13 +193,17 @@ class PrepDigest:
 
         def work():
             try:
-                topic, terms = prep.digest(background)
-                self.settings.update({"meeting_topic": topic, "terms": terms})
+                topic, terms = prep.digest(text)
+                found = next((b for b in self.settings.backgrounds if b["id"] == background_id), None)
+                change = {"id": background_id, "topic": topic, "terms": terms}
+                if found is not None and not found["title"].strip():
+                    change["title"] = topic   # the topic line is the title unless Jun gave one
+                self.settings.save_background(change)
                 self.emit(self.settings.as_event())
-                self.emit({"type": "prep_result", "topic": topic, "terms": terms})
-                print(f"[prep] background saved: {len(background)} characters -> topic and {len(terms)} terms", flush=True)
+                self.emit({"type": "prep_result", "id": background_id, "terms": terms})
+                print(f"[prep] background saved: {len(text)} characters -> topic and {len(terms)} terms", flush=True)
             except Exception as error:
-                self.emit({"type": "prep_result", "error": f"saved, but the terms could not be made: {str(error)[:200]}"})
+                self.emit({"type": "prep_result", "id": background_id, "error": f"saved, but the terms could not be made: {str(error)[:200]}"})
             finally:
                 self.busy = False
 
@@ -244,7 +265,8 @@ class Meeting(Hooks):
 
     def finish(self):
         summary = None
-        if self.settings.translate_available:
+        wanted, self.settings.summarize_at_end = self.settings.summarize_at_end, True
+        if self.settings.translate_available and wanted:
             with self.summaries.busy:  # wait for a summary the page asked for just before End
                 summary = self.summaries.make(final=True)
         saved = self.recorder.close(summary)
@@ -313,7 +335,7 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_
                 voice.speak(str(body.get("text", "")))
             elif self.path == "/discard" and voice:
                 voice.discard()
-            elif self.path == "/prep/find":
+            elif self.path == "/background":
                 prep_finder.request(body)
             elif self.path == "/summarize":
                 summaries.request()
@@ -322,7 +344,13 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_
             elif self.path == "/ask":
                 asking.request(str(body.get("question", "")))
             elif self.path == "/session" and controls.get("engine"):
-                controls["engine"].command(str(body.get("action", "")))  # start, pause, resume, end
+                action = str(body.get("action", ""))
+                if action == "start":
+                    settings.use_background(body.get("background"))  # chosen at Start, or None: no background for this meeting
+                    emit(settings.as_event())
+                elif action == "end":
+                    settings.summarize_at_end = body.get("summarize", True) is not False
+                controls["engine"].command(action)  # start, pause, resume, end
             elif self.path in ("/quit", "/stop") and controls.get("engine"):
                 controls["engine"].request_quit()  # ends a running meeting properly, then exits
             else:
@@ -368,7 +396,7 @@ def main():
     summaries = Summaries(recorder, emit, settings.translate_available)
     typing = Typing(recorder, emit, settings.translate_available)
     asking = Asking(recorder, emit, settings.translate_available)
-    prep_finder = PrepDigest(settings, emit, settings.translate_available)
+    prep_finder = Backgrounds(settings, emit, settings.translate_available)
     handler = make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_finder)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     server.daemon_threads = True
@@ -388,6 +416,7 @@ def main():
         voice=True,
         controls=controls,
         hooks=meeting,
+        autostart=False,  # Start on the page decides the 배경지식 and begins the meeting
     )
     hub.emit({"type": "stopped", "saved": saved})  # the page says so instead of reconnecting
     time.sleep(0.5)

@@ -593,6 +593,8 @@ class Engine:
             self._preload()
             if autostart:
                 self._start()
+            else:
+                self.emit({"type": "session", "state": "idle", "fresh": True})  # waits for Start on the page
             while not self.quit_requested:
                 self._handle_commands()
                 if self.state == "running":
@@ -612,13 +614,13 @@ class Engine:
 
 
 def run(model, use_mic=True, switch_output=True, settings=None, emit=print_event, voice=False,
-        controls=None, hooks=None):
+        controls=None, hooks=None, autostart=True):
     """Run one program: meetings start and end inside it. See Engine."""
     lock = claim_single_instance()  # noqa: F841 (held for the life of the process)
     signal.signal(signal.SIGTERM, stop_on_sigterm)
     signal.signal(signal.SIGHUP, stop_on_sigterm)  # closing the Terminal window: stop cleanly too
     engine = Engine(model, use_mic, switch_output, settings, emit, voice, controls, hooks)
-    return engine.serve()
+    return engine.serve(autostart=autostart)
 
 
 def main(model):

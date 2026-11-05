@@ -313,6 +313,19 @@
   .tune.changed .def { visibility: visible; }
   .tune.bool { grid-template-columns: 1fr auto; }
   #prep-body { flex: 1; overflow-y: auto; padding: 8px 20px 16px; display: flex; flex-direction: column; gap: 8px; }
+  dialog { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); padding: 18px 20px; max-width: 420px; box-shadow: var(--shadow); }
+  dialog::backdrop { background: rgb(0 0 0 / .35); }
+  dialog h3 { margin: 0 0 6px; font-size: 16px; }
+  dialog select { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin: 6px 0; }
+  .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+  .bg-item { border: 1px solid var(--border); border-radius: 10px; margin: 8px 0; background: var(--bg); }
+  .bg-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; }
+  .bg-head .ttl { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bg-head .badge { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; }
+  .bg-head .meta { font-size: 12px; color: var(--muted); }
+  .bg-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .bg-body input[type=text], .bg-body textarea { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+  .bg-body textarea { min-height: 120px; max-height: 40vh; resize: vertical; line-height: 1.45; }
   #prep-context { min-height: 0; max-height: 50vh; resize: vertical; overflow-y: auto; line-height: 1.45; font: inherit; }
   #prep-body input[type=text], #prep-context { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
   #prep-save { white-space: nowrap; flex: none; }
@@ -511,6 +524,23 @@
   </div>
 </section>
 
+<dialog id="start-dialog">
+  <form method="dialog">
+    <h3 id="sd-title"></h3>
+    <p class="hint" id="sd-help"></p>
+    <select id="sd-select"></select>
+    <p class="hint" id="sd-terms"></p>
+    <div class="dlg-actions"><button class="ghost" value="cancel" id="sd-cancel"></button><button class="primary" value="ok" id="sd-ok"></button></div>
+  </form>
+</dialog>
+<dialog id="end-dialog">
+  <form method="dialog">
+    <h3 id="ed-title"></h3>
+    <p class="hint" id="ed-help"></p>
+    <div class="dlg-actions"><button class="ghost" value="cancel" id="ed-cancel"></button><button class="ghost" value="no" id="ed-no"></button><button class="primary" value="yes" id="ed-yes"></button></div>
+  </form>
+</dialog>
+
 <aside id="summary-panel" hidden aria-label="Summary and questions">
   <div class="sp-head">
     <div class="sp-tabs" role="tablist">
@@ -527,20 +557,16 @@
   <div id="ask-body" hidden></div>
   <div id="tune-body" hidden></div>
   <div id="prep-body" hidden>
-    <label for="prep-context"><strong>배경지식</strong></label>
-    <textarea id="prep-context" rows="20" maxlength="8000" placeholder="회의 주제, 참석자 이름, 자주 나올 용어나 관련 자료를 적거나 붙여 넣으세요."></textarea>
-    <div class="prep-row"><button class="primary" id="prep-save" type="button">저장하고 용어 정리</button><span class="dots" id="prep-dots" hidden><i></i><i></i><i></i></span><span class="hint" id="prep-status"></span></div>
-    <div class="hint" id="prep-topic"></div>
-    <div><strong>주요 용어</strong> <span class="hint">English = 한국어. 고친 뒤 "목록 저장"을 누르세요.</span></div>
-    <div id="prep-terms"></div>
-    <div class="prep-row"><button class="ghost" id="prep-add" type="button">+ 추가</button><button class="ghost" id="prep-save-terms" type="button">목록 저장</button></div>
+    <div class="prep-row"><button class="primary" id="bg-new" type="button"></button><span class="hint" id="prep-status"></span></div>
+    <div class="hint" id="bg-intro"></div>
+    <div id="bg-list"></div>
   </div>
   <div class="sp-foot" id="foot-summary">
     <button class="primary" id="sp-again">Summarize again</button>
     <span class="hint">Covers everything said so far. The meeting keeps going.</span>
   </div>
   <div class="sp-foot" id="foot-prep" hidden>
-    <span class="hint">저장하면 이 글을 한 번 읽어 회의 주제 한 줄과 주요 용어(영어 = 한국어)를 만듭니다. 회의 중에는 이 주제와, 그 문장에 나온 용어만 번역에 함께 보냅니다. 이 글은 번역 서비스로 한 번 나갑니다(데이터 보관 금지). 바꾸기 전까지 다음 회의에도 쓰입니다.</span>
+    <span class="hint" id="bg-foot"></span>
   </div>
   <div class="sp-foot" id="foot-tune" hidden>
     <button class="ghost" id="tune-reset-all" type="button">모두 기본값으로</button>
@@ -810,51 +836,161 @@
   $("mic-chip").onclick = () => post("/settings", { mic_enabled: !micOn });
   $("prep-btn").onclick = () => showTab("prep");
 
-  // ---- 배경지식: Jun's text is saved; the server makes a topic line and the key terms from it (once per save).
-  let prepTerms = [], prepDirty = false, prepBusy = false;
-  function renderTerms() {
-    $("prep-terms").replaceChildren(...prepTerms.map((t, i) => {
-      const row = el("div", "term");
-      const en = el("input"), ko = el("input"), del = el("button", "ghost", "✕");
-      en.value = t.en; ko.value = t.ko; en.placeholder = "English"; ko.placeholder = "한국어";
-      en.oninput = () => { t.en = en.value; prepDirty = true; };
-      ko.oninput = () => { t.ko = ko.value; prepDirty = true; };
-      del.onclick = () => { prepTerms.splice(i, 1); prepDirty = true; renderTerms(); };
-      row.append(en, ko, del);
-      return row;
+  // ---- Texts in two languages: the page follows the system language (Korean on a Korean Mac, English otherwise)
+  const LANG = (navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en";
+  const I18N = {
+    en: {
+      bgNew: "+ New background", bgIntro: "Notes about a meeting (topic, names, terms). One is chosen each time a meeting starts.",
+      bgFoot: "Saving reads the text once and makes a topic line and the key terms (English = Korean). The text goes to the translation service once (zero data retention). During a meeting only the topic and the terms found in a line are sent with it.",
+      bgTitle: "Title", bgText: "Background text", bgTerms: "Key terms", bgSaveDigest: "Save and find terms", bgSaveTerms: "Save the term list", bgDelete: "Delete",
+      bgAdd: "+ Add", bgNone: "Nothing saved yet.", bgInUse: "in use", bgTermsN: (n) => `${n} ${n === 1 ? "term" : "terms"}`, bgUsed: (d) => d ? `used ${d}` : "not used yet",
+      bgWorking: "Saved. Finding terms… (a few seconds)", bgDone: (n) => `Saved ✓  ${n} key terms.`, bgTermsSaved: "Term list saved.", bgConfirmDelete: "Delete this background?",
+      sdTitle: "Background for this meeting", sdHelp: "Choose which background Anne should use. It is not applied unless you choose it here.",
+      sdNone: "No background", sdStart: "Start", sdCancel: "Cancel", sdTermsN: (n) => `${n} key ${n === 1 ? "term" : "terms"}`, sdNoTerms: "This one has no terms yet; only its topic is used.",
+      edTitle: "End the meeting?", edHelp: "Anne can make a summary now. The transcript is saved either way.",
+      edYes: "Summarize and end", edNo: "End without summary", edCancel: "Cancel",
+      tabBg: "Background",
+    },
+    ko: {
+      bgNew: "+ 새 배경지식", bgIntro: "회의에 대한 메모(주제, 이름, 용어)입니다. 회의를 시작할 때마다 하나를 고릅니다.",
+      bgFoot: "저장하면 글을 한 번 읽어 주제 한 줄과 주요 용어(영어 = 한국어)를 만듭니다. 글은 번역 서비스로 한 번 나갑니다(데이터 보관 금지). 회의 중에는 주제와, 그 문장에 나온 용어만 함께 보냅니다.",
+      bgTitle: "제목", bgText: "배경지식 글", bgTerms: "주요 용어", bgSaveDigest: "저장하고 용어 정리", bgSaveTerms: "용어 목록 저장", bgDelete: "삭제",
+      bgAdd: "+ 추가", bgNone: "아직 저장된 것이 없습니다.", bgInUse: "사용 중", bgTermsN: (n) => `용어 ${n}개`, bgUsed: (d) => d ? `마지막 사용 ${d}` : "아직 안 씀",
+      bgWorking: "저장했습니다. 용어를 정리하는 중… (몇 초)", bgDone: (n) => `저장됨 ✓  주요 용어 ${n}개`, bgTermsSaved: "용어 목록을 저장했습니다.", bgConfirmDelete: "이 배경지식을 삭제할까요?",
+      sdTitle: "이 회의의 배경지식", sdHelp: "Anne이 쓸 배경지식을 고르세요. 여기서 고르지 않으면 적용되지 않습니다.",
+      sdNone: "배경지식 없이", sdStart: "시작", sdCancel: "취소", sdTermsN: (n) => `주요 용어 ${n}개`, sdNoTerms: "아직 용어가 없어 주제만 쓰입니다.",
+      edTitle: "회의를 끝낼까요?", edHelp: "지금 요약을 만들 수 있습니다. 어느 쪽이든 기록은 저장됩니다.",
+      edYes: "요약하고 끝내기", edNo: "요약 없이 끝내기", edCancel: "취소",
+      tabBg: "배경지식",
+    },
+  };
+  const t = (key, ...args) => { const v = (I18N[LANG][key] ?? I18N.en[key] ?? key); return typeof v === "function" ? v(...args) : v; };
+  document.documentElement.lang = LANG;
+
+  // ---- 배경지식: a list of titles; click one to see and edit its text and terms. Chosen at Start, never applied by itself.
+  let backgrounds = [], activeBackground = null, recentBackground = null, openBackground = null;
+  const bgDrafts = new Map();     // id -> {title, text, terms} typed but not saved yet
+  const bgWorking = new Set();
+  $("bg-new").textContent = t("bgNew");
+  $("bg-intro").textContent = t("bgIntro");
+  $("bg-foot").textContent = t("bgFoot");
+  $("tab-prep").textContent = t("tabBg");
+  $("bg-new").onclick = () => { openBackground = "new"; renderBackgrounds(); };
+
+  function draftOf(item) {
+    if (!bgDrafts.has(item.id)) bgDrafts.set(item.id, { title: item.title, text: item.text, terms: item.terms.map((x) => ({ ...x })) });
+    return bgDrafts.get(item.id);
+  }
+  function renderBackgrounds() {
+    const list = $("bg-list");
+    const items = [...backgrounds].sort((a, b) => (b.used || b.updated).localeCompare(a.used || a.updated));
+    if (openBackground === "new") items.unshift({ id: "new", title: "", text: "", topic: "", terms: [], updated: "", used: "" });
+    if (!items.length) { list.replaceChildren(el("p", "hint", t("bgNone"))); return; }
+    list.replaceChildren(...items.map((item) => {
+      const box = el("div", "bg-item");
+      const head = el("div", "bg-head");
+      head.append(el("span", "ttl", item.title || item.topic || "—"));
+      if (item.id === activeBackground) head.append(el("span", "badge", t("bgInUse")));
+      head.append(el("span", "meta", `${t("bgTermsN", item.terms.length)} · ${t("bgUsed", (item.used || "").slice(0, 10))}`));
+      head.onclick = () => { openBackground = openBackground === item.id ? null : item.id; renderBackgrounds(); };
+      box.append(head);
+      if (openBackground === item.id) box.append(backgroundBody(item));
+      return box;
     }));
   }
-  $("prep-add").onclick = () => { prepTerms.push({ en: "", ko: "" }); prepDirty = true; renderTerms(); };
-  $("prep-context").addEventListener("input", () => { prepDirty = true; });
-  function prepWorking(on, message) {
-    prepBusy = on;
-    $("prep-save").disabled = on;
-    $("prep-dots").hidden = !on;
-    $("prep-status").textContent = message;
+  function backgroundBody(item) {
+    const d = item.id === "new" ? (bgDrafts.get("new") || bgDrafts.set("new", { title: "", text: "", terms: [] }).get("new")) : draftOf(item);
+    const body = el("div", "bg-body");
+    const title = el("input"); title.type = "text"; title.value = d.title; title.placeholder = t("bgTitle");
+    title.oninput = () => { d.title = title.value; };
+    const text = el("textarea"); text.value = d.text; text.rows = 12; text.maxLength = 8000; text.placeholder = t("bgText");
+    text.oninput = () => { d.text = text.value; };
+    const row = el("div", "prep-row");
+    const digest = el("button", "primary", t("bgSaveDigest")); digest.type = "button"; digest.disabled = bgWorking.has(item.id);
+    digest.onclick = () => {
+      if (!d.text.trim()) return;
+      bgWorking.add(item.id);
+      $("prep-status").textContent = t("bgWorking");
+      post("/background", { op: "digest", id: item.id === "new" ? null : item.id, title: d.title, text: d.text });
+      if (item.id === "new") { bgDrafts.delete("new"); openBackground = null; }
+      else bgDrafts.delete(item.id);
+      renderBackgrounds();
+    };
+    row.append(digest);
+    if (item.id !== "new") {
+      const del = el("button", "ghost", t("bgDelete")); del.type = "button";
+      del.onclick = () => { if (confirm(t("bgConfirmDelete"))) { post("/background", { op: "delete", id: item.id }); bgDrafts.delete(item.id); openBackground = null; } };
+      row.append(del);
+    }
+    body.append(title, text, row);
+    if (item.id !== "new") {
+      body.append(el("strong", "", t("bgTerms")));
+      const terms = el("div");
+      const draw = () => terms.replaceChildren(...d.terms.map((term, i) => {
+        const r = el("div", "term");
+        const en = el("input"), ko = el("input"), x = el("button", "ghost", "✕");
+        en.value = term.en; ko.value = term.ko; en.placeholder = "English"; ko.placeholder = "한국어";
+        en.oninput = () => { term.en = en.value; }; ko.oninput = () => { term.ko = ko.value; };
+        x.onclick = () => { d.terms.splice(i, 1); draw(); };
+        r.append(en, ko, x);
+        return r;
+      }));
+      draw();
+      const row2 = el("div", "prep-row");
+      const add = el("button", "ghost", t("bgAdd")); add.type = "button"; add.onclick = () => { d.terms.push({ en: "", ko: "" }); draw(); };
+      const save = el("button", "ghost", t("bgSaveTerms")); save.type = "button";
+      save.onclick = () => {
+        d.terms = d.terms.filter((x) => x.en.trim());
+        post("/background", { op: "terms", id: item.id, title: d.title, terms: d.terms });
+        bgDrafts.delete(item.id);
+        $("prep-status").textContent = t("bgTermsSaved");
+      };
+      row2.append(add, save);
+      body.append(terms, row2);
+    }
+    return body;
   }
-  $("prep-save").onclick = () => {
-    const text = $("prep-context").value;
-    if (text.trim() && !translateAvailable) { $("prep-status").textContent = "번역 키(OPENROUTER_API_KEY)가 없어 용어를 만들 수 없습니다."; }
-    prepWorking(!!text.trim(), text.trim() ? "저장했습니다. 용어를 정리하는 중…" : "비웠습니다.");
-    prepDirty = false;
-    post("/prep/find", { context: text });
-  };
-  $("prep-save-terms").onclick = () => {
-    prepTerms = prepTerms.filter((t) => t.en.trim());
-    post("/settings", { terms: prepTerms });
-    prepDirty = false;
-    renderTerms();
-    $("prep-status").textContent = "용어 목록을 저장했습니다.";
-  };
-  function showTopic(topic) { $("prep-topic").textContent = topic ? `주제: ${topic}` : ""; }
-  function onPrepResult(e) {
-    if (e.error) { prepWorking(false, e.error); return; }
-    prepTerms = (e.terms || []).map((t) => ({ ...t }));
-    prepDirty = false;
-    renderTerms();
-    showTopic(e.topic);
-    prepWorking(false, `저장됨 ✓  주요 용어 ${prepTerms.length}개. 다음 문장부터 쓰입니다.`);
+  function onPrepResult(e) {   // the term-making finished
+    bgWorking.delete(e.id);
+    $("prep-status").textContent = e.error ? e.error : (e.terms ? t("bgDone", e.terms.length) : "");
+    renderBackgrounds();
   }
+  function syncBackgrounds(e) {
+    backgrounds = e.backgrounds || [];
+    activeBackground = e.active_background || null;
+    recentBackground = e.recent_background || null;
+    renderBackgrounds();
+  }
+
+  // ---- Start asks which background this meeting uses; End asks whether to summarize
+  function askStart() {
+    const items = [...backgrounds].sort((a, b) => (b.used || b.updated).localeCompare(a.used || a.updated));
+    if (!items.length) { post("/session", { action: "start", background: null }); return; }   // nothing to choose from
+    $("sd-title").textContent = t("sdTitle"); $("sd-help").textContent = t("sdHelp");
+    $("sd-cancel").textContent = t("sdCancel"); $("sd-ok").textContent = t("sdStart");
+    const select = $("sd-select");
+    select.replaceChildren(...items.map((b) => { const o = el("option", "", b.title || b.topic || "—"); o.value = b.id; return o; }), Object.assign(el("option", "", t("sdNone")), { value: "" }));
+    select.value = items.some((b) => b.id === recentBackground) ? recentBackground : items[0].id;
+    const note = () => { const b = items.find((x) => x.id === select.value); $("sd-terms").textContent = b ? (b.terms.length ? t("sdTermsN", b.terms.length) : t("sdNoTerms")) : ""; };
+    select.onchange = note; note();
+    $("start-dialog").onclose = () => {
+      if ($("start-dialog").returnValue === "ok") post("/session", { action: "start", background: select.value || null });
+    };
+    $("start-dialog").returnValue = "cancel";
+    $("start-dialog").showModal();
+  }
+  function askEnd() {
+    $("ed-title").textContent = t("edTitle"); $("ed-help").textContent = t("edHelp");
+    $("ed-cancel").textContent = t("edCancel"); $("ed-no").textContent = t("edNo"); $("ed-yes").textContent = t("edYes");
+    $("end-dialog").onclose = () => {
+      const v = $("end-dialog").returnValue;
+      if (v === "yes") post("/session", { action: "end", summarize: true });
+      else if (v === "no") post("/session", { action: "end", summarize: false });
+    };
+    $("end-dialog").returnValue = "cancel";
+    $("end-dialog").showModal();
+  }
+
   function openSummaryPanel(title, markdown, message) {
     showTab("summary");
     $("sp-title").textContent = title;
@@ -914,12 +1050,7 @@
 
   function setSettings(e) {
     renderTuning(e.tuning);
-    if (!prepDirty && !prepBusy && document.activeElement !== $("prep-context")) {
-      showTopic(e.meeting_topic || "");
-      $("prep-context").value = e.meeting_context || "";
-      prepTerms = (e.terms || []).map((t) => ({ ...t }));
-      renderTerms();
-    }
+    syncBackgrounds(e);
     translateOn = e.translate;
     translateAvailable = e.translate_available;
     document.querySelectorAll("#translate-mode button").forEach((b) => {
@@ -1134,7 +1265,9 @@
       clearOutput();
       $("stopped").classList.remove("show");
     }
-    if (e.state === "idle") {
+    if (e.state === "idle" && e.fresh) {
+      $("stopped").classList.remove("show");   // the program just started: nothing has ended
+    } else if (e.state === "idle") {
       $("stopped").textContent = e.saved
         ? `Meeting ended. Saved: ${e.saved}. Press Start for a new meeting.`
         : "Meeting ended. Nothing was said, so nothing was saved. Press Start for a new meeting.";
@@ -1142,7 +1275,8 @@
     }
   }
   document.querySelectorAll("#session-buttons button").forEach((b) => b.onclick = () => {
-    if (b.dataset.action === "end" && !confirm("End the meeting? The summary is made and the transcript saved.")) return;
+    if (b.dataset.action === "start") return askStart();
+    if (b.dataset.action === "end") return askEnd();
     post("/session", { action: b.dataset.action });
   });
   $("quit").onclick = () => {
