@@ -5,6 +5,8 @@ import Cocoa
 @preconcurrency import WebKit
 
 let port = 8765
+// Speech: the app itself hears the sound and writes it down (Speech.swift) when the model is there; ANNE_SPEECH=python keeps the old way.
+let swiftSpeech = ProcessInfo.processInfo.environment["ANNE_SPEECH"] != "python" && speechModelPresent()
 let pageURL = URL(string: "http://127.0.0.1:\(port)/")!
 let logURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Anne.log")
 
@@ -30,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     var attached = false            // an Anne server was already running: we did not start it and do not stop it
     var quitReply = false           // we are waiting for the program to finish before the app exits
     var waitTimer: Timer?
+    var speech: Speech?
 
     // MARK: start
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -61,11 +64,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
         // zsh reads ~/.zshrc for OPENROUTER_API_KEY (step 2 moves the key into the Keychain)
-        p.arguments = ["-c", "source ~/.zshrc 2>/dev/null; cd \(shellQuote(home)) && exec \(shellQuote(python)) app.py --no-browser --port \(port)"]
+        var launch = "app.py --no-browser --port \(port)"
+        var token = ""
+        if swiftSpeech {   // the program receives lines from this app, with a secret only this app and the program know
+            token = UUID().uuidString
+            launch += " --remote-speech"
+        }
+        p.arguments = ["-c", "source ~/.zshrc 2>/dev/null; cd \(shellQuote(home)) && \(token.isEmpty ? "" : "ANNE_TOKEN=\(token) ")exec \(shellQuote(python)) \(launch)"]
         p.standardOutput = log
         p.standardError = log
         p.terminationHandler = { [weak self] _ in DispatchQueue.main.async { self?.programEnded() } }
-        do { try p.run(); child = p } catch { show("Anne을 시작하지 못했습니다: \(error.localizedDescription)") }
+        do { try p.run(); child = p } catch { show("Anne을 시작하지 못했습니다: \(error.localizedDescription)"); return }
+        if swiftSpeech {
+            let logFile = log
+            speech = Speech(port: port, token: token) { line in logFile?.write(Data((line + "\n").utf8)) }
+            speech?.start()
+        }
     }
 
     func waitForServer() {
@@ -92,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     // MARK: quit: ask the program to end the meeting properly (summary, save), then exit
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        speech?.stop()
         guard let p = child, p.isRunning, !attached else { return .terminateNow }
         quitReply = true
         var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/quit")!)

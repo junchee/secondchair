@@ -429,6 +429,12 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_
                 elif action == "end":
                     settings.summarize_at_end = body.get("summarize", True) is not False
                 controls["engine"].command(action)  # start, pause, resume, end
+            elif self.path == "/line" and hasattr(controls.get("engine"), "submit_line"):
+                # a line of speech from Anne.app; only with the token the app was started with (other web pages cannot guess it)
+                token = os.environ.get("ANNE_TOKEN", "")
+                if not token or self.headers.get("X-Anne-Token") != token:
+                    return False
+                return controls["engine"].submit_line(body)
             elif self.path in ("/quit", "/stop") and controls.get("engine"):
                 controls["engine"].request_quit()  # ends a running meeting properly, then exits
             else:
@@ -464,7 +470,11 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true", help="do not open the page")
     parser.add_argument("--no-switch", action="store_true", help="leave the output device alone")
+    parser.add_argument("--remote-speech", action="store_true",
+                        help="Anne.app hears the sound and posts finished lines to /line (needs ANNE_TOKEN); no Whisper, microphone or BlackHole here")
     args = parser.parse_args()
+    if args.remote_speech and not os.environ.get("ANNE_TOKEN"):
+        sys.exit("--remote-speech needs the environment variable ANNE_TOKEN (the app and this program share it)")
 
     keystore.load_into_env()  # the key kept in the Keychain, when none is set in the environment
     models.start()  # which models exist and where the lists come from: checked in the background
@@ -489,16 +499,24 @@ def main():
         webbrowser.open(url)
 
     meeting = Meeting(hub, recorder, summaries, asking, settings)
-    saved = transcribe_stream.run(
-        MODELS[args.model],
-        switch_output=not args.no_switch,
-        settings=settings,
-        emit=emit,
-        voice=True,
-        controls=controls,
-        hooks=meeting,
-        autostart=False,  # Start on the page decides the 배경지식 and begins the meeting
-    )
+    if args.remote_speech:
+        import signal
+        lock = transcribe_stream.claim_single_instance()  # noqa: F841 (held for the life of the process)
+        signal.signal(signal.SIGTERM, transcribe_stream.stop_on_sigterm)
+        signal.signal(signal.SIGHUP, transcribe_stream.stop_on_sigterm)
+        from remote import RemoteEngine
+        saved = RemoteEngine(settings=settings, emit=emit, controls=controls, hooks=meeting).serve(autostart=False)
+    else:
+        saved = transcribe_stream.run(
+            MODELS[args.model],
+            switch_output=not args.no_switch,
+            settings=settings,
+            emit=emit,
+            voice=True,
+            controls=controls,
+            hooks=meeting,
+            autostart=False,  # Start on the page decides the 배경지식 and begins the meeting
+        )
     hub.emit({"type": "stopped", "saved": saved})  # the page says so instead of reconnecting
     time.sleep(0.5)
     server.shutdown()

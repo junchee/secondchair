@@ -1,6 +1,7 @@
 #!/bin/bash
-# Builds app/build/Anne.app with the Command Line Tools only (no Xcode app).
-# Step 1: the app starts the Python program found in this repository (AnneHome); nothing is bundled yet.
+# Builds Anne.app with the Command Line Tools only (no Xcode app): Swift Package Manager (WhisperKit) + a hand-made bundle.
+# The app starts the Python program found in this repository (AnneHome); Python and the models are not bundled yet.
+# The speech model is read from ~/AnneProto/model (see Speech.swift); without it the app falls back to Python speech.
 set -e
 cd "$(dirname "$0")"
 REPO="$(cd .. && pwd)"
@@ -11,11 +12,14 @@ OUT="$BUILD/Anne.app"
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 
-swiftc -O -o "$OUT/Contents/MacOS/Anne" Sources/main.swift -framework Cocoa -framework WebKit
+# SwiftPM keeps its work files outside the iCloud folder too (the first build fetches WhisperKit and takes a few minutes)
+swift build -c release --package-path "$REPO/app" --scratch-path "$BUILD/swiftpm" 2>&1 | grep -E "error|warning: unre|Build complete|Compiling Anne" || true
+cp "$BUILD/swiftpm/release/Anne" "$OUT/Contents/MacOS/Anne"
+for bundle in "$BUILD"/swiftpm/release/*.bundle; do [ -e "$bundle" ] && cp -R "$bundle" "$OUT/Contents/Resources/"; done
 
 # Icon: Jun's picture on a cream rounded square, all the sizes macOS wants
 ICONSET="$(mktemp -d)/Anne.iconset"; mkdir -p "$ICONSET"
-swiftc -O -o "$BUILD/make_icon" Sources/make_icon.swift -framework AppKit
+swiftc -O -o "$BUILD/make_icon" tools/make_icon.swift -framework AppKit
 "$BUILD/make_icon" "$REPO/ui/anne.png" "$ICONSET/base.png"
 for size in 16 32 64 128 256 512; do
   sips -z $size $size "$ICONSET/base.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
@@ -37,14 +41,16 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>CFBundleVersion</key><string>1</string>
-  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>LSMinimumSystemVersion</key><string>14.2</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Anne가 내 목소리를 받아 적고 번역하기 위해 마이크를 사용합니다.</string>
+  <key>NSAudioCaptureUsageDescription</key><string>Anne가 회의 상대의 소리를 받아 적고 번역하기 위해 Mac이 내는 소리를 읽습니다.</string>
   <key>AnneHome</key><string>$REPO</string>
 </dict></plist>
 PLIST
 
 # No Apple account: sign "ad hoc" (needed for Apple silicon to run it at all)
+chmod -R u+w "$OUT"   # copied resource files are read-only
 xattr -cr "$OUT"   # iCloud and Finder add attributes that codesign refuses
 codesign --force --deep --sign - "$OUT"
 echo "built: $OUT"

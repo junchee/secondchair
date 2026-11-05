@@ -49,6 +49,10 @@ _ROWS = [
 
     ("max_bubble_chars", "bubble", "한 말풍선의 최대 글자 수", "number", 500, 100, 2000, 50,
      "이보다 길어지면 다음 줄은 새 말풍선이 됩니다."),
+    ("merge_sentences", "bubble", "한 사람의 연속 문장을 한 말풍선에 쌓기", "bool", False, None, None, None,
+     "켜면 한 사람이 이어서 말하는 동안 문장이 한 말풍선에 쌓입니다. 끄면(기본) 문장이 끝날 때마다 말풍선이 나뉩니다. Anne.app이 보내는 문장에만 적용됩니다."),
+    ("bubble_gap_seconds", "bubble", "문장 사이가 이만큼 쉬면 새 말풍선 (초)", "number", 2.5, 0.5, 8.0, 0.5,
+     "Anne.app이 보내는 문장에만 적용됩니다. 한 사람이 이어서 말하는 동안(이보다 짧게 쉬는 동안)은 한 말풍선에 문장이 쌓입니다. 화자가 바뀌면 항상 새 말풍선입니다."),
     ("small_letter_continues", "bubble", "소문자로 시작하면 이어 붙임", "bool", True, None, None, None,
      "Whisper가 쉬는 곳에 마침표를 찍어도, 다음 줄이 소문자로 시작하면 같은 문장으로 봅니다."),
 

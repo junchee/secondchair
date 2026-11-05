@@ -496,6 +496,12 @@
         </select>
         <p data-t="dModelHelp"></p>
         <p id="models-status"></p>
+        <h4 data-t="dSpeech"></h4>
+        <select id="speech-model">
+          <option value="turbo" data-t="dSpeechTurbo"></option>
+          <option value="small" data-t="dSpeechSmall"></option>
+        </select>
+        <p data-t="dSpeechHelp"></p>
         <h4 data-t="dLines"></h4>
         <label for="max-line" style="display:flex;justify-content:space-between"><span data-t="dLongest"></span><output id="max-line-out"></output></label>
         <input type="range" id="max-line" min="4" max="20" step="1">
@@ -938,6 +944,8 @@
     "vCompactHelp": "Only the meeting buttons and the transcript, for a small window. Shortcut C.",
     "vTransOff": "Turn translation off", "vTransOffHelp": "Shows the original only. Nothing is sent to the translation service.",
     "menuDev": "Developer", "dTuning": "Tuning…", "dModel": "Translation model", "dModelAuto": "Auto: DeepSeek, Qwen as backup",
+    "dSpeech": "Speech recognition model", "dSpeechTurbo": "turbo: more exact, slower (default)", "dSpeechSmall": "small: lighter and faster, less exact",
+    "dSpeechHelp": "Changes when no meeting is running. The first time a model is used, the Mac prepares it for a few minutes.",
     "dModelDeepseek": "DeepSeek only", "dModelQwen": "Qwen only", "dModelHelp": "Auto switches to Qwen for a minute when DeepSeek does not answer.",
     "dLines": "Lines", "dLongest": "Longest line", "dPause": "Pause that ends a line", "dMic": "My microphone",
     "dMicOff": "Off: keep everything", "dMicNormal": "Ignore quiet sounds: normal", "dMicStrong": "Ignore quiet sounds: strong",
@@ -1008,6 +1016,8 @@
     "vCompactHelp": "회의 버튼과 대화만 남겨 작은 창에서 씁니다. 단축키 C.",
     "vTransOff": "번역 끄기", "vTransOffHelp": "원문만 보여 줍니다. 번역 서비스로 아무것도 보내지 않습니다.",
     "menuDev": "개발자", "dTuning": "튜닝…", "dModel": "번역 모델", "dModelAuto": "자동: DeepSeek, 실패하면 Qwen",
+    "dSpeech": "음성 인식 모델", "dSpeechTurbo": "turbo: 더 정확, 더 느림 (기본)", "dSpeechSmall": "small: 가볍고 빠름, 덜 정확",
+    "dSpeechHelp": "회의가 진행 중이 아닐 때 바뀝니다. 모델을 처음 쓸 때는 Mac이 몇 분 준비합니다.",
     "dModelDeepseek": "DeepSeek만", "dModelQwen": "Qwen만", "dModelHelp": "자동은 DeepSeek이 답하지 않으면 1분 동안 Qwen을 씁니다.",
     "dLines": "줄 나누기", "dLongest": "가장 긴 줄", "dPause": "줄을 끝내는 쉬는 틈", "dMic": "내 마이크",
     "dMicOff": "끔: 모두 받아 적기", "dMicNormal": "작은 소리 무시: 보통", "dMicStrong": "작은 소리 무시: 강하게",
@@ -1324,9 +1334,11 @@
     $("pause-out").textContent = `${Number(e.pause_seconds).toFixed(1)} s`;
     if (document.activeElement !== $("mic-filter")) $("mic-filter").value = e.mic_filter;
     if (document.activeElement !== $("translate-model")) $("translate-model").value = e.translate_model || "auto";
+    if (document.activeElement !== $("speech-model")) $("speech-model").value = e.speech_model || "turbo";
     updateDraftWarning();
   }
   $("translate-model").addEventListener("change", () => post("/settings", { translate_model: $("translate-model").value }));
+  $("speech-model").addEventListener("change", () => post("/settings", { speech_model: $("speech-model").value }));
   $("mic-filter").addEventListener("change", () => post("/settings", { mic_filter: $("mic-filter").value }));
 
   $("translate-off").addEventListener("change", () => post("/settings", { translate: !$("translate-off").checked }));

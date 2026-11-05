@@ -594,6 +594,7 @@ class Engine:
             if autostart:
                 self._start()
             else:
+                self.emit(self.settings.as_event())  # the first screen (terms, key) and the Briefing list need it before Start
                 self.emit({"type": "session", "state": "idle", "fresh": True})  # waits for Start on the page
             while not self.quit_requested:
                 self._handle_commands()

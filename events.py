@@ -52,6 +52,7 @@ MIC_FILTER_LEVELS = {"off": 0.0, "normal": 0.006, "strong": 0.015}
 
 # Which model translates the bubbles: DeepSeek with Qwen as the backup (auto), or one of them alone.
 TRANSLATION_MODES = ("auto", "deepseek", "qwen")
+SPEECH_MODELS = ("turbo", "small")  # Anne.app: which speech model it listens with (Developer menu); turbo is the default
 
 
 MAX_BRIEFINGS = 3  # briefings that can be used together in one meeting
@@ -73,6 +74,7 @@ class Settings:
         self.pause_seconds = pause_seconds
         self.mic_filter = "normal"
         self.translate_model = "auto"
+        self.speech_model = "turbo"
         self.mic_enabled = True  # the mic button in the top menu: off = my microphone is not listened to
         # 배경지식: a list Jun keeps; ONE is chosen for each meeting when it starts (never applied by itself).
         # meeting_topic and terms are those of the chosen one (empty when none is chosen).
@@ -104,6 +106,8 @@ class Settings:
             self.mic_enabled = change["mic_enabled"]
         if change.get("translate_model") in TRANSLATION_MODES:
             self.translate_model = change["translate_model"]
+        if change.get("speech_model") in SPEECH_MODELS:
+            self.speech_model = change["speech_model"]
         if isinstance(change.get("tuning"), dict):
             tuning.apply(change["tuning"])
         if change.get("tuning_reset"):
@@ -126,6 +130,7 @@ class Settings:
                 pause_seconds=self.pause_seconds,
                 mic_filter=self.mic_filter,
                 translate_model=self.translate_model,
+                speech_model=self.speech_model,
                 mic_enabled=self.mic_enabled,
                 backgrounds=self.backgrounds,
                 terms_accepted=self.terms_accepted,
@@ -224,6 +229,7 @@ class Settings:
             "pause_seconds": self.pause_seconds,
             "mic_filter": self.mic_filter,
             "translate_model": self.translate_model,
+            "speech_model": self.speech_model,
             "mic_enabled": self.mic_enabled,
             "terms_ok": self.terms_ok(),
             "terms_version": TERMS_VERSION,
