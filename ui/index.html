@@ -477,6 +477,7 @@
           <option value="qwen" data-t="dModelQwen"></option>
         </select>
         <p data-t="dModelHelp"></p>
+        <p id="models-status"></p>
         <h4 data-t="dLines"></h4>
         <label for="max-line" style="display:flex;justify-content:space-between"><span data-t="dLongest"></span><output id="max-line-out"></output></label>
         <input type="range" id="max-line" min="4" max="20" step="1">
@@ -871,7 +872,11 @@
     "tipEnding": "Ending: saving…", "tipQuit": "Quit: close Anne completely. A running meeting is saved first.",
     "tipMeeting": "This meeting: summary and background.", "tipView": "View: theme, text size, compact view, translation.",
     "tipDev": "Developer: tuning and technical settings.", "tipFold": "Fold or open the typing translator.",
-    "tipAsk": "Type here. Translate turns it into the other language; Ask answers a question about the meeting (or start with ?).",
+    "tipAsk": "Type here. Translate turns it into the other language; Anne answers a question: about the meeting (marked 📝) or a general one (marked 💡). You can also start with ?.",
+      "askLeft": (n, limit) => `Questions left today: ${n} of ${limit}`,
+      "askBlocked_limit": (limit) => `Today's limit of ${limit} questions is reached. Try again tomorrow.`,
+      "askBlocked_long": "The question is too long. Please make it shorter.", "askBlocked_fast": "Please wait a moment before the next question.",
+      "mModelsOk": "Models: all available.", "mModelsGone": (list) => `Models no longer listed (skipped automatically): ${list}`,
     "tipClear": "Clear (Esc): empty both boxes.",
     "miStart": "Start", "miPause": "Pause", "miResume": "Resume", "miEnd": "End", "miQuit": "Quit", "miMic": "Microphone",
     "menuMeeting": "This meeting", "miSummary": "Summary", "miBackground": "Background", "bgActive": (t) => `In use: ${t}`, "bgNoneActive": "No background in use.",
@@ -889,7 +894,7 @@
     "bnLost": "Not connected to Anne. Is the program running? Reconnecting…",
     "bnPaused": "Paused: nothing is being listened to or recorded. Press Resume to continue.",
     "emptyIdleTitle": "Ready", "emptyIdleText": "Press ▶ to start a meeting.", "emptyRunTitle": "Listening", "emptyRunText": "Lines appear here when someone speaks.",
-    "jump": "↓ New lines", "kTranslate": "Translate", "kAsk": "Ask", "phType": "Type here", "phAsk": "Type a question, then Enter",
+    "jump": "↓ New lines", "kTranslate": "Translate", "kAsk": "Anne", "phType": "Type here", "phAsk": "Ask Anne, then press Enter",
     "spAgain": "Summarize again", "spHelp": "Covers everything said so far. The meeting keeps going.",
     "outputOn": (o) => `Output: ${o}`, "outputNone": "Output: not switched", "outputWait": "Output: waiting",
     "micNone": "Microphone: not found, so only the meeting is transcribed.",
@@ -923,7 +928,11 @@
     "tipEnding": "끝내는 중: 저장하는 중…", "tipQuit": "종료: Anne을 완전히 끕니다. 진행 중인 회의는 먼저 저장합니다.",
     "tipMeeting": "이 회의: 요약과 배경지식.", "tipView": "보기: 화면 색, 글자 크기, 간단히 보기, 번역.",
     "tipDev": "개발자: 튜닝과 기술 설정.", "tipFold": "아래 번역기를 접거나 펼칩니다.",
-    "tipAsk": "여기에 입력합니다. 번역은 다른 언어로 바꿔 주고, 질문은 회의 내용에 답합니다(? 로 시작해도 됩니다).",
+    "tipAsk": "여기에 입력합니다. 번역은 다른 언어로 바꿔 주고, Anne은 질문에 답합니다. 회의 내용이면 📝, 일반 질문이면 💡로 표시합니다. ? 로 시작해도 됩니다.",
+      "askLeft": (n, limit) => `오늘 남은 질문: ${limit}개 중 ${n}개`,
+      "askBlocked_limit": (limit) => `오늘 질문 한도(${limit}개)에 도달했습니다. 내일 다시 쓸 수 있습니다.`,
+      "askBlocked_long": "질문이 너무 깁니다. 짧게 줄여 주세요.", "askBlocked_fast": "잠시 후에 다시 물어봐 주세요.",
+      "mModelsOk": "모델 점검: 모두 사용 가능.", "mModelsGone": (list) => `내려간 모델(자동으로 건너뜀): ${list}`,
     "tipClear": "지우기 (Esc): 두 칸을 비웁니다.",
     "miStart": "시작", "miPause": "일시정지", "miResume": "다시 시작", "miEnd": "종료", "miQuit": "끝내기", "miMic": "마이크",
     "menuMeeting": "이 회의", "miSummary": "요약", "miBackground": "배경지식", "bgActive": (t) => `사용 중: ${t}`, "bgNoneActive": "사용 중인 배경지식이 없습니다.",
@@ -941,7 +950,7 @@
     "bnLost": "Anne에 연결되지 않았습니다. 프로그램이 켜져 있나요? 다시 연결하는 중…",
     "bnPaused": "일시정지: 지금은 듣거나 기록하지 않습니다. 다시 시작을 누르면 이어집니다.",
     "emptyIdleTitle": "준비되었습니다", "emptyIdleText": "▶ 를 눌러 회의를 시작하세요.", "emptyRunTitle": "듣는 중", "emptyRunText": "누군가 말하면 여기에 나옵니다.",
-    "jump": "↓ 새 줄", "kTranslate": "번역", "kAsk": "질문", "phType": "여기 입력", "phAsk": "질문 입력 후 Enter",
+    "jump": "↓ 새 줄", "kTranslate": "번역", "kAsk": "Anne", "phType": "여기 입력", "phAsk": "Anne에게 질문 입력 후 Enter",
     "spAgain": "다시 요약", "spHelp": "지금까지의 대화 전체를 요약합니다. 회의는 계속됩니다.",
     "outputOn": (o) => `출력: ${o}`, "outputNone": "출력: 바꾸지 않음", "outputWait": "출력: 확인 중",
     "micNone": "마이크: 찾지 못해서 회의 소리만 받아 적습니다.",
@@ -1158,6 +1167,10 @@
   function setSettings(e) {
     renderTuning(e.tuning);
     syncBackgrounds(e);
+    if (e.models) {
+      const gone = Object.entries(e.models.missing || {}).map(([role, ids]) => `${role}: ${ids.join(", ")}`).join("; ");
+      $("models-status").textContent = !e.models.checked ? "" : gone ? t("mModelsGone", gone) : t("mModelsOk");
+    }
     translateOn = e.translate;
     translateAvailable = e.translate_available;
     $("translate-off").checked = !translateOn;
@@ -1269,8 +1282,13 @@
 
   // A question about the meeting is answered in the same box as a translation: the newest request owns the box.
   let boxOwner = "";
+  function updateAskLeft(e) {
+    if (e.left === undefined) return;
+    document.querySelector("#type-mode [data-kind=ask]").title = t("askLeft", e.left, e.limit);
+  }
   function onAsking(e) {
     boxOwner = "ask:" + e.id;
+    updateAskLeft(e);
     if (replaying) return;
     setOutput("", "ask");
     $("out-q").textContent = e.question;
@@ -1279,6 +1297,15 @@
     $("dots").hidden = false;
   }
   function onAnswer(e) {
+    updateAskLeft(e);
+    if (e.blocked) {   // not sent: too long, too soon, or today's limit
+      if (replaying) return;
+      boxOwner = "ask:" + e.id;
+      setOutput(t("askBlocked_" + e.blocked, e.limit), "ask");
+      $("out-q").textContent = e.question;
+      $("draft").classList.add("answer");
+      return;
+    }
     if (replaying || boxOwner !== "ask:" + e.id) return;
     const failed = e.text.startsWith("(answer failed");
     setOutput(e.text, "ask");

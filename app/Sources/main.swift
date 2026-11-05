@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             js(m, tr("End", "종료"), "end()", ".")
             m.addItem(.separator())
             js(m, tr("Summary", "요약"), "summary()", "s", [.command, .shift])
-            js(m, tr("Ask", "질문"), "ask()", "/")
+            js(m, tr("Ask Anne", "Anne에게 묻기"), "ask()", "/")
             js(m, tr("Background…", "배경지식…"), "background()", "b")
             m.addItem(.separator())
             js(m, tr("Microphone on / off", "마이크 켜기 / 끄기"), "mic()", "m", [.command, .shift])

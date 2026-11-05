@@ -34,6 +34,7 @@ import os
 
 import time
 
+import models
 import prefs
 import tuning
 import prep
@@ -200,6 +201,7 @@ class Settings:
             "recent_background": self.recent_background(),
             "active_background": self.active_background,
             "tuning": {"groups": tuning.GROUPS, "schema": tuning.SCHEMA, "values": tuning.values()},
+            "models": models.status(),
         }
 
 

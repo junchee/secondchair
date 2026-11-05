@@ -4,9 +4,10 @@ for this meeting. Only these go further: the topic and the terms that occur in a
 and the terms go to Whisper as a hint. The background text itself is kept for Jun, not sent with each line."""
 import json
 
+import models
 import translate
 
-DIGEST_MODEL = "anthropic/claude-haiku-5.5"  # once per save: worth a better model than the per-line one
+# the digest model (once per save: worth a better one than the per-line model) is in models.py / config/models.json
 MAX_TERMS = 40
 WHISPER_PROMPT_CHARS = 500
 
@@ -38,7 +39,7 @@ def digest(background, client=None):
     """(topic, terms) from the background text: one line about the meeting, and the key terms only."""
     client = client or translate.Client(timeout=60)
     body = {
-        "model": DIGEST_MODEL,
+        "model": models.first("digest"),
         "messages": [
             {
                 "role": "system",

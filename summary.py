@@ -3,9 +3,11 @@
 One call per meeting, so a larger model than the translator: quality matters more than cost here.
 """
 
+import models
+import tuning
 from translate import Client
 
-MODEL = "qwen/qwen3.5-35b-a3b"
+# the models for summary and Anne's answers are in models.py / config/models.json
 LANGUAGE = "Korean"
 
 PROMPT = f"""You summarize a meeting transcript for Jun. "Them" are the other participants, "Me" is Jun.
@@ -23,20 +25,26 @@ Questions or issues left open.
 Write "없음" under a section that has nothing."""
 
 
-ASK_PROMPT = f"""You answer Jun's questions about a meeting that is going on, using only the transcript
-below. "Them" are the other participants, "Me" is Jun. The transcript comes from speech
-recognition and may contain errors, and its last line may be cut off. Answer in {LANGUAGE}, in one to
-four short sentences, so Jun can read it during the meeting. If the transcript does not contain
-the answer, say "대화에서 찾을 수 없습니다" and, if useful, what is closest. Never invent facts, names or
-numbers."""
+ASK_PROMPT = f"""You are Anne, Jun's assistant during a meeting. Jun asks a question. "Them" are the other
+participants in the transcript below, "Me" is Jun; it comes from speech recognition, may contain errors, and its
+last line may be cut off.
+- If the question is about what was said in this meeting, answer from the transcript only and begin the line with
+  "📝 회의에서:". If the transcript does not contain the answer, say "📝 회의에서: 대화에서 찾을 수 없습니다" and,
+  if useful, what is closest.
+- If it is a general question (a term, a person, an organisation, a place, a concept), answer from your own
+  knowledge and begin the line with "💡 일반 지식:". If you are not sure, or it may have changed recently, say so in
+  a few words. Never invent facts, names or numbers.
+- If both apply, write one line for each.
+Answer in {LANGUAGE}, in at most four short sentences in total, so Jun can read it during the meeting."""
 
 
 def answer(question, conversation, earlier=(), client=None):
     """Answer Jun's question from the conversation so far. `earlier` holds previous
     (question, answer) pairs so a follow-up like "그럼 걔는?" makes sense."""
     notes = "".join(f"\nPrevious question: {q}\nPrevious answer: {a}\n" for q, a in earlier)
+    conversation = (conversation or "")[-tuning.get("ask_transcript_chars"):]   # the latest part: a cheaper request
     body = {
-        "model": MODEL,
+        "model": models.first("ask"),
         "messages": [
             {"role": "system", "content": ASK_PROMPT},
             {
@@ -45,7 +53,7 @@ def answer(question, conversation, earlier=(), client=None):
             },
         ],
         "temperature": 0.1,
-        "max_tokens": 400,
+        "max_tokens": tuning.get("ask_max_tokens"),
         "reasoning": {"enabled": False},
         "provider": {"zdr": True, "data_collection": "deny", "sort": "latency"},
     }
@@ -54,7 +62,7 @@ def answer(question, conversation, earlier=(), client=None):
 
 def summarize(transcript, client=None):
     body = {
-        "model": MODEL,
+        "model": models.first("summary"),
         "messages": [
             {"role": "system", "content": PROMPT},
             {"role": "user", "content": transcript},

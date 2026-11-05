@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "note": "Which OpenRouter model does which job, best first. Anne reads this file from GitHub when it starts and keeps the last good copy; to change a model for everyone, change it here and push.",
+  "roles": {
+    "translate": ["deepseek/deepseek-v4.1-flash-1017", "qwen/qwen3.5-9b"],
+    "typed": ["deepseek/deepseek-v4.1-flash-1017", "qwen/qwen3.5-9b"],
+    "ask": ["deepseek/deepseek-v4.1-flash-1017", "qwen/qwen3.5-35b-a3b"],
+    "summary": ["deepseek/deepseek-v4.1-flash-1017", "qwen/qwen3.5-35b-a3b"],
+    "digest": ["anthropic/claude-haiku-5.5", "deepseek/deepseek-v4.1-flash-1017"],
+    "recheck": ["qwen/qwen3.5-35b-a3b", "deepseek/deepseek-v4.1-flash-1017"]
+  }
+}

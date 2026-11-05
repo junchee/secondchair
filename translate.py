@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import models
 import tuning
 import sys
 import time
@@ -20,15 +21,10 @@ from collections import OrderedDict, deque
 # Cheapest Qwen that translated well in tests: $0.10/M in, $0.15/M out, about 0.45-0.6 s per
 # line on ZDR providers (Oct 2026). qwen/qwen3.5-35b-a3b was similar in speed, slightly
 # better wording, about 6x the output price.
-MODEL = "qwen/qwen3.5-9b"
-# The small model sometimes slips other scripts into Korean ("毛毛비" for drizzle, a Japanese
-# clause, "아нди") even when told not to; such lines are redone once with this one.
-FALLBACK_MODEL = "qwen/qwen3.5-35b-a3b"
-# The bubbles are translated by DeepSeek: fastest and cleanest of the three tried on 2026-10-22
-# (Qwen and Haiku too); the comparison is in notes/translation_models_2026-10-22.md.
-BUBBLE_MODEL = "deepseek/deepseek-v4.1-flash-1017"
-BACKUP_MODEL = MODEL  # Qwen: used when DeepSeek does not answer (see Translator)
-BACKUP_SECONDS = 60  # after a failure, stay on the backup this long before trying DeepSeek again
+# Which model does which job is in models.py / config/models.json (translate, typed, recheck ...).
+# DeepSeek translates: fastest and cleanest of the three tried on 2026-10-22 (notes/translation_models_2026-10-22.md);
+# a small model sometimes slips other scripts into Korean even when told not to; such lines are redone once
+# with the "recheck" model.
 # Trust the certifi certificate list, not the Python build's own setting. Some Python builds
 # (the standalone ones `uv` installs) have no system certificates, and the request then fails
 # with CERTIFICATE_VERIFY_FAILED. certifi comes with requests, which mlx-whisper needs anyway.
@@ -93,7 +89,7 @@ def meeting_notes(text):
     return notes
 
 
-def build_request(text, target, context=(), following=None, model=MODEL, previous=None):
+def build_request(text, target, context=(), following=None, model=None, previous=None):
     """Chat request for one line. `context` holds earlier "LABEL: text" lines and `following`
     the next line; both are only there to make the meaning of a cut line clear."""
     parts = []
@@ -110,7 +106,7 @@ def build_request(text, target, context=(), following=None, model=MODEL, previou
         parts.append("Next line (context only, do not translate):\n" + following)
     script = " Write Korean in Hangul only; never use Chinese, Japanese or Cyrillic characters." if target == "Korean" else ""
     return {
-        "model": model,
+        "model": model or models.first("translate"),
         "messages": [
             {
                 "role": "system",
@@ -229,7 +225,7 @@ class Client:
                 raise
 
 
-def translate(text, target, context=(), following=None, client=None, on_text=None, model=MODEL, previous=None):
+def translate(text, target, context=(), following=None, client=None, on_text=None, model=None, previous=None):
     """The translation of one line. With on_text, it is asked for in pieces and on_text(text so far)
     is called while it arrives (the page shows the Korean from the first word)."""
     client = client or Client()
@@ -252,7 +248,7 @@ def translate(text, target, context=(), following=None, client=None, on_text=Non
     else:
         result = client.post(body)
     if target == "Korean" and has_foreign_script(result):
-        result = client.post(build_request(text, target, context, following, FALLBACK_MODEL))
+        result = client.post(build_request(text, target, context, following, models.first("recheck")))
     return result
 
 
@@ -297,9 +293,9 @@ def translate_typed(text, conversation="", client=None):
         }
 
     client = client or Client()
-    result = client.post(request(MODEL))
+    result = client.post(request(models.first("typed")))
     if target == "Korean" and has_foreign_script(result):
-        result = client.post(request(FALLBACK_MODEL))
+        result = client.post(request(models.first("recheck")))
     return target, result
 
 
@@ -370,12 +366,13 @@ class Translator:
             queued = len(self.waiting)
         started = time.time()
         mode = self.mode()
+        best, backup = models.first("translate"), models.second("translate")
         if mode == "qwen" or (mode == "auto" and started < self.backup_until):
-            order = [BACKUP_MODEL]
+            order = [backup]
         elif mode == "deepseek":
-            order = [BUBBLE_MODEL]
+            order = [best]
         else:
-            order = [BUBBLE_MODEL, BACKUP_MODEL]
+            order = [best, backup]
         for attempt, model in enumerate(order):
           try:
             # The first translation of a bubble arrives piece by piece (the page shows the Korean from the

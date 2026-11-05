@@ -17,7 +17,10 @@ import argparse
 import itertools
 import json
 import os
+import models
+import prefs
 import prep
+import tuning
 import queue
 import threading
 import time
@@ -211,8 +214,9 @@ class Backgrounds:
 
 
 class Asking:
-    """Jun's questions about the meeting, answered from the whole conversation so far.
-    Questions and answers are not recorded: they were not said in the meeting."""
+    """Jun's questions to Anne: about the meeting (answered from the conversation, marked 회의에서) or general
+    (answered from the model's knowledge, marked 일반 지식). Kept cheap: short questions, short answers, a daily
+    limit and a pause between questions. Questions and answers are not recorded: they were not said in the meeting."""
 
     def __init__(self, recorder, emit, available):
         self.recorder = recorder
@@ -222,6 +226,14 @@ class Asking:
         self.earlier = []  # last few (question, answer) pairs, for follow-ups
         self.client = Client(timeout=60)
         self.lock = threading.Lock()  # one connection: answers are made one at a time, in order
+        self.last_at = 0.0
+
+    def used_today(self):
+        usage = prefs.load().get("ask_usage") or {}
+        return int(usage.get("count", 0)) if usage.get("date") == time.strftime("%Y-%m-%d") else 0
+
+    def count_one(self):
+        prefs.save(ask_usage={"date": time.strftime("%Y-%m-%d"), "count": self.used_today() + 1})
 
     def request(self, question):
         question = question.strip()
@@ -231,10 +243,25 @@ class Asking:
             self.emit({"type": "info", "text": "asking needs OPENROUTER_API_KEY"})
             return
         ask_id = next(self.ids)
-        self.emit({"type": "asking", "id": ask_id, "question": question})
+        limit = int(tuning.get("ask_daily_limit"))
+        blocked = None
+        if len(question) > tuning.get("ask_question_chars"):
+            blocked = "long"
+        elif time.time() - self.last_at < tuning.get("ask_min_gap"):
+            blocked = "fast"
+        elif self.used_today() >= limit:
+            blocked = "limit"
+        if blocked:
+            self.emit({"type": "answer", "id": ask_id, "question": question[:80], "text": "", "blocked": blocked,
+                       "left": max(0, limit - self.used_today()), "limit": limit})
+            return
+        self.last_at = time.time()
+        self.count_one()
+        left = max(0, limit - self.used_today())
+        self.emit({"type": "asking", "id": ask_id, "question": question, "left": left, "limit": limit})
 
         def work():
-            event = {"type": "answer", "id": ask_id, "question": question}
+            event = {"type": "answer", "id": ask_id, "question": question, "left": left, "limit": limit}
             with self.lock:
                 try:
                     event["text"] = answer(
@@ -388,6 +415,7 @@ def main():
     parser.add_argument("--no-switch", action="store_true", help="leave the output device alone")
     args = parser.parse_args()
 
+    models.start()  # which models exist and where the lists come from: checked in the background
     hub = Hub()
     recorder = Recorder()
     emit = fan_out(hub.emit, print_event, recorder)  # page, terminal, and the saved transcript
