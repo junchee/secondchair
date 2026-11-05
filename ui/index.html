@@ -218,6 +218,8 @@
   #jump { bottom: 220px; }
 
   /* ---- Composer: English to say, from what Jun says in Korean or types */
+  .oneline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  #draft.answer { min-height: 130px; max-height: 40vh; font-size: var(--text-size); font-weight: 400; line-height: 1.5; }
   .flag { font-size: 20px; line-height: 1; }
   .dots { display: inline-flex; gap: 3px; align-items: center; }
   .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: dot 1.2s infinite ease-in-out both; }
@@ -287,7 +289,7 @@
   .sp-tabs button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; cursor: pointer; color: var(--muted); font-weight: 600; }
   .sp-tabs button[aria-selected="true"] { background: var(--bg); color: var(--text); }
   #sp-title { color: var(--muted); font-size: 12px; }
-  #sp-body, #ask-body { flex: 1; overflow-y: auto; padding: 4px 20px 16px; }
+  #sp-body { flex: 1; overflow-y: auto; padding: 4px 20px 16px; }
   .qa { padding: 12px 0; border-bottom: 1px solid var(--border); }
   .qa .q { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
   .qa .a { font-size: calc(var(--text-size) - 1px); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -515,6 +517,7 @@
     <div class="pane">
       <div class="pane-head">
         <span class="flag" id="out-title" aria-label="English">🇬🇧</span>
+        <span class="hint oneline" id="out-q"></span>
         <span class="dots" id="dots" hidden aria-label="Translating"><i></i><i></i><i></i></span>
         <span class="spacer"></span>
         <button class="icon-btn" id="discard" type="button" aria-label="Clear" data-tip="Clear (Esc): empty both boxes." data-tip-align="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -545,7 +548,6 @@
   <div class="sp-head">
     <div class="sp-tabs" role="tablist">
       <button role="tab" id="tab-summary" aria-selected="true">Summary</button>
-      <button role="tab" id="tab-ask" aria-selected="false">Ask</button>
       <button role="tab" id="tab-prep" aria-selected="false">배경지식</button>
       <button role="tab" id="tab-tune" aria-selected="false" hidden>Tuning</button>
     </div>
@@ -554,7 +556,6 @@
     <button class="icon-btn" id="sp-close" aria-label="Close panel">✕</button>
   </div>
   <div id="sp-body"></div>
-  <div id="ask-body" hidden></div>
   <div id="tune-body" hidden></div>
   <div id="prep-body" hidden>
     <div class="prep-row"><button class="primary" id="bg-new" type="button"></button><span class="hint" id="prep-status"></span></div>
@@ -571,9 +572,6 @@
   <div class="sp-foot" id="foot-tune" hidden>
     <button class="ghost" id="tune-reset-all" type="button">모두 기본값으로</button>
     <span class="hint">값을 바꾸면 다음 줄부터 바로 적용됩니다(저장도 됩니다). 파란 점이 있는 것은 기본값과 다른 것입니다.</span>
-  </div>
-  <div class="sp-foot" id="foot-ask" hidden>
-    <span class="hint">Ask about the meeting in the bottom box: choose Ask, or start with ?. Answers come only from what was said.</span>
   </div>
 </aside>
 
@@ -752,20 +750,17 @@
   }
   function summaryTitle(e) { return e.final ? `Meeting summary · ${e.time}` : `Summary so far · ${e.time}`; }
   function showTab(name) {
-    for (const t of ["summary", "ask", "prep", "tune"]) $("tab-" + t).setAttribute("aria-selected", t === name);
+    for (const t of ["summary", "prep", "tune"]) $("tab-" + t).setAttribute("aria-selected", t === name);
     $("tune-body").hidden = name !== "tune";
     $("foot-tune").hidden = name !== "tune";
     $("sp-body").hidden = name !== "summary";
     $("foot-summary").hidden = name !== "summary";
-    $("ask-body").hidden = name !== "ask";
-    $("foot-ask").hidden = name !== "ask";
     $("prep-body").hidden = name !== "prep";
     $("foot-prep").hidden = name !== "prep";
     if (name !== "summary") $("sp-title").textContent = "";
     $("summary-panel").hidden = false;
   }
   $("tab-summary").onclick = () => showTab("summary");
-  $("tab-ask").onclick = () => showTab("ask");
   $("tab-prep").onclick = () => showTab("prep");
   $("tab-tune").onclick = () => showTab("tune");
   $("tune-btn").onclick = () => showTab("tune");
@@ -849,7 +844,7 @@
       sdNone: "No background", sdStart: "Start", sdCancel: "Cancel", sdTermsN: (n) => `${n} key ${n === 1 ? "term" : "terms"}`, sdNoTerms: "This one has no terms yet; only its topic is used.",
       edTitle: "End the meeting?", edHelp: "Anne can make a summary now. The transcript is saved either way.",
       edYes: "Summarize and end", edNo: "End without summary", edCancel: "Cancel",
-      tabBg: "Background",
+      tabBg: "Background", asking: "Looking through the meeting…",
     },
     ko: {
       bgNew: "+ 새 배경지식", bgIntro: "회의에 대한 메모(주제, 이름, 용어)입니다. 회의를 시작할 때마다 하나를 고릅니다.",
@@ -861,7 +856,7 @@
       sdNone: "배경지식 없이", sdStart: "시작", sdCancel: "취소", sdTermsN: (n) => `주요 용어 ${n}개`, sdNoTerms: "아직 용어가 없어 주제만 쓰입니다.",
       edTitle: "회의를 끝낼까요?", edHelp: "지금 요약을 만들 수 있습니다. 어느 쪽이든 기록은 저장됩니다.",
       edYes: "요약하고 끝내기", edNo: "요약 없이 끝내기", edCancel: "취소",
-      tabBg: "배경지식",
+      tabBg: "배경지식", asking: "회의 내용에서 찾는 중…",
     },
   };
   const t = (key, ...args) => { const v = (I18N[LANG][key] ?? I18N.en[key] ?? key); return typeof v === "function" ? v(...args) : v; };
@@ -1101,8 +1096,10 @@
     $("dots").hidden = true;
     $("draft").classList.remove("stale");
     $("draft").value = text;
-    $("out-title").textContent = language === "English" ? "🇬🇧" : "🇰🇷";
+    $("out-title").textContent = language === "ask" ? "💬" : language === "English" ? "🇬🇧" : "🇰🇷";
     $("out-title").setAttribute("aria-label", language);
+    $("draft").classList.remove("answer", "failed");
+    $("out-q").textContent = "";
   }
   function discard() {
     clearTimeout(typeTimer);
@@ -1160,32 +1157,36 @@
   $("composer-toggle").onclick = () => setFolded(!document.body.classList.contains("composer-folded"));
   setFolded(store.get("folded", "0") === "1");
 
-  const asks = new Map();   // ask id -> answer element
+  // A question about the meeting is answered in the same box as a translation: the newest request owns the box.
+  let boxOwner = "";
   function onAsking(e) {
-    const item = el("div", "qa");
-    item.append(el("div", "q", e.question));
-    const answer = el("div", "a thinking", "Looking through the meeting…");
-    item.append(answer);
-    asks.set(e.id, answer);
-    $("ask-body").append(item);
-    if (!replaying) { showTab("ask"); $("ask-body").scrollTop = $("ask-body").scrollHeight; }
+    boxOwner = "ask:" + e.id;
+    if (replaying) return;
+    setOutput("", "ask");
+    $("out-q").textContent = e.question;
+    $("draft").classList.add("answer", "stale");
+    $("draft").value = t("asking");
+    $("dots").hidden = false;
   }
   function onAnswer(e) {
-    const answer = asks.get(e.id);
-    if (!answer) return;
+    if (replaying || boxOwner !== "ask:" + e.id) return;
     const failed = e.text.startsWith("(answer failed");
-    answer.className = "a" + (failed ? " failed" : "");
-    answer.textContent = e.text;
-    if (!replaying) { showTab("ask"); $("ask-body").scrollTop = $("ask-body").scrollHeight; }
+    setOutput(e.text, "ask");
+    $("out-q").textContent = e.question;
+    $("draft").classList.add("answer");
+    $("draft").classList.toggle("failed", failed);
   }
   function onTyping(e) {
     latestTyped = Math.max(latestTyped, e.id);
+    boxOwner = "typed:" + e.id;
     if (replaying) return;
+    $("draft").classList.remove("answer");
+    $("out-q").textContent = "";
     $("draft").classList.add("stale");   // the earlier translation stays, dimmed, until the new one arrives
     $("dots").hidden = false;
   }
   function onTyped(e) {
-    if (replaying || e.id !== latestTyped) return;
+    if (replaying || e.id !== latestTyped || boxOwner !== "typed:" + e.id) return;
     if (!e.target) { setOutput(e.text || ""); return; }
     setOutput(e.text, e.target);
   }
@@ -1259,7 +1260,6 @@
     $("live").classList.toggle("live", running);
     if (e.new) {                       // a new meeting: start with an empty page
       rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear();
-      $("ask-body").replaceChildren(); asks.clear();
       $("summary-panel").hidden = true;
       $("empty").style.display = "";
       clearOutput();
@@ -1320,7 +1320,6 @@
     source.onopen = () => {
       replaying = true;
       rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear();
-      $("ask-body").replaceChildren(); asks.clear();
       $("empty").style.display = "";
       $("banner").classList.remove("show");
       $("live").classList.add("live");
