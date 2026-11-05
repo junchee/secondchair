@@ -104,6 +104,9 @@ Measured on 2026-11-05: turbo needs about 1.5 GB disk and 2-2.5 GB RAM and ran a
 - NOT tested: it was only built and signature-checked; nobody has run it (Jun must open it: first run shows the microphone permission for "Anne").
 - Next steps: **2** put Python, packages and `native/route` inside the app, key into the Keychain with a first-run screen, Whisper model downloaded at first run with progress; **3** RAM-based settings (see Design), BlackHole check, a zip for the family with the "그래도 열기" note, then a `.pkg` or notarization if Jun pays for the Apple account.
 
+## To do next (Jun, 2026-11-05; design only, not built): meeting flow, bottom box and menus
+Full text and the menu proposal: `notes/menu_design_2026-11-05.md`. Short: the program waits at start and Start asks which 배경지식 to use (default most recent, never applied by itself); 배경지식 becomes a list of titles (click = terms); End asks "요약할까요?" (no = end without a summary); typed questions about the meeting are answered in the same bottom box and the Ask tab goes away; menus regrouped (회의: 요약, 배경지식; 보기: theme, text size, compact, translate on/off; 개발자: Tuning and the rest of Settings), a Mac menu bar in Anne.app.
+
 ## Later (commercial)
 - Swift native app with a process tap (no BlackHole); the pkg/installer ideas above; progress display for long waits.
 - Premium voices (macOS -> cloud voice -> own-voice clone); direct Qwen API vs ZDR; a proxy that holds the API key; consent-based quality feedback (delays, translation quality); check trademark/domain for the names secondchair and yourAccent; Apple Developer signing and notarization for strangers.
