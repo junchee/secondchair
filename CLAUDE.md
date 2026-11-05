@@ -90,6 +90,14 @@ Draft first, clean up when the bubble is final. Server side, in this order (the 
 
 - **Next session, in this order (Jun, 2026-10-22):** (a) the bottom box as Korean | arrow | English, drop the Avatar voice, mic on speakers (each as decided above); (b) prep before a meeting: one sentence of context and/or PDFs (one or several) -> terms and names with Korean forms, edited by Jun, then used for Whisper `initial_prompt` and the translation glossary (design above; PDF text goes to the LLM under ZDR, tell Jun); (c) speaker labels "상대 1 / 상대 2" are ON HOLD.
 
+## Design (2026-11-05, Jun OK'd to record): fit Anne to the Mac it runs on
+Why: on this 8 GB M1 swap was 10 GB used and transcription was 3-8x slower (disk free fell from 41 to 21 GB because swap lives on the disk); a family or commercial Mac may have less or more.
+1. **At first start (and at install):** read chip, RAM and free disk; pick a tier. 8 GB or less: whisper-small only, drafts off or slow, mic button off by default. 16 GB: small, drafts on. 24 GB and more: turbo allowed. Download only the model that tier needs.
+2. **While running:** if swap grows or transcription falls behind speech (whisper seconds > speech seconds for several lines), turn drafts off / lengthen the interval and tell the user "the computer is busy, some features are reduced; close other apps"; turn them on again when it eases.
+3. **Settings > 성능:** 자동 (recommended) / 가볍게 / 정확하게; the Tuning tab stays a developer tool, hidden in a release.
+4. Optional later: cloud transcription as an explicit choice (audio leaves the Mac; off by default). Biggest lever: the Swift app without Python/torch (see Installing).
+Measured on 2026-11-05: turbo needs about 1.5 GB disk and 2-2.5 GB RAM and ran about 5 s per call on this Mac (small about 1 s): not for 8 GB.
+
 ## Later (commercial)
 - Swift native app with a process tap (no BlackHole); the pkg/installer ideas above; progress display for long waits.
 - Premium voices (macOS -> cloud voice -> own-voice clone); direct Qwen API vs ZDR; a proxy that holds the API key; consent-based quality feedback (delays, translation quality); check trademark/domain for the names secondchair and yourAccent; Apple Developer signing and notarization for strangers.
