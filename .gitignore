@@ -12,3 +12,6 @@ private/
 # Built installer
 dist/
 build/
+bench/audio/
+bench/results/
+models_cache.json
