@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ "$(git branch --show-current)" = "bench-auto" ] || { echo "not on bench-auto"; exit 1; }
-git add -- bench/*.py bench/*.sh bench/reports notes/bench_control.md notes/bench_runbook_2026-11-05.md notes/speech_test_design_2026-11-05.md
+git add -- bench/*.py bench/*.sh bench/reports bench/prompts notes/bench_control.md notes/bench_runbook_2026-11-05.md notes/speech_test_design_2026-11-05.md
 if git diff --cached | grep -E '^\+' | grep -Eq 'sk-or-|OPENROUTER_API_KEY=|sk-ant-|BEGIN [A-Z ]*PRIVATE KEY'; then
   git reset -q; echo "possible key in the staged changes: nothing committed"; exit 1
 fi

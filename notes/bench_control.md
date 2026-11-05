@@ -23,6 +23,6 @@ How to read it:
 - `note:` = a free sentence for Claude to read at the next stage.
 
 ## Claude's status (updated by Claude; one line each)
-status_stage: B done
-status_waiting_for: go_until C (stage C is Opus; its 20 samples also wait for ok_C_samples)
+status_stage: C done
+status_waiting_for: Jun checks bench/results/C/samples_for_jun.md, then ok_C_samples (and go_until D)
 status_updated: 2026-11-05
