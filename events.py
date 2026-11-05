@@ -65,7 +65,7 @@ class Settings:
     whenever the page changes one (see prefs.py).
     """
 
-    def __init__(self, translate=False, max_line_seconds=10.0, pause_seconds=0.5, persist=False):
+    def __init__(self, translate=False, max_line_seconds=4.0, pause_seconds=0.2, persist=False):  # defaults chosen by Jun 2026-11-05
         self.persist = persist
         self.translate_available = bool(os.environ.get("OPENROUTER_API_KEY"))
         self.translate = translate and self.translate_available
