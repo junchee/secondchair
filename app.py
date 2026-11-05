@@ -170,6 +170,8 @@ class Backgrounds:
             if "title" in body:
                 item["title"] = str(body["title"])
             self.settings.save_background(item)
+        elif op == "use":     # the checkboxes: which briefings this meeting uses (also while it runs)
+            self.settings.use_backgrounds(body.get("ids") if isinstance(body.get("ids"), list) else [])
         elif op == "digest":
             self.digest(body)
             return
@@ -373,7 +375,10 @@ def make_handler(hub, settings, emit, controls, summaries, typing, asking, prep_
             elif self.path == "/session" and controls.get("engine"):
                 action = str(body.get("action", ""))
                 if action == "start":
-                    settings.use_background(body.get("background"))  # chosen at Start, or None: no background for this meeting
+                    ids = body.get("backgrounds")
+                    if ids is None and body.get("background"):
+                        ids = [body["background"]]
+                    settings.use_backgrounds(ids)  # chosen at Start: up to 3 briefings, or none
                     emit(settings.as_event())
                 elif action == "end":
                     settings.summarize_at_end = body.get("summarize", True) is not False

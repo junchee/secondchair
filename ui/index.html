@@ -361,6 +361,15 @@
   dialog h3 { margin: 0 0 6px; font-size: 16px; }
   dialog select { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin: 6px 0; }
   .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+  .bg-selected { font-weight: 600; margin: 6px 0 2px; }
+  .bg-item.chosen { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+  .bg-item.editing .bg-head { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 10px 10px 0 0; }
+  .bg-tick { width: 18px; height: 18px; accent-color: var(--ok); flex: none; cursor: pointer; }
+  .bg-head .trash { padding: 2px 6px; border-color: transparent; }
+  #sd-list { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow-y: auto; }
+  .sd-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+  .sd-row .sd-ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sd-row .meta { font-size: 12px; color: var(--muted); }
   .bg-item { border: 1px solid var(--border); border-radius: 10px; margin: 8px 0; background: var(--bg); }
   .bg-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; }
   .bg-head .ttl { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -552,7 +561,7 @@
   <form method="dialog">
     <h3 id="sd-title"></h3>
     <p class="hint" id="sd-help"></p>
-    <select id="sd-select"></select>
+    <div id="sd-list"></div>
     <p class="hint" id="sd-terms"></p>
     <div class="dlg-actions"><button class="ghost" value="cancel" id="sd-cancel"></button><button class="primary" value="ok" id="sd-ok"></button></div>
   </form>
@@ -581,6 +590,7 @@
   <div id="prep-body" hidden>
     <div class="prep-row"><button class="primary" id="bg-new" type="button"></button><span class="hint" id="prep-status"></span></div>
     <div class="hint" id="bg-intro"></div>
+    <div class="bg-selected" id="bg-selected"></div>
     <div id="bg-list"></div>
   </div>
   <div class="sp-foot" id="foot-summary">
@@ -856,16 +866,17 @@
   const LANG = (new URLSearchParams(location.search).get("lang") || navigator.language || "en").toLowerCase().startsWith("ko") ? "ko" : "en";   // ?lang=ko or ?lang=en for a try-out
   const I18N = {
     en: {
-      bgNew: "+ New background", bgIntro: "Notes about a meeting (topic, names, terms). One is chosen each time a meeting starts.",
+      bgNew: "+ New briefing", bgIntro: "What Anne should know about a meeting (topic, names, terms). Tick up to 3 for the meeting.",
       bgFoot: "Saving reads the text once and makes a topic line and the key terms (English = Korean). The text goes to the translation service once (zero data retention). During a meeting only the topic and the terms found in a line are sent with it.",
-      bgTitle: "Title", bgText: "Background text", bgTerms: "Key terms", bgSaveDigest: "Save and find terms", bgSaveTerms: "Save the term list", bgDelete: "Delete",
-      bgAdd: "+ Add", bgNone: "Nothing saved yet.", bgInUse: "in use", bgTermsN: (n) => `${n} ${n === 1 ? "term" : "terms"}`, bgUsed: (d) => d ? `used ${d}` : "not used yet",
-      bgWorking: "Saved. Finding terms… (a few seconds)", bgDone: (n) => `Saved ✓  ${n} key terms.`, bgTermsSaved: "Term list saved.", bgConfirmDelete: "Delete this background?",
-      sdTitle: "Background for this meeting", sdHelp: "Choose which background Anne should use. It is not applied unless you choose it here.",
-      sdNone: "No background", sdStart: "Start", sdCancel: "Cancel", sdTermsN: (n) => `${n} key ${n === 1 ? "term" : "terms"}`, sdNoTerms: "This one has no terms yet; only its topic is used.",
+      bgTitle: "Title", bgText: "Briefing text", bgTerms: "Key terms", bgSaveDigest: "Save and find terms", bgSaveTerms: "Save the term list", bgDelete: "Delete",
+      bgAdd: "+ Add", bgNone: "No briefing saved yet.", bgInUse: "in use", bgTermsN: (n) => `${n} ${n === 1 ? "term" : "terms"}`, bgUsed: (d) => d ? `used ${d}` : "not used yet",
+      bgWorking: "Saved. Finding terms… (a few seconds)", bgDone: (n) => `Saved ✓  ${n} key terms.`, bgTermsSaved: "Term list saved.", bgConfirmDelete: "Delete this briefing?",
+      sdTitle: "Briefing for this meeting", sdHelp: "Tick up to 3 briefings for Anne to use. Nothing is applied unless you tick it here.",
+      sdNone: "No briefing", sdStart: "Start", sdCancel: "Cancel", sdTermsN: (n) => `${n} key ${n === 1 ? "term" : "terms"}`, sdNoTerms: "This one has no terms yet; only its topic is used.",
       edTitle: "End the meeting?", edHelp: "Anne can make a summary now. The transcript is saved either way.",
       edYes: "Summarize and end", edNo: "End without summary", edCancel: "Cancel",
-      tabBg: "Background", asking: "Looking through the meeting…",
+      bgMax: (n) => `Up to ${n} briefings at a time.`, bgTermsBtn: (n) => `Terms (${n}) …`, bgTrash: "Delete", bgSelected: (names) => `In use: ${names}`, bgNoneSel: "No briefing ticked.", bgTick: "Use in this meeting",
+      tabBg: "Briefing", asking: "Looking through the meeting…",
     "tipBeta": "Beta version", "tipOutput": "Where the meeting audio plays",
     "tipStart": "Start: begin a new meeting.", "tipPause": "Pause (P): stop listening for a moment. The sound stays connected.",
     "tipResume": "Resume (P): listen again.", "tipEnd": "End: save the meeting and give the sound back. Anne asks whether to summarize.",
@@ -879,7 +890,7 @@
       "mModelsOk": "Models: all available.", "mModelsGone": (list) => `Models no longer listed (skipped automatically): ${list}`,
     "tipClear": "Clear (Esc): empty both boxes.",
     "miStart": "Start", "miPause": "Pause", "miResume": "Resume", "miEnd": "End", "miQuit": "Quit", "miMic": "Microphone",
-    "menuMeeting": "This meeting", "miSummary": "Summary", "miBackground": "Background", "bgActive": (t) => `In use: ${t}`, "bgNoneActive": "No background in use.",
+    "menuMeeting": "This meeting", "miSummary": "Summary", "miBackground": "Briefing", "bgActive": (t) => `In use: ${t}`, "bgNoneActive": "No briefing in use.",
     "menuView": "View", "vTheme": "Theme", "vLight": "Light", "vDark": "Dark", "vAuto": "Auto", "vTextSize": "Text size",
     "vOriginal": "Original", "vTranslation": "Translation", "vLayout": "Layout", "vCompact": "Compact view",
     "vCompactHelp": "Only the meeting buttons and the transcript, for a small window. Shortcut C.",
@@ -912,16 +923,17 @@
     "quitConfirm": "Quit Anne? A running meeting is ended and saved first.",
     },
     ko: {
-      bgNew: "+ 새 배경지식", bgIntro: "회의에 대한 메모(주제, 이름, 용어)입니다. 회의를 시작할 때마다 하나를 고릅니다.",
+      bgNew: "+ 새 브리핑", bgIntro: "회의에 대해 Anne이 알아야 할 것(주제, 이름, 용어)입니다. 회의에 쓸 것을 최대 3개까지 체크하세요.",
       bgFoot: "저장하면 글을 한 번 읽어 주제 한 줄과 주요 용어(영어 = 한국어)를 만듭니다. 글은 번역 서비스로 한 번 나갑니다(데이터 보관 금지). 회의 중에는 주제와, 그 문장에 나온 용어만 함께 보냅니다.",
-      bgTitle: "제목", bgText: "배경지식 글", bgTerms: "주요 용어", bgSaveDigest: "저장하고 용어 정리", bgSaveTerms: "용어 목록 저장", bgDelete: "삭제",
-      bgAdd: "+ 추가", bgNone: "아직 저장된 것이 없습니다.", bgInUse: "사용 중", bgTermsN: (n) => `용어 ${n}개`, bgUsed: (d) => d ? `마지막 사용 ${d}` : "아직 안 씀",
-      bgWorking: "저장했습니다. 용어를 정리하는 중… (몇 초)", bgDone: (n) => `저장됨 ✓  주요 용어 ${n}개`, bgTermsSaved: "용어 목록을 저장했습니다.", bgConfirmDelete: "이 배경지식을 삭제할까요?",
-      sdTitle: "이 회의의 배경지식", sdHelp: "Anne이 쓸 배경지식을 고르세요. 여기서 고르지 않으면 적용되지 않습니다.",
-      sdNone: "배경지식 없이", sdStart: "시작", sdCancel: "취소", sdTermsN: (n) => `주요 용어 ${n}개`, sdNoTerms: "아직 용어가 없어 주제만 쓰입니다.",
+      bgTitle: "제목", bgText: "브리핑 글", bgTerms: "주요 용어", bgSaveDigest: "저장하고 용어 정리", bgSaveTerms: "용어 목록 저장", bgDelete: "삭제",
+      bgAdd: "+ 추가", bgNone: "저장된 브리핑이 없습니다.", bgInUse: "사용 중", bgTermsN: (n) => `용어 ${n}개`, bgUsed: (d) => d ? `마지막 사용 ${d}` : "아직 안 씀",
+      bgWorking: "저장했습니다. 용어를 정리하는 중… (몇 초)", bgDone: (n) => `저장됨 ✓  주요 용어 ${n}개`, bgTermsSaved: "용어 목록을 저장했습니다.", bgConfirmDelete: "이 브리핑을 삭제할까요?",
+      sdTitle: "이 회의의 브리핑", sdHelp: "Anne이 쓸 브리핑을 최대 3개까지 체크하세요. 여기서 체크하지 않으면 적용되지 않습니다.",
+      sdNone: "브리핑 없이", sdStart: "시작", sdCancel: "취소", sdTermsN: (n) => `주요 용어 ${n}개`, sdNoTerms: "아직 용어가 없어 주제만 쓰입니다.",
       edTitle: "회의를 끝낼까요?", edHelp: "지금 요약을 만들 수 있습니다. 어느 쪽이든 기록은 저장됩니다.",
       edYes: "요약하고 끝내기", edNo: "요약 없이 끝내기", edCancel: "취소",
-      tabBg: "배경지식", asking: "회의 내용에서 찾는 중…",
+      bgMax: (n) => `한 번에 최대 ${n}개까지 쓸 수 있습니다.`, bgTermsBtn: (n) => `용어 (${n}) …`, bgTrash: "삭제", bgSelected: (names) => `사용 중: ${names}`, bgNoneSel: "체크한 브리핑이 없습니다.", bgTick: "이 회의에 사용",
+      tabBg: "브리핑", asking: "회의 내용에서 찾는 중…",
     "tipBeta": "베타 버전", "tipOutput": "회의 소리가 나오는 곳",
     "tipStart": "시작: 새 회의를 시작합니다.", "tipPause": "일시정지 (P): 잠시 듣기를 멈춥니다. 소리 연결은 유지됩니다.",
     "tipResume": "다시 시작 (P): 다시 듣습니다.", "tipEnd": "종료: 회의를 저장하고 소리를 원래대로 돌립니다. 요약할지 물어봅니다.",
@@ -935,7 +947,7 @@
       "mModelsOk": "모델 점검: 모두 사용 가능.", "mModelsGone": (list) => `내려간 모델(자동으로 건너뜀): ${list}`,
     "tipClear": "지우기 (Esc): 두 칸을 비웁니다.",
     "miStart": "시작", "miPause": "일시정지", "miResume": "다시 시작", "miEnd": "종료", "miQuit": "끝내기", "miMic": "마이크",
-    "menuMeeting": "이 회의", "miSummary": "요약", "miBackground": "배경지식", "bgActive": (t) => `사용 중: ${t}`, "bgNoneActive": "사용 중인 배경지식이 없습니다.",
+    "menuMeeting": "이 회의", "miSummary": "요약", "miBackground": "브리핑", "bgActive": (t) => `사용 중: ${t}`, "bgNoneActive": "사용 중인 브리핑이 없습니다.",
     "menuView": "보기", "vTheme": "화면 색", "vLight": "밝게", "vDark": "어둡게", "vAuto": "자동", "vTextSize": "글자 크기",
     "vOriginal": "원문", "vTranslation": "번역", "vLayout": "보기 방식", "vCompact": "간단히 보기",
     "vCompactHelp": "회의 버튼과 대화만 남겨 작은 창에서 씁니다. 단축키 C.",
@@ -985,9 +997,10 @@
   applyI18n(); showEmpty(false);
 
   // ---- 배경지식: a list of titles; click one to see and edit its text and terms. Chosen at Start, never applied by itself.
-  let backgrounds = [], activeBackground = null, recentBackground = null, openBackground = null;
+  let backgrounds = [], activeBackgrounds = [], recentBackground = null, openBackground = null, maxBriefings = 3;
   const bgDrafts = new Map();     // id -> {title, text, terms} typed but not saved yet
   const bgWorking = new Set();
+  const bgTermsOpen = new Set();  // briefings whose term list is shown
   $("bg-new").textContent = t("bgNew");
   $("bg-intro").textContent = t("bgIntro");
   $("bg-foot").textContent = t("bgFoot");
@@ -998,17 +1011,48 @@
     if (!bgDrafts.has(item.id)) bgDrafts.set(item.id, { title: item.title, text: item.text, terms: item.terms.map((x) => ({ ...x })) });
     return bgDrafts.get(item.id);
   }
+  function chooseBriefings(ids) {
+    activeBackgrounds = ids;
+    post("/background", { op: "use", ids });   // from the next line on; also while a meeting runs
+    renderBackgrounds();
+  }
   function renderBackgrounds() {
     const list = $("bg-list");
     const items = [...backgrounds].sort((a, b) => (b.used || b.updated).localeCompare(a.used || a.updated));
     if (openBackground === "new") items.unshift({ id: "new", title: "", text: "", topic: "", terms: [], updated: "", used: "" });
+    const names = activeBackgrounds.map((id) => backgrounds.find((b) => b.id === id)).filter(Boolean).map((b) => b.title || b.topic);
+    $("bg-selected").textContent = names.length ? t("bgSelected", names.join(", ")) : t("bgNoneSel");
     if (!items.length) { list.replaceChildren(el("p", "hint", t("bgNone"))); return; }
     list.replaceChildren(...items.map((item) => {
-      const box = el("div", "bg-item");
+      const box = el("div", "bg-item" + (activeBackgrounds.includes(item.id) ? " chosen" : "") + (openBackground === item.id ? " editing" : ""));
       const head = el("div", "bg-head");
+      if (item.id !== "new") {
+        const tick = el("input"); tick.type = "checkbox"; tick.className = "bg-tick";
+        tick.checked = activeBackgrounds.includes(item.id); tick.title = t("bgTick");
+        tick.onclick = (ev) => ev.stopPropagation();
+        tick.onchange = () => {
+          let ids = activeBackgrounds.filter((id) => id !== item.id);
+          if (tick.checked) {
+            if (ids.length >= maxBriefings) { tick.checked = false; $("prep-status").textContent = t("bgMax", maxBriefings); return; }
+            ids = [...ids, item.id];
+          }
+          chooseBriefings(ids);
+        };
+        head.append(tick);
+      }
       head.append(el("span", "ttl", item.title || item.topic || "—"));
-      if (item.id === activeBackground) head.append(el("span", "badge", t("bgInUse")));
-      head.append(el("span", "meta", `${t("bgTermsN", item.terms.length)} · ${t("bgUsed", (item.used || "").slice(0, 10))}`));
+      head.append(el("span", "meta", t("bgTermsN", item.terms.length)));
+      if (item.id !== "new") {
+        const trash = el("button", "icon-btn trash", "🗑"); trash.type = "button"; trash.title = t("bgTrash");
+        trash.onclick = (ev) => {
+          ev.stopPropagation();
+          if (!confirm(t("bgConfirmDelete"))) return;
+          post("/background", { op: "delete", id: item.id });
+          bgDrafts.delete(item.id);
+          if (openBackground === item.id) openBackground = null;
+        };
+        head.append(trash);
+      }
       head.onclick = () => { openBackground = openBackground === item.id ? null : item.id; renderBackgrounds(); };
       box.append(head);
       if (openBackground === item.id) box.append(backgroundBody(item));
@@ -1034,13 +1078,13 @@
       renderBackgrounds();
     };
     row.append(digest);
-    if (item.id !== "new") {
-      const del = el("button", "ghost", t("bgDelete")); del.type = "button";
-      del.onclick = () => { if (confirm(t("bgConfirmDelete"))) { post("/background", { op: "delete", id: item.id }); bgDrafts.delete(item.id); openBackground = null; } };
-      row.append(del);
-    }
     body.append(title, text, row);
     if (item.id !== "new") {
+      const showTerms = el("button", "ghost", t("bgTermsBtn", d.terms.length)); showTerms.type = "button";
+      showTerms.onclick = () => { if (bgTermsOpen.has(item.id)) bgTermsOpen.delete(item.id); else bgTermsOpen.add(item.id); renderBackgrounds(); };
+      body.append(showTerms);
+    }
+    if (item.id !== "new" && bgTermsOpen.has(item.id)) {
       body.append(el("strong", "", t("bgTerms")));
       const terms = el("div");
       const draw = () => terms.replaceChildren(...d.terms.map((term, i) => {
@@ -1074,9 +1118,10 @@
   }
   function syncBackgrounds(e) {
     backgrounds = e.backgrounds || [];
-    activeBackground = e.active_background || null;
-    const active = backgrounds.find((b) => b.id === activeBackground);
-    $("active-bg-note").textContent = active ? t("bgActive", active.title || active.topic) : t("bgNoneActive");
+    activeBackgrounds = e.active_backgrounds || [];
+    maxBriefings = e.max_briefings || 3;
+    const names = activeBackgrounds.map((id) => backgrounds.find((b) => b.id === id)).filter(Boolean).map((b) => b.title || b.topic);
+    $("active-bg-note").textContent = names.length ? t("bgActive", names.join(", ")) : t("bgNoneActive");
     recentBackground = e.recent_background || null;
     renderBackgrounds();
   }
@@ -1084,16 +1129,24 @@
   // ---- Start asks which background this meeting uses; End asks whether to summarize
   function askStart() {
     const items = [...backgrounds].sort((a, b) => (b.used || b.updated).localeCompare(a.used || a.updated));
-    if (!items.length) { post("/session", { action: "start", background: null }); return; }   // nothing to choose from
+    if (!items.length) { post("/session", { action: "start", backgrounds: [] }); return; }   // nothing to choose from
     $("sd-title").textContent = t("sdTitle"); $("sd-help").textContent = t("sdHelp");
     $("sd-cancel").textContent = t("sdCancel"); $("sd-ok").textContent = t("sdStart");
-    const select = $("sd-select");
-    select.replaceChildren(...items.map((b) => { const o = el("option", "", b.title || b.topic || "—"); o.value = b.id; return o; }), Object.assign(el("option", "", t("sdNone")), { value: "" }));
-    select.value = items.some((b) => b.id === recentBackground) ? recentBackground : items[0].id;
-    const note = () => { const b = items.find((x) => x.id === select.value); $("sd-terms").textContent = b ? (b.terms.length ? t("sdTermsN", b.terms.length) : t("sdNoTerms")) : ""; };
-    select.onchange = note; note();
+    const preset = activeBackgrounds.length ? activeBackgrounds : (items.some((b) => b.id === recentBackground) ? [recentBackground] : [items[0].id]);
+    const box = $("sd-list");
+    box.replaceChildren(...items.map((b) => {
+      const label = el("label", "sd-row");
+      const tick = el("input"); tick.type = "checkbox"; tick.value = b.id; tick.checked = preset.includes(b.id);
+      tick.onchange = () => {
+        if (box.querySelectorAll("input:checked").length > maxBriefings) { tick.checked = false; $("sd-terms").textContent = t("bgMax", maxBriefings); }
+        else $("sd-terms").textContent = "";
+      };
+      label.append(tick, el("span", "sd-ttl", b.title || b.topic || "—"), el("span", "meta", t("bgTermsN", b.terms.length)));
+      return label;
+    }));
+    $("sd-terms").textContent = t("bgMax", maxBriefings);
     $("start-dialog").onclose = () => {
-      if ($("start-dialog").returnValue === "ok") post("/session", { action: "start", background: select.value || null });
+      if ($("start-dialog").returnValue === "ok") post("/session", { action: "start", backgrounds: [...box.querySelectorAll("input:checked")].map((i) => i.value) });
     };
     $("start-dialog").returnValue = "cancel";
     $("start-dialog").showModal();

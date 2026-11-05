@@ -54,6 +54,9 @@ MIC_FILTER_LEVELS = {"off": 0.0, "normal": 0.006, "strong": 0.015}
 TRANSLATION_MODES = ("auto", "deepseek", "qwen")
 
 
+MAX_BRIEFINGS = 3  # briefings that can be used together in one meeting
+
+
 class Settings:
     """What the user can change while secondchair runs (read by other threads as it changes).
 
@@ -73,7 +76,7 @@ class Settings:
         # 배경지식: a list Jun keeps; ONE is chosen for each meeting when it starts (never applied by itself).
         # meeting_topic and terms are those of the chosen one (empty when none is chosen).
         self.backgrounds = []        # {"id", "title", "text", "topic", "terms", "updated", "used"}
-        self.active_background = None
+        self.active_backgrounds = []   # up to MAX_BRIEFINGS ids chosen for this meeting
         self.meeting_topic = ""
         self.terms = []
         self.summarize_at_end = True  # End asks "요약할까요?"; False = end and save without a summary
@@ -172,18 +175,31 @@ class Settings:
 
     def delete_background(self, background_id):
         self.backgrounds = [b for b in self.backgrounds if b["id"] != background_id]
-        if self.active_background == background_id:
-            self.use_background(None)
+        if background_id in self.active_backgrounds:
+            self.use_backgrounds([i for i in self.active_backgrounds if i != background_id])
         self.update({})
 
-    def use_background(self, background_id):
-        """Choose the background for the meeting that starts now (None = none): its topic and terms go to Whisper and the translation."""
-        found = next((b for b in self.backgrounds if b["id"] == background_id), None)
-        self.active_background = found["id"] if found else None
-        self.meeting_topic = found["topic"] if found else ""
-        self.terms = found["terms"] if found else []
-        if found:
-            found["used"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    def use_backgrounds(self, ids):
+        """Choose the briefings for this meeting (up to MAX_BRIEFINGS; [] = none): their topics are joined and their terms
+        merged (the same English term once), and go to Whisper and the translation from the next line on."""
+        chosen = []
+        for background_id in ids or []:
+            found = next((b for b in self.backgrounds if b["id"] == background_id), None)
+            if found and found not in chosen:
+                chosen.append(found)
+        chosen = chosen[:MAX_BRIEFINGS]
+        self.active_backgrounds = [b["id"] for b in chosen]
+        self.meeting_topic = "; ".join(b["topic"] for b in chosen if b["topic"])[:300]
+        merged, seen = [], set()
+        for b in chosen:
+            for term in b["terms"]:
+                if term["en"].lower() not in seen:
+                    seen.add(term["en"].lower())
+                    merged.append(term)
+        self.terms = merged
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        for b in chosen:
+            b["used"] = now
         translate.set_meeting(self.meeting_topic, self.terms)
         self.update({})
 
@@ -199,7 +215,8 @@ class Settings:
             "mic_enabled": self.mic_enabled,
             "backgrounds": self.backgrounds,
             "recent_background": self.recent_background(),
-            "active_background": self.active_background,
+            "active_backgrounds": self.active_backgrounds,
+            "max_briefings": MAX_BRIEFINGS,
             "tuning": {"groups": tuning.GROUPS, "schema": tuning.SCHEMA, "values": tuning.values()},
             "models": models.status(),
         }
