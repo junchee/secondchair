@@ -24,5 +24,5 @@ How to read it:
 
 ## Claude's status (updated by Claude; one line each)
 status_stage: C done
-status_waiting_for: Jun checks bench/results/C/samples_for_jun.md, then ok_C_samples (and go_until D)
+status_waiting_for: ok_C_samples and go_until D; judge prompt severity revision first? (Jun decides)
 status_updated: 2026-11-05

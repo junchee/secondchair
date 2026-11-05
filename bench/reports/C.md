@@ -23,5 +23,11 @@ C01-C20 spread over ES2004a (9), IS1009a (6), TS3003a (4+1 cut05). Planted error
 - A few mishearings or truncations ("ordinary mote controls", "Divides us"), one misspelling, one name said two ways (Francina / Francine).
 - The text has no punctuation and sentences often start with a small letter.
 
+## Jun's check (done in chat 2026-11-05, details in `bench/results/C/jun_answers.md`, local)
+- Reference translations: 19 of 20 fine. C03 ("surprisingly enough"): the role of "enough" is not clear in the reference.
+- Judge verdicts: 15 of 20 agree. Not agreed: C12 and C15 too lenient (a literal or wrong-sense word: "go", "lose" -> "break"); C14 and C20 too strict (changed or added detail that keeps the main claim); C03 as above.
+- All five planted critical errors the judge was asked about (C05, C08, C09, C17 and the like) were agreed. Jun has not seen the planted-error list yet.
+- The judge prompt needs one revision on severity (rule idea in `jun_answers.md`), tested on the same 20 samples, before any run counts. This is a task for stage D's first step or a short Opus step; Jun decides.
+
 ## Waiting for
-Jun checks `bench/results/C/samples_for_jun.md`, then sets `ok_C_samples: yes` in `notes/bench_control.md`. Stage D (Sonnet, `translate_eval.py`) can be written before that, but no judge result counts until the samples are checked.
+Jun: `ok_C_samples: yes` (the check is done) and `go_until: D`; and whether the judge prompt is revised first.
