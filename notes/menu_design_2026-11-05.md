@@ -27,7 +27,19 @@
 - Names: use plain verbs/nouns in Korean for the buttons ("회의", "보기", "개발자"); icons keep tooltips.
 - The gear (Settings) goes away from the page in the app (it is in the menu bar); the browser version keeps one gear that holds 보기 and 개발자.
 
-## Open points to ask Jun
-- Translate on/off (원문 + 번역 / 원문만) under 보기 (my suggestion) or under developer tools?
-- Shortcuts above: acceptable?
-- The text size now has two controls (English text, translation text): keep both under 보기, or one size for both?
+## Revised 2026-11-05 (Jun's answers)
+- **Translation on/off is one toggle in View**: "번역 끄기 / Turn translation off" (default on = original + translation). No "original only" segmented choice.
+- **Text size stays two sizes** (English text, translation text), shown in **one line** in View: `글자 크기 / Text size   원문 [A-][A+]   번역 [A-][A+]` (Original, Translation). Cmd+, Cmd+- Cmd+0 change both.
+- **Names follow the system language** (Korean system: Korean names, otherwise English). One table of names, both languages:
+
+| English | 한국어 |
+|---|---|
+| Anne > About Anne / Settings... / Quit Anne | Anne > Anne에 대하여 / 설정… / Anne 종료 |
+| **Meeting** > Start / Pause, Resume / End / Summary / Ask / Background / Microphone | **회의** > 시작 / 일시정지, 다시 시작 / 종료 / 요약 / 질문 / 배경지식 / 마이크 |
+| **Edit** (standard) | **편집** (표준) |
+| **View** > Light, Dark, Automatic / Text size / Compact view / Turn translation off | **보기** > 밝게, 어둡게, 자동 / 글자 크기 / 간단히 보기 / 번역 끄기 |
+| **Developer** > Tuning / Translation model / Lines / Microphone filter / Show log / Reset | **개발자** > 튜닝 / 번역 모델 / 줄 나누기 / 마이크 기준 / 로그 보기 / 기본값으로 |
+| **Window**, **Help** | **윈도우**, **도움말** |
+| In the page: [This meeting v] (Summary, Background), [View v], [Developer v], quit | 페이지 위쪽: [이 회의 v] (요약, 배경지식), [보기 v], [개발자 v], 종료 |
+
+How: the page keeps one table of texts (`en`, `ko`) and picks by the browser/system language (`navigator.language`); Anne.app uses `Localizable.strings` for the menu bar. Tooltips and messages come from the same table. Korean is the default if the language is neither.
