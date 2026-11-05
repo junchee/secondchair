@@ -24,8 +24,8 @@ C01-C20 spread over ES2004a (9), IS1009a (6), TS3003a (4+1 cut05). Planted error
 - The text has no punctuation and sentences often start with a small letter.
 
 ## Jun's check (done in chat 2026-11-05, details in `bench/results/C/jun_answers.md`, local)
-- Reference translations: 19 of 20 fine. C03 ("surprisingly enough"): the role of "enough" is not clear in the reference.
-- Judge verdicts: 15 of 20 agree. Not agreed: C12 and C15 too lenient (a literal or wrong-sense word: "go", "lose" -> "break"); C14 and C20 too strict (changed or added detail that keeps the main claim); C03 as above.
+- Reference translations: all 20 fine. (C03 "surprisingly enough": Jun first doubted it, then corrected himself; "놀랍게도" was right.)
+- Judge verdicts: 16 of 20 agree. Not agreed: C12 and C15 too lenient (a literal or wrong-sense word: "go", "lose" -> "break"); C14 and C20 too strict (changed or added detail that keeps the main claim).
 - The four critical errors (C05 number, C08 negation, C09 and C17 names) were judged right by the judge and Jun agreed. Jun has not seen the planted-error list yet.
 - The judge prompt needs one revision on severity (rule idea in `jun_answers.md`), tested on the same 20 samples, before any run counts. This is a task for stage D's first step or a short Opus step; Jun decides.
 
