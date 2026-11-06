@@ -24,5 +24,5 @@ How to read it:
 
 ## Claude's status (updated by Claude; one line each)
 status_stage: D done
-status_waiting_for: Jun: OK for a paid judge-check (about $0.1), then stage E (go_until E); how much of the audio to use in E
+status_waiting_for: go_until E (Jun); judge prompt: one more revision before the full batch? (Jun decides)
 status_updated: 2026-11-06
