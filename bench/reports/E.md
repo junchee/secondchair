@@ -39,6 +39,17 @@ All 728 translations exist (reference Korean for all 364 sentences, candidate Ko
 - The lost content sentences include numbers ("Seventeen", "fifteen", "One point four or something like that"), short answers and one whole sentence of 41 words (IS1009a.cut02, about price and clapping). Short replies and numbers lost between longer talk are exactly what the translation then gets wrong. Whether the 41-word sentence is overlapped speech or a gap in the ASR (the file mode of whisperkit-cli uses its own speech detection, `--chunking-strategy vad` by default) is not known: look at it at stage F.
 - Key items: 83-95% found. The key-item list is a heuristic (digits, capitals, long words).
 
+## ASR comparison (2026-11-06): engine and speech detection, all 4 pieces, 2747 reference words
+| ASR | MER | Missing | Invented | Wrong | speed (x audio) |
+|---|---|---|---|---|---|
+| small, detection on (CLI default `vad`) | 31.5% | 17.6% | 4.8% | 9.1% | 0.08 |
+| small, detection off (`--chunking-strategy none`) | 29.0% | 17.3% | 2.4% | 9.4% | 0.07 |
+| turbo, detection on | 31.1% | 21.5% | 2.4% | 7.2% | 0.10 |
+| turbo, detection off | 31.4% | 20.9% | 1.6% | 8.9% | 0.09 |
+- No variant is clearly better. Detection off halves Invented for small and leaves Missing as it was; turbo has fewer wrong words but loses more (Missing 21%). Neither the speech detector nor the model size explains the missing words. Turbo is not worth its memory on this test. (Turbo is at `~/AnneProto/turbo/models/argmaxinc/whisperkit-coreml/openai_whisper-large-v3-v20240930_turbo_632MB`; the first path in `run_asr.py` defaults to a folder that does not hold the files: use `--model-path`.)
+- **Overlap explains most of Missing.** 19% of the reference words (520 of 2755) are overlapped by another speaker's word by more than 0.1 s, and about half of those are missed (small 49.6%). The other 81% have Missing 10.4% (small), 14.4% (turbo). So the reference measures four headsets while the test audio is the mixed signal; part of the "loss" is not an engine fault and no setting of the CLI will recover it. Anne in a real call hears one mixed stream too, but remote participants in Zoom/Teams usually speak one at a time, so AMI is a harder case than typical use. 10.4% on clean words is still far above the goal (2%).
+- ES2004a and IS1009a (4 speakers, many short overlapping turns) are worst; TS3003a.cut01 is almost one speaker (A: 538 of 570 words) and has the lowest MER.
+
 ## Cost note
 Planned about $4 for the 4 pieces, estimate $4.86, actual $5.00 and not finished (the estimate was low by about 20%). Reference translations (Opus) are cached and need no repeat.
 

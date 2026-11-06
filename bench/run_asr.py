@@ -65,13 +65,15 @@ def text_from_report(report_dir, wav_stem):
     return None
 
 
-def transcribe(wav, model_path, report_dir, language):
+def transcribe(wav, model_path, report_dir, language, chunking=None):
     os.makedirs(report_dir, exist_ok=True)
     cmd = ["whisperkit-cli", "transcribe", "--audio-path", wav,
            "--model-path", os.path.expanduser(model_path),
            "--download-tokenizer-path", os.path.expanduser(TOKENIZER),
            "--language", language, "--concurrent-worker-count", "1",
            "--report", "--report-path", report_dir]
+    if chunking:
+        cmd += ["--chunking-strategy", chunking]
     t0 = time.time()
     r = subprocess.run(cmd, capture_output=True, text=True)
     secs = time.time() - t0
@@ -88,12 +90,14 @@ def main():
     ap.add_argument("--piece", action="append", required=True)
     ap.add_argument("--language", default="en")
     ap.add_argument("--max-seconds", type=float, help="only the first N seconds of each piece (quick check)")
+    ap.add_argument("--chunking", choices=["none", "vad"], help="whisperkit-cli --chunking-strategy (its default is vad)")
+    ap.add_argument("--tag", default="", help="added to the output folder name, e.g. novad")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
     model_path = args.model_path or MODELS.get(args.asr_model)
     if not model_path:
         raise SystemExit("give --model-path for an unknown --asr-model name")
-    out_dir = os.path.join(OUT, args.asr_model + ("_check" if args.max_seconds else ""))
+    out_dir = os.path.join(OUT, args.asr_model + (("_" + args.tag) if args.tag else "") + ("_check" if args.max_seconds else ""))
     os.makedirs(out_dir, exist_ok=True)
     for m in load_pieces(args.piece):
         txt = os.path.join(out_dir, m["id"] + ".txt")
@@ -105,7 +109,7 @@ def main():
         wav = os.path.join(OUT, "_wav", m["id"] + (f".{int(args.max_seconds)}s" if args.max_seconds else "") + ".wav")
         length = cut_wav(src, wav, m["start"], end)
         report_dir = os.path.join(out_dir, m["id"] + ".report")
-        secs, _ = transcribe(wav, model_path, report_dir, args.language)
+        secs, _ = transcribe(wav, model_path, report_dir, args.language, args.chunking)
         text = text_from_report(report_dir, m["id"])
         if not text:
             raise SystemExit(f"{m['id']}: no 'text' in the report under {report_dir}; look at the files there")
