@@ -24,5 +24,5 @@ How to read it:
 
 ## Claude's status (updated by Claude; one line each)
 status_stage: D done
-status_waiting_for: go_until E (Jun); judge prompt: one more revision before the full batch? (Jun decides)
+status_waiting_for: Jun quits Anne (memory); then E step 1 (run_asr.py, 10 s check first) and go_until E
 status_updated: 2026-11-06
