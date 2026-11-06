@@ -1,0 +1,11 @@
+{
+ "fetched": "2026-11-06",
+ "note": "Dollars per token (input, output), copied from OpenRouter's public model list. Used when the list cannot be fetched and with --fake.",
+ "per_token": {
+  "anthropic/claude-opus-5.5": [0.000004, 0.00002],
+  "anthropic/claude-sonnet-5.5": [0.000002, 0.00001],
+  "anthropic/claude-haiku-5.5": [0.0000001, 0.0000005],
+  "deepseek/deepseek-v4.1-flash-1017": [0.00000015, 0.0000006],
+  "qwen/qwen3.5-9b": [0.00000017, 0.00000025]
+ }
+}

@@ -23,6 +23,6 @@ How to read it:
 - `note:` = a free sentence for Claude to read at the next stage.
 
 ## Claude's status (updated by Claude; one line each)
-status_stage: C done
-status_waiting_for: ok_C_samples and go_until D; judge prompt severity revision first? (Jun decides)
-status_updated: 2026-11-05
+status_stage: D done
+status_waiting_for: Jun: OK for a paid judge-check (about $0.1), then stage E (go_until E); how much of the audio to use in E
+status_updated: 2026-11-06
