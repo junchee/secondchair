@@ -43,10 +43,11 @@ class BubbleSize(unittest.TestCase):
         ids = feed([(s, 0.3)] * 5)                                         # 10, 20, 30 -> full; then new
         self.assertEqual(ids, [1, 1, 1, 4, 4])
 
-    def test_never_over_the_maximum(self):
-        a = " ".join(["Word"] * 25) + "."
-        b = " ".join(["Word"] * 25) + "."
-        self.assertEqual(feed([(a, 0.3), (b, 0.3)]), [1, 2])               # 25 + 25 > 45
+    def test_decided_by_the_open_bubble_only(self):
+        # a 24-word bubble still takes the next sentence, however long (the grey draft must not move between bubbles)
+        a = " ".join(["Word"] * 24) + "."
+        b = " ".join(["Word"] * 30) + "."
+        self.assertEqual(feed([(a, 0.3), (b, 0.3), ("Next.", 0.3)]), [1, 1, 3])
 
     def test_long_sentence_stays_whole(self):
         long = " ".join(["Word"] * 60) + "."
@@ -67,6 +68,14 @@ class BubbleSize(unittest.TestCase):
         self.assertEqual(ids, [1, 1, 3])
         ids = feed([("It was said " + w + ".", 0.3), ("Another.", 0.3)])      # full stop at 43 words, no cut: a new bubble follows
         self.assertEqual(ids, [1, 2])
+
+    def test_grey_draft_goes_where_the_final_line_goes(self):
+        g = bubbles.Grouper()
+        g.assign({"id": 1, "source": "Them", "lang": "en", "text": " ".join(["Word"] * 20) + ".", "gap": 0.3})
+        for draft in ("Next", "Next sentence is", "Next sentence is getting very long and keeps going"):
+            self.assertEqual(g.peek("Them", draft, "en", 0.3), 1)           # the draft stays in the open bubble
+        final = " ".join(["Next"] * 40) + "."
+        self.assertEqual(g.assign({"id": 2, "source": "Them", "lang": "en", "text": final, "gap": 0.3}), 1)   # and so does the final line
 
     def test_speaker_change_and_return(self):
         g = bubbles.Grouper()

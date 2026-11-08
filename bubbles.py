@@ -42,8 +42,8 @@ class Grouper:
         if current["lang"] != line["lang"] or len(current["text"]) > tuning.get("max_bubble_chars"):
             return False
         if line.get("gap") is not None and tuning.get("merge_sentences"):
-            # From Anne.app, whose lines are whole sentences: short sentences of one speaker are gathered into one bubble of about
-            # bubble_target_words (never more than bubble_max_words); a long sentence stays whole. A new bubble starts when the speaker
+            # From Anne.app, whose lines are whole sentences: short sentences of one speaker are gathered into one bubble until it holds
+            # bubble_target_words; a long sentence stays whole. A new bubble starts when the speaker
             # changes (assign() handles "turn" and the other side speaking), after a long pause, or after a question and a pause (the
             # answer is most likely another person: voices are not told apart).
             if not ends_sentence(current["text"]) or line["text"][:1].islower():
@@ -53,8 +53,9 @@ class Grouper:
             qs = tuning.get("question_turn_seconds")
             if qs and current["text"].rstrip().endswith("?") and line["gap"] >= qs:
                 return False
-            words = len(current["text"].split())
-            return words < tuning.get("bubble_target_words") and words + len(line["text"].split()) <= tuning.get("bubble_max_words")
+            # Decided from the open bubble alone, never from the length of the new sentence: the grey draft of a sentence that is
+            # still being spoken must land in the same bubble as its final line (otherwise it would jump when the sentence grows).
+            return len(current["text"].split()) < tuning.get("bubble_target_words")
         # Whisper often puts a full stop where it only paused: a small letter at the start continues the sentence.
         small_letter = tuning.get("small_letter_continues") and line["lang"] == "en" and line["text"][:1].islower()
         return small_letter or not ends_sentence(current["text"])
