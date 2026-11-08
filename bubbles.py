@@ -16,19 +16,47 @@ class Grouper:
     def reset(self):
         self.open = {}  # source -> {"id": first line id, "text": text so far, "lang": ...}
         self.last_source = None
+        self.locked = {}  # source -> {"bubble": id, "new": bool, "lang"}: where the grey draft now shown will land
 
-    def assign(self, line):
-        """Return the bubble id for this line (a line event, with its id already set)."""
+    def assign(self, line, bubble_ids=None):
+        """Return the bubble id for this line (a line event, with its id already set).
+        If a grey draft was shown for this source, the line goes where the draft went (the decision is made once, at the
+        draft's first appearance); a speaker change or another language is the only reason to leave it."""
         source = line["source"]
         if self.last_source not in (None, source):
             self.open.pop(self.last_source, None)  # the other side spoke in between: that bubble is closed
+            self.locked.pop(self.last_source, None)
         self.last_source = source
         current = self.open.get(source)
+        lock = self.locked.pop(source, None)
+        if lock and lock["lang"] == line["lang"] and (lock["new"] or not line.get("turn")):
+            if lock["new"] or not current or current["id"] != lock["bubble"]:
+                self.open[source] = {"id": lock["bubble"], "text": line["text"], "lang": line["lang"]}
+            else:
+                current["text"] += " " + line["text"]
+            return lock["bubble"]
         if current and not line.get("turn") and self._continues(current, line):   # "turn": the speaker changed
             current["text"] += " " + line["text"]
             return current["id"]
         self.open[source] = {"id": line["id"], "text": line["text"], "lang": line["lang"]}
         return line["id"]
+
+    def draft(self, source, text, lang, gap, turn, new_id):   # new_id: a function that gives a fresh bubble id
+        """The bubble a grey draft is shown in (existing id, or new_id() for a new bubble). Decided at the draft's first
+        appearance and kept while the draft changes; decided again only after a line used it, when the speaker change
+        is marked late, or when the language changes. Returns (bubble id, is_new)."""
+        lock = self.locked.get(source)
+        if lock and lock["lang"] == lang and (lock["new"] or not turn):
+            return lock["bubble"], lock["new"]
+        current = self.open.get(source)
+        join = bool(current) and self.last_source in (None, source) and not turn \
+            and self._continues(current, {"lang": lang, "text": text, "gap": gap})
+        bubble = current["id"] if join else new_id()
+        self.locked[source] = {"bubble": bubble, "new": not join, "lang": lang}
+        return bubble, not join
+
+    def clear_draft(self, source):
+        self.locked.pop(source, None)
 
     def peek(self, source, text, lang, gap=None, turn=False):
         """The bubble that a line with this text would join (its id), or None if it would start a new one."""

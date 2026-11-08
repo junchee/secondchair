@@ -89,6 +89,9 @@ class RemoteEngine:
         if action in ("start", "pause", "resume", "end"):
             self.commands.put(action)
 
+    def _take_id(self):
+        return next(self.line_ids)
+
     def request_quit(self):
         self.quit_requested = True
 
@@ -119,7 +122,7 @@ class RemoteEngine:
             if not text:
                 return True
             translating = self.translator is not None and self.settings.translate
-            line = {"type": "line", "id": next(self.line_ids), "source": source, "lang": language, "text": text,
+            line = {"type": "line", "id": self._take_id(), "source": source, "lang": language, "text": text,
                     "time": time.strftime("%H:%M:%S")}
             if source == "MIC":
                 line["level"] = round(level, 4)
@@ -142,6 +145,7 @@ class RemoteEngine:
             if self.state != "running":
                 return True
             if body.get("clear"):
+                self.grouper.clear_draft(source)
                 self.emit({"type": "partial", "source": source, "clear": True})
                 return True
             language, text = body.get("lang"), body.get("text")
@@ -150,8 +154,12 @@ class RemoteEngine:
             text = text.strip()
             if not text or re.fullmatch(r"[\[\(（【].*[\]\)）】]", text):
                 return True
-            self.emit({"type": "partial", "source": source, "text": text, "time": time.strftime("%H:%M:%S"),
-                       "bubble": self.grouper.peek(source, text, language, body.get("gap") if isinstance(body.get("gap"), (int, float)) else None, bool(body.get("turn")))})
+            gap = body.get("gap") if isinstance(body.get("gap"), (int, float)) else None
+            bubble, new = self.grouper.draft(source, text, language, gap, bool(body.get("turn")), self._take_id)
+            if self.translator:
+                self.translator.hold(bubble)   # the bubble is still growing: its translation waits
+            self.emit({"type": "partial", "source": source, "lang": language, "text": text, "time": time.strftime("%H:%M:%S"),
+                       "bubble": bubble, "new": new, "locked": True})
         return True
 
     # ---- the meeting's life (same events as Engine)

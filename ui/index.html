@@ -714,7 +714,8 @@
   function clearPartials() { for (const name of [...partials.keys()]) clearPartial(name); }
   function setPartial(e) {
     if (replaying) return;
-    if (e.clear) return clearPartial(e.source);
+    if (e.clear) { clearLockedDraft(e.source); return clearPartial(e.source); }
+    if (e.locked) return setLockedDraft(e);
     $("empty").style.display = "none";
     let p = partials.get(e.source);
     // A draft that will continue the open bubble grows inside it, in grey, instead of starting a bubble below.
@@ -753,43 +754,88 @@
     added();
   }
 
-  // Lines cut in the middle of a sentence share a bubble: the server numbers it ("bubble" = id of its first line).
-  // The translation belongs to the whole bubble and is redone as the bubble grows.
-  const openBubbles = new Map();   // source -> { bubble, row, otext }
+  // One row per bubble, made the first time anything of the bubble appears (a grey draft or a line) and never moved or
+  // replaced: the server decides the bubble once (a draft and the line that confirms it carry the same bubble number),
+  // later text is only added at its end. The translation belongs to the whole bubble and is redone as the bubble grows.
+  const bubbleRows = new Map();    // bubble id -> { bubble, source, row, otext, cell, langEl, confirmed, draft }
+  const openBubbles = new Map();   // source -> the same record (used by the older draft style of the Python engine)
+  const lockedDrafts = new Map();  // source -> id of the bubble its grey draft is in
 
-  function addLine(e) {
-    clearPartial(e.source);
-    $("empty").style.display = "none";
-    const prev = openBubbles.get(e.source);
-    if (prev && e.bubble !== undefined && prev.bubble === e.bubble && prev.row.isConnected) {
-      prev.otext.append(" ", el("span", "", e.text));
-      reserve(prev);
-      added();
-      return;
-    }
-    const me = e.source === "MIC";
+  function makeBubble(id, source, lang, time) {
+    const me = source === "MIC";
     const row = el("div", "grid row" + (me ? " me" : ""));
     const meta = el("div", "meta");
-    meta.append(el("span", "who", me ? "나" : "상대"), el("span", "", e.time), el("span", "lang", e.lang.toUpperCase()));
+    const langEl = el("span", "lang", lang ? lang.toUpperCase() : "…");
+    meta.append(el("span", "who", me ? "나" : "상대"), el("span", "", time || ""), langEl);
     const original = el("div", "col-original");
-    const otext = el("div", "text", e.text);
+    const otext = el("div", "text");
     original.append(otext);
     const translation = el("div", "col-translation");
     const cell = translateOn ? el("div", "text pending", "···") : el("div", "text none", "—");
     translation.append(cell);
     row.append(meta, original, translation);
     rowsEl.append(row);
-    for (const p of partials.values()) if (p.row) rowsEl.append(p.row);   // a line still being spoken stays last
-    lines.set(e.id, cell);
-    const open = { bubble: e.bubble ?? e.id, row, otext, cell };
-    openBubbles.set(e.source, open);
-    reserve(open);
-    added(row);
+    for (const p of partials.values()) if (p.row) rowsEl.append(p.row);   // an older-style live row stays last
+    const b = { bubble: id, source, row, otext, cell, langEl, confirmed: 0, draft: null };
+    bubbleRows.set(id, b);
+    openBubbles.set(source, b);
+    lines.set(id, cell);
+    return b;
+  }
+  function dropBubbleIfEmpty(b) {
+    if (b.confirmed > 0 || !b.row.isConnected) return;
+    b.row.remove();
+    bubbleRows.delete(b.bubble);
+    lines.delete(b.bubble);
+    if (openBubbles.get(b.source) === b) openBubbles.delete(b.source);
+  }
+  function clearLockedDraft(source) {
+    const id = lockedDrafts.get(source);
+    if (id === undefined) return;
+    lockedDrafts.delete(source);
+    const b = bubbleRows.get(id);
+    if (!b) return;
+    if (b.draft) { b.draft.remove(); b.draft = null; }
+    dropBubbleIfEmpty(b);   // a new bubble that never got a line (noise, dropped line) leaves no empty bubble behind
+    if (b.row.isConnected) reserve(b);
+  }
+  function setLockedDraft(e) {
+    $("empty").style.display = "none";
+    if (lockedDrafts.has(e.source) && lockedDrafts.get(e.source) !== e.bubble) clearLockedDraft(e.source);   // a speaker change marked late
+    let b = bubbleRows.get(e.bubble), created = false;
+    if (!b || !b.row.isConnected) { b = makeBubble(e.bubble, e.source, e.lang, e.time); created = true; }
+    if (!b.draft) { b.draft = el("span", "draft"); b.otext.append(b.draft); }
+    b.draft.textContent = (b.confirmed ? " " : "") + e.text;
+    lockedDrafts.set(e.source, e.bubble);
+    reserve(b);
+    if (created) added(b.row); else added();
+  }
+
+  function addLine(e) {
+    clearPartial(e.source);   // the older draft style (Python engine)
+    $("empty").style.display = "none";
+    const id = e.bubble ?? e.id;
+    const draftBubble = lockedDrafts.get(e.source);
+    if (draftBubble !== undefined) {   // the draft is now this line (or another bubble's draft that never came true)
+      lockedDrafts.delete(e.source);
+      const d = bubbleRows.get(draftBubble);
+      if (d && d.draft) { d.draft.remove(); d.draft = null; }
+      if (d && draftBubble !== id) { dropBubbleIfEmpty(d); if (d.row.isConnected) reserve(d); }
+    }
+    let b = bubbleRows.get(id);
+    const created = !b || !b.row.isConnected;
+    if (created) b = makeBubble(id, e.source, e.lang, e.time);
+    const span = el("span", "", (b.confirmed ? " " : "") + e.text);
+    if (b.draft && b.draft.parentNode === b.otext) b.otext.insertBefore(span, b.draft); else b.otext.append(span);
+    b.confirmed += 1;
+    b.langEl.textContent = e.lang.toUpperCase();
+    reserve(b);
+    if (created) added(b.row); else added();
   }
 
   // The Korean cell keeps the height of the English above it from the start, so its arrival does not push the next bubbles.
   function reserve(open) {
-    if (open.cell && open.cell.classList.contains("pending")) open.cell.style.minHeight = Math.round(open.otext.offsetHeight * 0.9) + "px";
+    if (open.cell && open.cell.classList.contains("pending")) open.cell.style.minHeight = Math.round(open.otext.offsetHeight) + "px";
   }
 
   function setTranslation(e) {
@@ -1611,7 +1657,7 @@
     $("paused").classList.toggle("show", paused);
     $("live").classList.toggle("live", running);
     if (e.new) {                       // a new meeting: start with an empty page
-      rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear();
+      rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear(); bubbleRows.clear(); lockedDrafts.clear();
       $("summary-panel").hidden = true;
       $("empty").style.display = "";
       clearOutput();
@@ -1668,7 +1714,7 @@
     source = new EventSource("/events");
     source.onopen = () => {
       replaying = true;
-      rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear();
+      rowsEl.replaceChildren(); lines.clear(); partials.clear(); openBubbles.clear(); bubbleRows.clear(); lockedDrafts.clear();
       $("empty").style.display = "";
       $("banner").classList.remove("show");
       $("live").classList.add("live");

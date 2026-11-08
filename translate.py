@@ -362,6 +362,13 @@ class Translator:
                 self.pending[bid] = [time.time() + wait, job]
             self.cv.notify()
 
+    def hold(self, bid):
+        """A grey draft is growing in this bubble: its translation waits for the pause, not for the next sentence."""
+        settle = tuning.get("translate_settle_seconds")
+        with self.cv:
+            if bid in self.pending and settle > 0:
+                self.pending[bid][0] = time.time() + max(settle, tuning.get("translate_cut_wait_seconds"))
+
     def flush(self):
         """The meeting ends: translate what still waits for its bubble to settle."""
         with self.cv:
