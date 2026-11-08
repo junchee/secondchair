@@ -4,6 +4,7 @@
     "en": [
       "First numbered version.",
       "New: sound labels inside a line, such as [BLANK_AUDIO] or (laughs), are removed before translation (before, they came out as Korean labels).",
+      "Bubbles: one speaker's short sentences are gathered into one bubble of about 30 words (never over 45; a long sentence stays whole). After a question and a pause (1 s) a new bubble starts, because the answer is probably another person. Both values are in the Tuning tab.",
       "Speech: WhisperKit in Anne.app hears the meeting sound itself (no BlackHole), one bubble per sentence.",
       "First screen: terms, then the access key (kept in the Keychain).",
       "Briefings: pick up to 3 before a meeting; topic and terms go to speech recognition and translation.",
@@ -13,6 +14,7 @@
     "ko": [
       "번호를 붙인 첫 버전입니다.",
       "새 기능: 줄 안의 [BLANK_AUDIO], (laughs) 같은 소리 라벨을 번역 전에 지웁니다 (전에는 한국어 라벨로 번역되어 나왔습니다).",
+      "말풍선: 한 사람의 짧은 문장은 약 30단어까지 한 말풍선에 모읍니다(최대 45단어, 긴 문장은 쪼개지 않음). 질문 뒤 1초 쉬면 대답하는 사람이 바뀐 것으로 보고 새 말풍선을 시작합니다. 값은 Tuning 탭에서 바꿉니다.",
       "음성: Anne.app 의 WhisperKit 이 회의 소리를 직접 듣습니다 (BlackHole 없음). 문장마다 말풍선 하나.",
       "첫 화면: 이용약관, 그다음 접속 키 (키체인에 저장).",
       "브리핑: 회의 전에 최대 3개 선택, 주제와 용어가 음성 인식과 번역에 쓰입니다.",

@@ -1,0 +1,86 @@
+"""Bubble grouping for lines from Anne.app (gap given): size guide in words, question + pause = new bubble."""
+import unittest
+
+import bubbles
+import tuning
+
+HOST = [
+    "less than his 2024 win of about 33 and a half points.",
+    "And in the days since, Congressman Stutzman has been blunt about what his party should do and how the White House should respond.",
+    "Indiana's Congressman Marlin Stutzman joins me now live.",
+    "Congressman, thank you so much for being here this morning.",
+    "I really appreciate you joining me.",
+    "As you know, there's a lot of debate about what went wrong for the GOP in last week's election and how the party and your party should respond to the message sent by the electorate.",
+    "So given that, was it the right move for President Trump to name Stephen Miller as his new chief of staff?",
+]
+GUEST = [
+    "Good morning, Matthew.",
+    "Great to be with you this morning.",
+    "You know, first of all, we need to admit that we got beat, and we got beat badly.",
+    "We need to listen to the American people.",
+    "As you mentioned, my numbers in Northeast Indiana, I've never seen numbers that bad.",
+    "And, you know, as I'm talking to constituents, they said, you guys aren't listening.",
+    "You're not paying attention.",
+    "And that's what we as Republicans need to do.",
+]
+
+
+def feed(sentences_and_gaps, source="Them", turns=()):
+    g = bubbles.Grouper()
+    ids = []
+    for i, (text, gap) in enumerate(sentences_and_gaps):
+        ids.append(g.assign({"id": i + 1, "source": source, "lang": "en", "text": text, "gap": gap, "turn": i in turns}))
+    return ids
+
+
+class BubbleSize(unittest.TestCase):
+    def test_short_sentences_are_gathered(self):
+        ids = feed([("Good morning, Matthew.", 0.4), ("Great to be with you this morning.", 0.4), ("We need to listen.", 0.4)])
+        self.assertEqual(len(set(ids)), 1)
+
+    def test_target_reached_starts_a_new_bubble(self):
+        s = "one two three four five six seven eight nine ten."          # 10 words
+        ids = feed([(s, 0.3)] * 5)                                         # 10, 20, 30 -> full; then new
+        self.assertEqual(ids, [1, 1, 1, 4, 4])
+
+    def test_never_over_the_maximum(self):
+        a = " ".join(["w"] * 25) + "."
+        b = " ".join(["w"] * 25) + "."
+        self.assertEqual(feed([(a, 0.3), (b, 0.3)]), [1, 2])               # 25 + 25 > 45
+
+    def test_long_sentence_stays_whole(self):
+        long = " ".join(["w"] * 60) + "."
+        ids = feed([(long, 0.3), ("Short one.", 0.3)])
+        self.assertEqual(ids, [1, 2])                                      # not cut, and the next one starts fresh
+
+    def test_long_pause_starts_a_new_bubble(self):
+        self.assertEqual(feed([("Hello there.", 0.3), ("Hello again.", 3.0)]), [1, 2])
+
+    def test_question_and_pause_is_a_new_bubble(self):
+        self.assertEqual(feed([("Is it right?", 0.3), ("Yes it is.", 1.2)]), [1, 2])
+        self.assertEqual(feed([("Is it right?", 0.3), ("Yes it is.", 0.4)]), [1, 1])   # quick follow-up stays
+
+    def test_speaker_change_and_return(self):
+        g = bubbles.Grouper()
+        a = g.assign({"id": 1, "source": "Them", "lang": "en", "text": "Hello.", "gap": 0.3})
+        b = g.assign({"id": 2, "source": "MIC", "lang": "en", "text": "Hi.", "gap": 0.3})
+        c = g.assign({"id": 3, "source": "Them", "lang": "en", "text": "Back again.", "gap": 0.3})
+        self.assertEqual((a, b, c), (1, 2, 3))
+
+    def test_whisper_turn_mark(self):
+        self.assertEqual(feed([("One.", 0.3), ("Two.", 0.3)], turns={1}), [1, 2])
+
+    def test_interview_transcript(self):
+        lines = [(t, 0.4) for t in HOST] + [(GUEST[0], 1.3)] + [(t, 0.4) for t in GUEST[1:]]
+        ids = feed(lines)
+        groups = []
+        for i in ids:
+            if i not in groups:
+                groups.append(i)
+        print("bubbles:", len(groups), [ids.count(i) for i in groups])
+        self.assertEqual(ids[len(HOST) - 1] != ids[len(HOST)], True)         # the answer is not in the question's bubble
+        self.assertLessEqual(len(groups), 9)
+
+
+if __name__ == "__main__":
+    unittest.main()

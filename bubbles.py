@@ -42,9 +42,17 @@ class Grouper:
         if current["lang"] != line["lang"] or len(current["text"]) > tuning.get("max_bubble_chars"):
             return False
         if line.get("gap") is not None and tuning.get("merge_sentences"):
-            # From Anne.app, whose lines are whole sentences: one person speaking on is one bubble. A new bubble starts when the
-            # speaker changes (assign() handles "turn" and the other side speaking) or after a longer pause.
-            return line["gap"] <= tuning.get("bubble_gap_seconds")
+            # From Anne.app, whose lines are whole sentences: short sentences of one speaker are gathered into one bubble of about
+            # bubble_target_words (never more than bubble_max_words); a long sentence stays whole. A new bubble starts when the speaker
+            # changes (assign() handles "turn" and the other side speaking), after a long pause, or after a question and a pause (the
+            # answer is most likely another person: voices are not told apart).
+            if line["gap"] > tuning.get("bubble_gap_seconds"):
+                return False
+            qs = tuning.get("question_turn_seconds")
+            if qs and current["text"].rstrip().endswith("?") and line["gap"] >= qs:
+                return False
+            words = len(current["text"].split())
+            return words < tuning.get("bubble_target_words") and words + len(line["text"].split()) <= tuning.get("bubble_max_words")
         # Whisper often puts a full stop where it only paused: a small letter at the start continues the sentence.
         small_letter = tuning.get("small_letter_continues") and line["lang"] == "en" and line["text"][:1].islower()
         return small_letter or not ends_sentence(current["text"])
