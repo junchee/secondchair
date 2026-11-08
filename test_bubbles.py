@@ -39,17 +39,17 @@ class BubbleSize(unittest.TestCase):
         self.assertEqual(len(set(ids)), 1)
 
     def test_target_reached_starts_a_new_bubble(self):
-        s = "one two three four five six seven eight nine ten."          # 10 words
+        s = "One two three four five six seven eight nine ten."          # 10 words
         ids = feed([(s, 0.3)] * 5)                                         # 10, 20, 30 -> full; then new
         self.assertEqual(ids, [1, 1, 1, 4, 4])
 
     def test_never_over_the_maximum(self):
-        a = " ".join(["w"] * 25) + "."
-        b = " ".join(["w"] * 25) + "."
+        a = " ".join(["Word"] * 25) + "."
+        b = " ".join(["Word"] * 25) + "."
         self.assertEqual(feed([(a, 0.3), (b, 0.3)]), [1, 2])               # 25 + 25 > 45
 
     def test_long_sentence_stays_whole(self):
-        long = " ".join(["w"] * 60) + "."
+        long = " ".join(["Word"] * 60) + "."
         ids = feed([(long, 0.3), ("Short one.", 0.3)])
         self.assertEqual(ids, [1, 2])                                      # not cut, and the next one starts fresh
 
@@ -59,6 +59,14 @@ class BubbleSize(unittest.TestCase):
     def test_question_and_pause_is_a_new_bubble(self):
         self.assertEqual(feed([("Is it right?", 0.3), ("Yes it is.", 1.2)]), [1, 2])
         self.assertEqual(feed([("Is it right?", 0.3), ("Yes it is.", 0.4)]), [1, 1])   # quick follow-up stays
+
+    def test_sentence_cut_by_the_app_is_never_split(self):
+        w = " ".join(["Word"] * 40)
+        # the first line is 40 words but stops in the middle of a sentence: the rest joins it, however long
+        ids = feed([("You should have watched television. " + w + " and to", 0.3), ("deliver those goals.", 0.3), ("Next sentence here.", 0.3)])
+        self.assertEqual(ids, [1, 1, 3])
+        ids = feed([("It was said " + w + ".", 0.3), ("Another.", 0.3)])      # full stop at 43 words, no cut: a new bubble follows
+        self.assertEqual(ids, [1, 2])
 
     def test_speaker_change_and_return(self):
         g = bubbles.Grouper()

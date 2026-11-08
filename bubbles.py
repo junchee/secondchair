@@ -46,6 +46,8 @@ class Grouper:
             # bubble_target_words (never more than bubble_max_words); a long sentence stays whole. A new bubble starts when the speaker
             # changes (assign() handles "turn" and the other side speaking), after a long pause, or after a question and a pause (the
             # answer is most likely another person: voices are not told apart).
+            if not ends_sentence(current["text"]) or line["text"][:1].islower():
+                return True   # the app cut the sentence (a pause or its time limit): the rest always belongs to the same bubble
             if line["gap"] > tuning.get("bubble_gap_seconds"):
                 return False
             qs = tuning.get("question_turn_seconds")
