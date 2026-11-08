@@ -440,7 +440,7 @@
 </head>
 <body class="view-both layout-bubbles">
 <header>
-  <div class="brand"><span class="dot" id="live"></span><img class="logo" src="/anne.png" alt="">Anne<span class="beta" data-t-tip="tipBeta">beta</span></div>
+  <div class="brand"><span class="dot" id="live"></span><img class="logo" src="/anne.png" alt="">Anne<span class="beta" id="app-ver" data-t-tip="tipBeta">beta</span></div>
   <div class="chips">
     <span class="chip" id="output-chip" data-t-tip="tipOutput">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="output-icon"></svg>
@@ -514,6 +514,8 @@
           <option value="strong" data-t="dMicStrong"></option>
         </select>
         <p data-t="dMicHelp"></p>
+        <h4 data-t="dVersion"></h4>
+        <p id="app-changes" style="white-space:pre-line"></p>
         <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="dev-tools"><span class="track"></span><span data-t="dShow"></span></label>
         <p data-t="dShowHelp"></p>
       </div>
@@ -950,7 +952,7 @@
     "dLines": "Lines", "dLongest": "Longest line", "dPause": "Pause that ends a line", "dMic": "My microphone",
     "dMicOff": "Off: keep everything", "dMicNormal": "Ignore quiet sounds: normal", "dMicStrong": "Ignore quiet sounds: strong",
     "dMicHelp": "Clicks and room noise can show up as a made-up line like “Thank you.” Raise this if that happens.",
-    "dShow": "Show the Developer menu", "dShowHelp": "To bring it back later press Alt+Shift+D.",
+    "dVersion": "Version and what changed", "dShow": "Show the Developer menu", "dShowHelp": "To bring it back later press Alt+Shift+D.",
     "bnLoading": "Preparing speech recognition… On a new Mac the first start downloads about 0.5 GB.",
     "bnLost": "Not connected to Anne. Is the program running? Reconnecting…",
     "bnPaused": "Paused: nothing is being listened to or recorded. Press Resume to continue.",
@@ -1022,7 +1024,7 @@
     "dLines": "줄 나누기", "dLongest": "가장 긴 줄", "dPause": "줄을 끝내는 쉬는 틈", "dMic": "내 마이크",
     "dMicOff": "끔: 모두 받아 적기", "dMicNormal": "작은 소리 무시: 보통", "dMicStrong": "작은 소리 무시: 강하게",
     "dMicHelp": "딸깍 소리나 방 소음이 “Thank you.” 같은 지어낸 줄로 나올 수 있습니다. 그럴 때 올려 보세요.",
-    "dShow": "개발자 메뉴 보이기", "dShowHelp": "나중에 다시 보이려면 Alt+Shift+D 를 누르세요.",
+    "dVersion": "버전과 달라진 점", "dShow": "개발자 메뉴 보이기", "dShowHelp": "나중에 다시 보이려면 Alt+Shift+D 를 누르세요.",
     "bnLoading": "음성 인식을 준비하는 중… 새 Mac에서는 처음 한 번 약 0.5GB를 내려받습니다.",
     "bnLost": "Anne에 연결되지 않았습니다. 프로그램이 켜져 있나요? 다시 연결하는 중…",
     "bnPaused": "일시정지: 지금은 듣거나 기록하지 않습니다. 다시 시작을 누르면 이어집니다.",
@@ -1185,6 +1187,11 @@
   let welcomeVersion = "";
   function updateWelcome(e) {
     welcomeVersion = e.terms_version || "";
+    if (e.app_version) {
+      $("app-ver").textContent = e.app_version;
+      const ch = (e.app_changes || {})[LANG] || (e.app_changes || {}).en || [];
+      $("app-changes").textContent = e.app_version + "\n" + ch.map((c) => "• " + c).join("\n");
+    }
     const step = !e.terms_ok ? "terms" : !e.has_key ? "key" : "";
     $("welcome").hidden = !step;
     $("wl-terms").hidden = step !== "terms";

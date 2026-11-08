@@ -1,0 +1,23 @@
+{
+  "version": "v1_8NOV2026",
+  "changes": {
+    "en": [
+      "First numbered version.",
+      "New: sound labels inside a line, such as [BLANK_AUDIO] or (laughs), are removed before translation (before, they came out as Korean labels).",
+      "Speech: WhisperKit in Anne.app hears the meeting sound itself (no BlackHole), one bubble per sentence.",
+      "First screen: terms, then the access key (kept in the Keychain).",
+      "Briefings: pick up to 3 before a meeting; topic and terms go to speech recognition and translation.",
+      "Menus: Meeting, View and Developer menus, a Mac menu bar, Korean or English by system language.",
+      "Ask Anne: questions about the meeting are answered in the bottom box, with daily limits."
+    ],
+    "ko": [
+      "번호를 붙인 첫 버전입니다.",
+      "새 기능: 줄 안의 [BLANK_AUDIO], (laughs) 같은 소리 라벨을 번역 전에 지웁니다 (전에는 한국어 라벨로 번역되어 나왔습니다).",
+      "음성: Anne.app 의 WhisperKit 이 회의 소리를 직접 듣습니다 (BlackHole 없음). 문장마다 말풍선 하나.",
+      "첫 화면: 이용약관, 그다음 접속 키 (키체인에 저장).",
+      "브리핑: 회의 전에 최대 3개 선택, 주제와 용어가 음성 인식과 번역에 쓰입니다.",
+      "메뉴: 회의, 보기, 개발자 메뉴와 Mac 메뉴 막대, 시스템 언어에 따라 한국어 또는 영어.",
+      "Anne에게 묻기: 회의에 대한 질문을 아래 상자에서 답하며 하루 사용 한도가 있습니다."
+    ]
+  }
+}

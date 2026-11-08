@@ -30,6 +30,7 @@ partial and translation_partial are short-lived: they are not kept for the page'
 saved in the transcript and not used for the voice draft.
 """
 
+import json
 import os
 
 import time
@@ -56,6 +57,15 @@ SPEECH_MODELS = ("turbo", "small")  # Anne.app: which speech model it listens wi
 
 
 MAX_BRIEFINGS = 3  # briefings that can be used together in one meeting
+def _load_version():
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"version": "", "changes": {"en": [], "ko": []}}
+
+
+APP_VERSION = _load_version()  # version.json: shown on the page and in the Mac About panel (build.sh reads it too)
 TERMS_VERSION = "2026-11-05"  # change it when the terms change: everyone is asked to agree again
 
 
@@ -233,6 +243,8 @@ class Settings:
             "mic_enabled": self.mic_enabled,
             "terms_ok": self.terms_ok(),
             "terms_version": TERMS_VERSION,
+            "app_version": APP_VERSION.get("version", ""),
+            "app_changes": APP_VERSION.get("changes", {}),
             "has_key": bool(os.environ.get("OPENROUTER_API_KEY")),
             "backgrounds": self.backgrounds,
             "recent_background": self.recent_background(),
