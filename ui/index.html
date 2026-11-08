@@ -400,7 +400,7 @@
      It restyles the same row elements as the table layout, so translations that arrive later,
      revisions and the replay after a reconnect all work as before. */
   body.layout-bubbles .colhead { display: none; }
-  body.layout-bubbles #rows { max-width: 920px; margin: 0 auto; padding: 14px 16px 28px; display: flex; flex-direction: column; gap: 10px; }
+  body.layout-bubbles #rows { max-width: 920px; margin: 0 auto; padding: 14px 16px 55vh; display: flex; flex-direction: column; gap: 10px; }
   body.layout-bubbles .grid:not(.row):not(.colhead) { display: block; }
   body.layout-bubbles .grid.row { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px 12px; }
   body.layout-bubbles .row > div { padding: 0; }
@@ -416,6 +416,9 @@
   body.layout-bubbles .row.me .col-original .text { font-size: calc(var(--text-size) - 2px); font-weight: 400; }
   /* a line that is still being spoken: outlined, grey, filled in as words arrive, replaced when it is final */
   .col-original .text .draft { color: var(--muted); font-weight: 400; }
+  @keyframes tfade { from { opacity: 0; } to { opacity: 1; } }
+  .col-translation .text.arrived { animation: tfade .25s ease-out; }
+  .col-translation .text.pending { letter-spacing: 2px; }
   .row.live { box-shadow: inset 3px 0 0 var(--accent); }
   .row.live .col-original .text { color: var(--muted); font-style: italic; }
   body.layout-bubbles .row.live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -660,15 +663,37 @@
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
 
-  // ---- Scrolling: follow new lines only while the reader is at the bottom.
-  const atBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
-  let follow = true;
-  scroller.addEventListener("scroll", () => { follow = atBottom(); if (follow) $("jump").classList.remove("show"); });
-  function added() {
-    if (follow) scroller.scrollTop = scroller.scrollHeight;
-    else $("jump").classList.add("show");
+  // ---- Scrolling. A new bubble is placed once, about 40% down the window, and then stays put while it fills in (English,
+  // then the Korean in its reserved space). The page only scrolls again when the newest bubble grows past the bottom, or
+  // when the next bubble starts. Reading back up stops the following; the jump button returns.
+  let follow = true, lastAuto = 0, autoUntil = 0;
+  const relTop = (node) => node.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  function scrollAuto(top, smooth) {
+    top = Math.max(0, Math.round(top));
+    lastAuto = top;
+    autoUntil = Date.now() + (smooth ? 500 : 80);
+    scroller.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
   }
-  $("jump").onclick = () => { follow = true; scroller.scrollTop = scroller.scrollHeight; $("jump").classList.remove("show"); };
+  scroller.addEventListener("scroll", () => {
+    if (Date.now() < autoUntil) return;
+    follow = scroller.scrollTop >= lastAuto - 60;
+    if (follow) $("jump").classList.remove("show");
+  });
+  function added(row) {
+    if (!follow) { $("jump").classList.add("show"); return; }
+    if (row) { scrollAuto(Math.max(relTop(row) - scroller.clientHeight * 0.4, lastAuto), !replaying); return; }   // a new bubble: placed once
+    const last = rowsEl.lastElementChild;
+    if (!last) return;
+    const overflow = relTop(last) + last.offsetHeight - (scroller.scrollTop + scroller.clientHeight - 24);
+    if (overflow > 0) scrollAuto(scroller.scrollTop + overflow, false);   // only as far as the growing bubble needs
+  }
+  function jumpToLatest() {
+    follow = true;
+    const last = rowsEl.lastElementChild;
+    scrollAuto(last ? Math.max(relTop(last) - scroller.clientHeight * 0.4, 0) : 0, false);
+    $("jump").classList.remove("show");
+  }
+  $("jump").onclick = jumpToLatest;
 
   // ---- Rows
   function el(tag, cls, text) {
@@ -738,6 +763,7 @@
     const prev = openBubbles.get(e.source);
     if (prev && e.bubble !== undefined && prev.bubble === e.bubble && prev.row.isConnected) {
       prev.otext.append(" ", el("span", "", e.text));
+      reserve(prev);
       added();
       return;
     }
@@ -749,21 +775,28 @@
     const otext = el("div", "text", e.text);
     original.append(otext);
     const translation = el("div", "col-translation");
-    const cell = translateOn ? el("div", "text pending") : el("div", "text none", "—");
+    const cell = translateOn ? el("div", "text pending", "···") : el("div", "text none", "—");
     translation.append(cell);
     row.append(meta, original, translation);
     rowsEl.append(row);
     for (const p of partials.values()) if (p.row) rowsEl.append(p.row);   // a line still being spoken stays last
     lines.set(e.id, cell);
-    openBubbles.set(e.source, { bubble: e.bubble ?? e.id, row, otext });
-    added();
+    const open = { bubble: e.bubble ?? e.id, row, otext, cell };
+    openBubbles.set(e.source, open);
+    reserve(open);
+    added(row);
+  }
+
+  // The Korean cell keeps the height of the English above it from the start, so its arrival does not push the next bubbles.
+  function reserve(open) {
+    if (open.cell && open.cell.classList.contains("pending")) open.cell.style.minHeight = Math.round(open.otext.offsetHeight * 0.9) + "px";
   }
 
   function setTranslation(e) {
     const cell = lines.get(e.id);
     if (!cell) return;
     const failed = e.text.startsWith("(translation failed");
-    cell.className = "text" + (failed ? " failed" : "");
+    cell.className = "text" + (failed ? " failed" : "") + (replaying ? "" : " arrived");
     cell.textContent = e.text;
   }
 
@@ -1668,7 +1701,7 @@
         case "answer": onAnswer(e); break;
         case "info": addNote(e.text); break;
         case "stopped": stopped(e); break;
-        case "live": replaying = false; follow = true; scroller.scrollTop = scroller.scrollHeight; break;
+        case "live": replaying = false; jumpToLatest(); break;
       }
     };
   }

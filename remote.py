@@ -191,6 +191,8 @@ class RemoteEngine:
 
     def _end(self):
         with self.lock:
+            if self.translator:
+                self.translator.flush()
             self._set_state("ending")
         saved = self.hooks.finish()  # the summary can take a few seconds
         self.last_saved = saved or self.last_saved

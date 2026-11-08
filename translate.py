@@ -317,12 +317,14 @@ class Translator:
         self.recent = deque()  # [bubble id, "LABEL: text"] of the latest bubbles (kept to tuning's context_lines)
         self.bubbles = {}  # bubble id -> {"ids", "text", "lang", "context", "version"}
         self.shown = {}  # bubble id -> the translation the page shows now
+        self.pending = {}  # bubble id -> [release time, job]: a bubble that may still grow; translated once it settles
         threading.Thread(target=self._work, daemon=True).start()
 
     def reset(self):
         """A new meeting starts: its first lines must not borrow context from the last one."""
         with self.cv:
             self.waiting.clear()
+            self.pending.clear()
             self.recent.clear()
             self.bubbles.clear()
             self.shown.clear()
@@ -345,7 +347,26 @@ class Translator:
                 if entry[0] == bid:
                     entry[1] = f"{line['source']}: {bubble['text']}"
             bubble["version"] += 1
-            self.waiting[bid] = (bid, bubble["text"], bubble["lang"], bubble["context"], tuple(bubble["ids"]), bubble["version"])
+            job = (bid, bubble["text"], bubble["lang"], bubble["context"], tuple(bubble["ids"]), bubble["version"])
+            # A new bubble means the earlier ones are closed (another speaker, size, or a pause): translate them now. The newest
+            # bubble waits until it settles (no new line for a moment), so it is translated once as a whole, not piece by piece.
+            for other in [b for b in self.pending if b != bid]:
+                self.waiting[other] = self.pending.pop(other)[1]
+            settle = tuning.get("translate_settle_seconds")
+            if settle <= 0:
+                self.pending.pop(bid, None)
+                self.waiting[bid] = job
+            else:
+                # a sentence that ends: wait the short time; a cut in the middle of a sentence: wait longer for the rest
+                wait = settle if ends_sentence(line["text"]) else max(settle, tuning.get("translate_cut_wait_seconds"))
+                self.pending[bid] = [time.time() + wait, job]
+            self.cv.notify()
+
+    def flush(self):
+        """The meeting ends: translate what still waits for its bubble to settle."""
+        with self.cv:
+            for bid in list(self.pending):
+                self.waiting[bid] = self.pending.pop(bid)[1]
             self.cv.notify()
 
     def _work(self):
@@ -357,8 +378,13 @@ class Translator:
 
     def _translate_next(self):
         with self.cv:
-            while not self.waiting:
-                self.cv.wait()
+            while True:
+                now = time.time()
+                for bid in [b for b, (due, _) in self.pending.items() if due <= now]:
+                    self.waiting[bid] = self.pending.pop(bid)[1]
+                if self.waiting:
+                    break
+                self.cv.wait(timeout=max(0.05, min((due for due, _ in self.pending.values()), default=now + 3600) - now))
             bid, text, lang, context, ids, version = self.waiting.popitem(last=False)[1]
             previous = self.shown.get(bid) if tuning.get("use_previous") else None  # what the page shows for this bubble now: keep its wording
             if previous and previous.startswith("(translation failed"):
@@ -377,7 +403,7 @@ class Translator:
           try:
             # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
             # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
-            partial = None if version > 1 else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
+            partial = None if (version > 1 or not tuning.get("stream_translation")) else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
             result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=model, previous=previous)
             break
           except Exception as error:  # network or API error: try the backup, else show it and keep going
@@ -389,5 +415,6 @@ class Translator:
         print(f"[timing] {model.split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
         if version > 1 and self.shown.get(bid) == result:
             return  # the same words again: nothing to update on the page
+        had_shown = bid in self.shown
         self.shown[bid] = result
-        self.emit({"type": "translation", "id": bid, "ids": list(ids), "text": result, "revised": version > 1})
+        self.emit({"type": "translation", "id": bid, "ids": list(ids), "text": result, "revised": had_shown})
