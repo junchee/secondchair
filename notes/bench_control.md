@@ -23,6 +23,6 @@ How to read it:
 - `note:` = a free sentence for Claude to read at the next stage.
 
 ## Claude's status (updated by Claude; one line each)
-status_stage: E partly done (judging 2 of 4 pieces)
-status_waiting_for: Jun: finish judging (about $1.2 more)? Then stage F (ok_F_decision)
+status_stage: F done (report bench/reports/F.md)
+status_waiting_for: Jun: read F.md and set ok_F_decision; then the bench fix and the subagent judging of TS3003a
 status_updated: 2026-11-06
