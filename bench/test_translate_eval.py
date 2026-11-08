@@ -98,6 +98,23 @@ class AssignAsr(unittest.TestCase):
         texts = te.assign_asr([["a", "b"], ["c"]], ["A", "b,", "-", "c."])
         self.assertEqual(texts, ["A b, -", "c."])
 
+    def test_time_order_gives_words_to_the_right_sentence(self):
+        # list order is not speaking order: sentence 0 is spoken last
+        sents = [["we", "go", "now"], ["first", "we", "talk"]]
+        asr = "first we talk we go now".split()
+        self.assertEqual(te.assign_asr(sents, asr, order=[1, 0]), ["we go now", "first we talk"])
+
+    def test_digits_match_number_words(self):
+        sents = [["it", "costs", "twelve", "fifty"], ["fine"]]
+        texts = te.assign_asr(sents, ["it", "costs", "1250", "fine"])
+        self.assertEqual(texts, ["it costs 1250", "fine"])      # raw text is kept
+
+    def test_number_words(self):
+        self.assertEqual(te.number_words(17), ["seventeen"])
+        self.assertEqual(te.number_words(1250), ["twelve", "fifty"])
+        self.assertEqual(te.number_words(2000), ["two", "thousand"])
+        self.assertEqual(te.align_tokens("Seventeen 15"), ["seventeen", "fifteen"])
+
     def test_json_forms(self):
         self.assertEqual(te._words_from_json({"text": "a b c"}), ["a", "b", "c"])
         self.assertEqual(te._words_from_json({"words": [{"word": "a"}, {"word": "b"}]}), ["a", "b"])

@@ -23,6 +23,6 @@ How to read it:
 - `note:` = a free sentence for Claude to read at the next stage.
 
 ## Claude's status (updated by Claude; one line each)
-status_stage: F done (report bench/reports/F.md)
-status_waiting_for: Jun: ok_F_decision and go_until; next work in notes/bench_handover_2026-11-08.md (bench fix, subagent judging, free ASR tests)
+status_stage: F done; bench fix (next item 1) done, T1 rerun and judging not run yet
+status_waiting_for: Jun: how to judge the changed T1 sentences (paid Sonnet about $0.84, or a subagent with an export/import script, not written); ok_F_decision and go_until still Jun's
 status_updated: 2026-11-08

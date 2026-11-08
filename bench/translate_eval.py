@@ -195,32 +195,65 @@ def _words_from_json(data):
     return out
 
 
-def assign_asr(sentence_words, asr_words):
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+         "seventeen eighteen nineteen").split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def number_words(n):
+    """A whole number as English words: 1250 -> twelve fifty (prices, years), 1400 -> fourteen hundred."""
+    if n < 20:
+        return [_ONES[n]]
+    if n < 100:
+        return [_TENS[n // 10]] + ([_ONES[n % 10]] if n % 10 else [])
+    if n < 1000:
+        return [_ONES[n // 100], "hundred"] + (number_words(n % 100) if n % 100 else [])
+    if 1000 < n < 10000 and n % 100 and n // 100 % 10:
+        return number_words(n // 100) + number_words(n % 100)
+    if n < 1_000_000:
+        return number_words(n // 1000) + ["thousand"] + (number_words(n % 1000) if n % 1000 else [])
+    return number_words(n // 1_000_000) + ["million"] + (number_words(n % 1_000_000) if n % 1_000_000 else [])
+
+
+def align_tokens(text):
+    """Tokens used only to line two texts up: score_text tokens, digits written as words. The text that is
+    handed on is never changed."""
+    out = []
+    for t in tokens(text):
+        out += number_words(int(t)) if t.isdigit() and len(t) < 8 else [t]
+    return out
+
+
+def assign_asr(sentence_words, asr_words, order=None):
     """Give every reference sentence the recogniser words aligned to its span.
 
-    sentence_words: list (per sentence) of word lists. asr_words: list of strings. Both are cut into the tokens
-    of score_text, aligned with `align`; a recogniser word goes to the sentence of the reference word it matched
-    or replaced. An inserted word goes to the sentence of the reference word just before it (the first sentence
-    at the start). Returns a list of texts, one per sentence ('' if nothing was heard)."""
+    sentence_words: list (per sentence) of word lists. asr_words: list of strings. Both are cut into tokens
+    (digits written as words, on both sides, for the alignment only) and aligned with `align`; a recogniser
+    word goes to the sentence of the reference word it matched or replaced. An inserted word goes to the
+    sentence of the reference word just before it (the first sentence at the start).
+    order: the sentence indexes in the order they were spoken (by start time). The recogniser writes one
+    mixed stream in time order, so the reference must be lined up in that order too; without `order` the list
+    order is used. Returns a list of texts, one per sentence, in the list order ('' if nothing was heard)."""
+    seq = list(order) if order is not None else list(range(len(sentence_words)))
     ref_tok, ref_owner = [], []
-    for si, words in enumerate(sentence_words):
-        for w in words:
-            for t in tokens(w):
+    for si in seq:
+        for w in sentence_words[si]:
+            for t in align_tokens(w):
                 ref_tok.append(t)
                 ref_owner.append(si)
     hyp_tok, hyp_raw = [], []
     for ri, raw in enumerate(asr_words):
-        for t in tokens(raw):
+        for t in align_tokens(raw):
             hyp_tok.append(t)
             hyp_raw.append(ri)
-    owner_of_raw, last = {}, 0
+    owner_of_raw, last = {}, seq[0] if seq else 0
     for op, i, j in align(ref_tok, hyp_tok):
         if i is not None:
             last = ref_owner[i]
         if j is not None:
             owner_of_raw.setdefault(hyp_raw[j], ref_owner[i] if i is not None else last)
     texts = [[] for _ in sentence_words]
-    prev = 0
+    prev = seq[0] if seq else 0
     for ri, raw in enumerate(asr_words):
         owner = owner_of_raw.get(ri, prev)       # a word with no letters (punctuation) stays with the word before
         prev = owner
@@ -769,7 +802,8 @@ def load_pieces(args, dry):
         asr_words = load_asr_words(args.asr_dir, args.asr_model, pid) if "T1" in args.conditions else None
         asr = None
         if asr_words is not None:
-            asr = assign_asr([s["words"] for s in sents], asr_words)
+            spoken = sorted(range(len(sents)), key=lambda i: (sents[i]["start"], sents[i]["spk"]))
+            asr = assign_asr([s["words"] for s in sents], asr_words, order=spoken)
         elif "T1" in args.conditions:
             if dry:
                 asr = [s["text"] for s in sents]
