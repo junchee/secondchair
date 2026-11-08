@@ -1,11 +1,11 @@
 # Handover: the automatic speech and translation test (2026-11-08)
 
-Everything below is on the branch `bench-auto` (pushed). Start any new session (laptop, desktop app or terminal) with:
+Everything below is on `main` (the branch `bench-auto` was merged and deleted on 2026-11-08). Start any new session (laptop, desktop app or terminal) with:
 
-> Read notes/bench_handover_2026-11-08.md, notes/bench_control.md and bench/reports/F.md. Continue from "Next".
+> Read notes/bench_handover_2026-11-08.md and bench/reports/F.md. Continue from "Next".
 
 ## State
-- Stages A-F are done (reports `bench/reports/A..F`; status lines in `notes/bench_runbook_2026-11-05.md` and `notes/bench_control.md`). Stage G (design of `SentenceEngine`) is not started. The switches in the control file are Jun's; Jun has approved each stage in chat so far (B, C, D, E scope, F).
+- Stages A-F are done (reports `bench/reports/A..F`; status line in `notes/bench_runbook_2026-11-05.md`). Stage G (design of `SentenceEngine`) is not started. The switches in the control file are Jun's; Jun has approved each stage in chat so far (B, C, D, E scope, F).
 - Result of F in one paragraph: on one-speaker (non-overlapped) AMI sentences the translator is fine (T0 98% right) and the recogniser loses most (T1 75% right). Part of the T1 loss is a bench error (recognised words handed to the wrong sentence). Turbo and the CLI speech detection do not help. Jun's target is one main speaker (lectures, talks, Q&A), not fast discussion.
 - Judge: `bench/prompts/translation_judge.md` (v2); real Sonnet agreed with Jun on 26 of 28 cases. Jun prefers that reference translations and judging run in subagents inside the subscription, not through the paid OpenRouter API (spent so far about $5.16; the translator under test, DeepSeek, costs cents).
 
@@ -32,7 +32,7 @@ Everything below is on the branch `bench-auto` (pushed). Start any new session (
 - In zsh a variable holding several arguments is not split: use an array (`P=(--piece a --piece b)` and `"${P[@]}"`).
 - The turbo model sits in a nested folder: pass `--model-path ~/AnneProto/turbo/models/argmaxinc/whisperkit-coreml/openai_whisper-large-v3-v20240930_turbo_632MB` to `run_asr.py`.
 - A cost estimate of `translate_eval.py` was about 20% low; the tool stops at the budget (`--budget-usd`, default from the control file) and resumes from the cache.
-- Commit only through `bash bench/auto_commit.sh "message"` (allowed paths, key check, pushes only `bench-auto`); never `git add -A`; never commit audio, `bench/results/`, `private/`, keys or long AMI quotes. Jun merges `bench-auto` into `main`.
+- Commit by hand: stage specific paths, never `git add -A`; never commit audio, `bench/results/`, `private/`, keys or long AMI quotes. (The phone-control files and `auto_commit.sh` were deleted on 2026-11-08; the budget default of `translate_eval.py` is now 5 dollars.)
 - Do not start Anne, play sound or press Quit while Jun may use the Mac without asking. Test with fake audio and port 8799.
 
 ## The app
