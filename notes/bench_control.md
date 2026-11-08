@@ -24,5 +24,5 @@ How to read it:
 
 ## Claude's status (updated by Claude; one line each)
 status_stage: F done (report bench/reports/F.md)
-status_waiting_for: Jun: read F.md and set ok_F_decision; then the bench fix and the subagent judging of TS3003a
-status_updated: 2026-11-06
+status_waiting_for: Jun: ok_F_decision and go_until; next work in notes/bench_handover_2026-11-08.md (bench fix, subagent judging, free ASR tests)
+status_updated: 2026-11-08
