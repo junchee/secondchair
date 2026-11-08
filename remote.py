@@ -17,6 +17,7 @@ import tuning
 from bubbles import Grouper
 from events import Settings
 from transcribe_stream import POLL_SECONDS, Hooks, drop_repeats
+from textclean import strip_inline_labels
 from translate import Translator
 
 LANGUAGES = ("en", "ko")
@@ -52,6 +53,11 @@ def keep_text(text, avg_logprob=None, no_speech_prob=None, language_share=None):
     if re.fullmatch(r"[\[\(（【].*[\]\)）】]", text):  # "[Music]", "(gentle music)", "[끝]": WhisperKit writes sounds in brackets
         print(f"[timing] dropped as a sound label: {text!r}", file=sys.stderr, flush=True)
         return ""
+    text, removed = strip_inline_labels(text)  # "so [typing] we go" -> "so we go": a label inside a line would be translated as words
+    if removed:
+        print(f"[timing] removed {removed} sound label(s) inside a line", file=sys.stderr, flush=True)
+        if not text:
+            return ""
     if re.sub(r"[\W_]+", "", text).lower() in tuning.noise_phrases():
         print(f"[timing] dropped as a made-up phrase: {text!r}", file=sys.stderr, flush=True)
         return ""
