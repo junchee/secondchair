@@ -1268,7 +1268,7 @@
     if (!items.length) { post("/session", { action: "start", backgrounds: [] }); return; }   // nothing to choose from
     $("sd-title").textContent = t("sdTitle"); $("sd-help").textContent = t("sdHelp");
     $("sd-cancel").textContent = t("sdCancel"); $("sd-ok").textContent = t("sdStart");
-    const preset = activeBackgrounds.length ? activeBackgrounds : (items.some((b) => b.id === recentBackground) ? [recentBackground] : [items[0].id]);
+    const preset = activeBackgrounds;   // exactly what was ticked at the last Start (nothing ticked stays nothing)
     const box = $("sd-list");
     box.replaceChildren(...items.map((b) => {
       const label = el("label", "sd-row");

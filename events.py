@@ -143,6 +143,7 @@ class Settings:
                 speech_model=self.speech_model,
                 mic_enabled=self.mic_enabled,
                 backgrounds=self.backgrounds,
+                active_backgrounds=self.active_backgrounds,
                 terms_accepted=self.terms_accepted,
                 tuning=tuning.changed(),
             )
@@ -156,6 +157,9 @@ class Settings:
             items = [{"id": "b0", "title": topic or text[:40], "text": text, "topic": topic, "terms": terms,
                       "updated": time.strftime("%Y-%m-%d %H:%M"), "used": ""}] if text.strip() or terms else []
         self.backgrounds = [self._clean_background(i) for i in items if isinstance(i, dict) and i.get("id")]
+        # what was ticked at the last Start (possibly nothing) is what the Start dialog shows next time
+        ids = saved.get("active_backgrounds")
+        self.active_backgrounds = [i for i in ids if any(b["id"] == i for b in self.backgrounds)][:MAX_BRIEFINGS] if isinstance(ids, list) else []
         if "backgrounds" not in saved:
             self.update({})
 
