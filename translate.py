@@ -37,6 +37,12 @@ except ImportError:
 HOST = "openrouter.ai"
 PATH = "/api/v1/chat/completions"
 TARGET = {"en": "Korean", "ko": "English"}
+CHINESE = "Simplified Chinese"   # only for the developer test switch (tuning zh_test): English lines go to Chinese
+
+
+def target_for(lang):
+    """The language a line of `lang` is translated into now."""
+    return CHINESE if lang == "en" and tuning.get("zh_test") else TARGET[lang]
 CONTEXT_LINES = 2  # earlier lines sent along, so a line cut mid-sentence is understood
 
 
@@ -105,6 +111,10 @@ def build_request(text, target, context=(), following=None, model=None, previous
     if following:
         parts.append("Next line (context only, do not translate):\n" + following)
     script = " Write Korean in Hangul only; never use Chinese, Japanese or Cyrillic characters." if target == "Korean" else ""
+    if target == CHINESE:
+        script = " Write Simplified Chinese characters only (简体中文), never Traditional."
+    # the glossary pairs are English = Korean: they fit a Korean or English target, not a Chinese one
+    notes = meeting_notes(text + " " + (previous or "")) if target != CHINESE else ""
     return {
         "model": model or models.first("translate"),
         "messages": [
@@ -117,7 +127,7 @@ def build_request(text, target, context=(), following=None, model=None, previous
                 "with '…'. Never add anything that is said only in a context line, even to finish "
                 "a sentence: those words get their own translation. "
                 "Translate every word of the line, including any words in other languages; keep "
-                "names of people and places." + meeting_notes(text + " " + (previous or "")) + script + " Reply with the translation only.",
+                "names of people and places." + notes + script + " Reply with the translation only.",
             },
             {"role": "user", "content": "\n\n".join(parts)},
         ],
@@ -411,7 +421,10 @@ class Translator:
             # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
             # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
             partial = None if (version > 1 or not tuning.get("stream_translation")) else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
-            result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=model, previous=previous)
+            target = target_for(lang)
+            if target == CHINESE and previous and has_hangul(previous):
+                previous = None   # the earlier text on the page is Korean: not a model for the Chinese
+            result = translate(text, target, context, None, self.client, on_text=partial, model=model, previous=previous)
             break
           except Exception as error:  # network or API error: try the backup, else show it and keep going
             result = f"(translation failed: {error})"   # the page shows a plain sentence instead

@@ -25,6 +25,9 @@ class Settle(unittest.TestCase):
         tuning.apply({"translate_settle_seconds": 0.3, "translate_cut_wait_seconds": 1.0})
 
     def tearDown(self):
+        with self.t.cv:                      # nothing may fire later, in another test, through the patched function
+            self.t.pending.clear()
+            self.t.waiting.clear()
         translate.translate = self._orig
         tuning.reset("all")
 
@@ -56,6 +59,19 @@ class Settle(unittest.TestCase):
         self.line(2, 1, "deliver those goals.")
         time.sleep(0.6)
         self.assertEqual([c[0] for c in self.fake.calls], ["He will help to develop and to deliver those goals."])
+
+    def test_chinese_test_switch(self):
+        seen = []
+        translate.translate = lambda text, target, *a, **k: seen.append((target, k.get("previous"))) or "KO"
+        tuning.apply({"zh_test": True, "translate_settle_seconds": 0})
+        self.line(1, 1, "First sentence.")
+        time.sleep(0.2)
+        self.assertEqual(seen[0][0], "Simplified Chinese")
+        self.assertIn("Simplified Chinese characters", translate.build_request("x", translate.CHINESE)["messages"][0]["content"])
+        self.assertNotIn("English = Korean", translate.build_request("x", translate.CHINESE)["messages"][0]["content"])
+        tuning.apply({"zh_test": False})
+        self.assertEqual(translate.target_for("en"), "Korean")
+        self.assertEqual(translate.target_for("ko"), "English")   # my Korean still goes to English
 
     def test_flush_translates_waiting_bubble(self):
         self.line(1, 1, "Last words.")

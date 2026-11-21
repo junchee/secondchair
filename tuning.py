@@ -82,6 +82,8 @@ _ROWS = [
      "앱이 문장 중간에서 줄을 끊었을 때, 나머지가 오기를 이만큼 기다린 뒤에도 안 오면 번역합니다."),
     ("stream_translation", "translate", "번역을 한 조각씩 보여주기", "bool", False, None, None, None,
      "켜면 첫 번역이 오는 대로 조금씩 나타납니다(빠르지만 읽기 전에 바뀝니다). 끄면(기본) 번역이 끝난 뒤 한 번에 나타납니다."),
+    ("zh_test", "translate", "중국어 시험 (영어 → 간체 중국어)", "bool", False, None, None, None,
+     "켜면 영어 줄을 한국어 대신 간체 중국어로 번역합니다. 시험용이며 브리핑 용어는 쓰지 않습니다. 한국어 줄(내 한국어)은 그대로 영어로 번역합니다."),
     ("use_previous", "translate", "앞 번역을 참고로 보냄", "bool", True, None, None, None,
      "말풍선이 자랄 때 이미 나온 한국어를 그대로 두고 이어 번역합니다. 끄면 매번 새로 번역합니다."),
     ("use_notes", "translate", "배경지식 주제·용어를 보냄", "bool", True, None, None, None,
