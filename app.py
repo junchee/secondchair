@@ -100,7 +100,8 @@ class Summaries:
         try:
             text = summarize(conversation)
         except Exception as error:  # the transcript is kept either way
-            self.emit({"type": "info", "text": f"summary failed: {error}"})
+            print(f"[summary] failed: {error}", file=sys.stderr, flush=True)
+            self.emit({"type": "info", "code": "summary_failed", "text": "The summary could not be made. Please try again in a moment."})
             return None
         self.emit({"type": "summary", "text": text, "final": final, "time": time.strftime("%H:%M")})
         return text
@@ -108,7 +109,7 @@ class Summaries:
     def request(self):
         """From the page's Summary button: summarize in the background, the meeting continues."""
         if not self.available:
-            self.emit({"type": "info", "text": "summary needs OPENROUTER_API_KEY"})
+            self.emit({"type": "info", "code": "key_missing", "text": "This needs an access key."})
         elif self.busy.acquire(blocking=False):
 
             def work():
@@ -137,7 +138,7 @@ class Typing:
         if not text:
             return
         if not self.available:
-            self.emit({"type": "info", "text": "typed translation needs OPENROUTER_API_KEY"})
+            self.emit({"type": "info", "code": "key_missing", "text": "This needs an access key."})
             return
         typed_id = next(self.ids)
         self.emit({"type": "typing", "id": typed_id, "source": text})
@@ -147,7 +148,8 @@ class Typing:
             try:
                 event["target"], event["text"] = translate_typed(text, self.recorder.plain_text(last=self.CONTEXT_LINES))
             except Exception as error:
-                event["target"], event["text"] = None, f"(translation failed: {error})"
+                print(f"[typed translation] failed: {error}", file=sys.stderr, flush=True)
+                event["target"], event["text"] = None, f"(translation failed: {error})"   # the page shows a plain sentence instead
             self.emit(event)
 
         threading.Thread(target=work, daemon=True).start()
@@ -244,7 +246,7 @@ class Asking:
         if not question:
             return
         if not self.available:
-            self.emit({"type": "info", "text": "asking needs OPENROUTER_API_KEY"})
+            self.emit({"type": "info", "code": "key_missing", "text": "This needs an access key."})
             return
         ask_id = next(self.ids)
         limit = int(tuning.get("ask_daily_limit"))

@@ -169,7 +169,7 @@ class RemoteEngine:
         self.emit({"type": "session", "state": state, **extra})
 
     def _status(self):
-        self.emit({"type": "status", "output": None, "kind": None, "mic": bool(self.settings.mic_enabled), "mic_available": True})
+        self.emit({"type": "status", "output": None, "kind": None, "mic": bool(self.settings.mic_enabled), "mic_available": True, "direct": True})
 
     def _handle_commands(self):
         while True:

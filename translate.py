@@ -414,11 +414,12 @@ class Translator:
             result = translate(text, TARGET[lang], context, None, self.client, on_text=partial, model=model, previous=previous)
             break
           except Exception as error:  # network or API error: try the backup, else show it and keep going
-            result = f"(translation failed: {error})"
+            result = f"(translation failed: {error})"   # the page shows a plain sentence instead
+            print(f"[timing] {model} failed: {error}", file=sys.stderr, flush=True)
             if attempt + 1 < len(order):
                 self.backup_until = time.time() + tuning.get("backup_seconds")
                 print(f"[timing] {model} did not answer ({error}); using {order[attempt + 1]} for {tuning.get('backup_seconds')} s", file=sys.stderr, flush=True)
-                self.emit({"type": "info", "text": "translation: DeepSeek did not answer, using Qwen for a minute"})
+                self.emit({"type": "info", "code": "translation_backup", "text": "Translation is slow for a moment, so Anne switched to a backup."})
         print(f"[timing] {model.split('/')[-1]} bubble #{bid} v{version} translated in {time.time() - started:.1f}s, {queued} bubbles waiting", file=sys.stderr, flush=True)
         if version > 1 and self.shown.get(bid) == result:
             return  # the same words again: nothing to update on the page
