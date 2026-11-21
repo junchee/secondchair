@@ -49,7 +49,7 @@ Every earlier decision, test result and reason: `notes/CLAUDE_full_2026-10-22.md
 - **Speed and memory (this Mac has 8 GB):** one worker thread for all MLX work (`worker.py`), caches cleared after each job, MLX cache 200 MB: server about 2.1 GB, both judges about 2.5 s per reading, the sound judge alone 0.2 s (Whisper alone about 1.2 s with word times, 0.75 s without); first start loads the models in 15-20 s.
 - **Privacy:** audio never leaves the Mac (only model downloads and update checks reach Hugging Face); the last 30 readings stay in memory only; text (script, review) is saved locally. yourAccent does not use OpenRouter.
 - **What the judges can and cannot do:** Whisper turns a slightly wrong word into the right one, so it can hide mistakes; the sound judge is better but also leans toward the plausible reading in a long sentence, is unreliable on a word read alone (word-initial s/sh/th), and is weak on vowels. Jun tried it on his own voice ("much better"); R/L, th/s and V/B mistakes by computer voices were caught, vowel cases ("older" heard as "all the") are only "doubt".
-- Files: `server.py`, `tts.py`, `judge.py`, `phoneme.py`, `review.py`, `materials.py`, `store.py`, `voices.py`, `pairs.py`, `worker.py`, `sentences.py`, `diagnose.py` (command-line test), `ui/index.html`, `requirements.txt`.
+- Files: `server.py`, `tts.py`, `judge.py`, `phoneme.py`, `review.py`, `materials.py`, `store.py`, `voices.py`, `pairs.py`, `worker.py`, `sentences.py`, `ui/index.html`, `requirements.txt`.
 
 ## To do next (Jun's requests; record them, build together when Jun says so)
 1. **Meaningful phrase for the word drill** (3-6 words from the sentence: spaCy noun/verb chunks, extend a short chunk, "더 길게/더 짧게" buttons; no outside service unless Jun agrees).
