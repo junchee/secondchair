@@ -8,14 +8,13 @@
       "Translation: a bubble is translated once, as a whole, when it settles (1.5 s after its last sentence, or when the next bubble starts); the Korean no longer arrives piece by piece. Screen: a new bubble is placed once and stays put while it fills in; the Korean space is reserved so nothing jumps when it arrives. A sentence cut in the middle by the app is never split into two bubbles.",
       "Bubbles are placed once: the grey draft and the line that confirms it always land in the same bubble, a bubble's row is never moved or replaced, and a draft that never comes true (noise) leaves no empty bubble. A bubble's translation waits while its draft is growing.",
       "Plain messages: screen texts and notices no longer show developer words (no key names, model names or raw errors); the \"Output: not switched\" label is hidden in this mode; the speech-preparation notice now says it can take 30-40 minutes.",
-      "Developer menu: \"Chinese test (English → Chinese)\" translates English lines into Simplified Chinese instead of Korean, for trying only.",
-      "Developer menu: \"Translate any language (test)\" keeps speech in other languages (Chinese, Russian ...) and translates it into Korean instead of dropping it; such lines get their own bubble with a label (ZH, JA, RU). English and Korean are translated as before. Chinese and other unpunctuated lines are cut into normal-sized bubbles (about 40 characters) and translated when the bubble closes.",
       "Start dialog: the briefings ticked at the last Start are ticked again, and if none was ticked, none is (before, the most recent one was ticked every time).",
       "Speech: WhisperKit in Anne.app hears the meeting sound itself (no BlackHole), one bubble per sentence.",
       "First screen: terms, then the access key (kept in the Keychain).",
       "Briefings: pick up to 3 before a meeting; topic and terms go to speech recognition and translation.",
       "Menus: Meeting, View and Developer menus, a Mac menu bar, Korean or English by system language.",
-      "Ask Anne: questions about the meeting are answered in the bottom box, with daily limits."
+      "Ask Anne: questions about the meeting are answered in the bottom box, with daily limits.",
+      "Meeting language: choose it in the \"This meeting\" menu (English ↔ Korean, English ↔ Chinese, any language → Korean, any language → Chinese). The choice is kept for the next meeting. This replaces the two Developer test switches. Outside English ↔ Korean, speech in other languages is kept instead of dropped; made-up subtitle phrases from silence can come through. Chinese or Russian lines without full stops now form normal bubbles and are translated on time."
     ],
     "ko": [
       "번호를 붙인 첫 버전입니다.",
@@ -24,14 +23,13 @@
       "번역: 말풍선은 안정된 뒤(마지막 문장 1.5초 후, 또는 다음 말풍선이 시작될 때) 전체를 한 번에 번역합니다. 한국어가 조각조각 나오지 않습니다. 화면: 새 말풍선은 한 번 자리를 잡고 채워지는 동안 움직이지 않으며, 한국어 자리를 미리 잡아 번역이 와도 밀리지 않습니다. 앱이 문장 중간에서 끊은 줄이 두 말풍선으로 갈라지지 않습니다.",
       "말풍선 자리는 한 번만 정합니다: 회색 전사와 그것을 확정한 줄은 항상 같은 말풍선에 들어가고, 말풍선 행은 옮겨지거나 바뀌지 않으며, 확정되지 못한 전사(잡음)는 빈 말풍선을 남기지 않습니다. 전사가 자라는 동안에는 그 말풍선의 번역이 기다립니다.",
       "쉬운 안내 문구: 화면 문구와 알림에서 개발자 용어(키 이름, 모델 이름, 오류 원문)를 없앴습니다. 이 방식에서는 \"출력: 바꾸지 않음\" 표시를 숨기고, 음성 준비 안내에 30~40분까지 걸릴 수 있다고 적었습니다.",
-      "개발자 메뉴: \"중국어 시험 (영어 → 중국어)\" 스위치로 영어 줄을 한국어 대신 간체 중국어로 번역해 볼 수 있습니다(시험용).",
-      "개발자 메뉴: \"모든 언어 번역 (시험)\" 스위치를 켜면 중국어, 러시아어 등 다른 언어의 말도 버리지 않고 한국어로 번역합니다. 그런 줄은 ZH, JA, RU 표시가 붙은 별도 말풍선이 됩니다. 영어와 한국어는 전과 같습니다. 마침표 없이 나오는 중국어 줄도 보통 크기(약 40자)로 말풍선을 나누고, 말풍선이 닫힐 때 번역합니다.",
       "시작 대화상자: 지난번 시작할 때 체크한 브리핑이 그대로 체크되고, 아무것도 안 골랐으면 아무것도 체크되지 않습니다(전에는 매번 가장 최근 것이 체크됐습니다).",
       "음성: Anne.app 의 WhisperKit 이 회의 소리를 직접 듣습니다 (BlackHole 없음). 문장마다 말풍선 하나.",
       "첫 화면: 이용약관, 그다음 접속 키 (키체인에 저장).",
       "브리핑: 회의 전에 최대 3개 선택, 주제와 용어가 음성 인식과 번역에 쓰입니다.",
       "메뉴: 회의, 보기, 개발자 메뉴와 Mac 메뉴 막대, 시스템 언어에 따라 한국어 또는 영어.",
-      "Anne에게 묻기: 회의에 대한 질문을 아래 상자에서 답하며 하루 사용 한도가 있습니다."
+      "Anne에게 묻기: 회의에 대한 질문을 아래 상자에서 답하며 하루 사용 한도가 있습니다.",
+      "회의 언어: \"이 회의\" 메뉴에서 고릅니다(영어 ↔ 한국어, 영어 ↔ 중국어, 모든 언어 → 한국어, 모든 언어 → 중국어). 고른 값은 다음 회의에도 남습니다. 개발자 메뉴의 시험용 스위치 둘은 이것으로 합쳤습니다. 영어 ↔ 한국어가 아니면 다른 언어의 말도 버리지 않으므로, 소리가 없을 때 Whisper가 지어내는 자막 문구가 섞여 나올 수 있습니다. 마침표 없는 중국어·러시아어 줄도 보통 크기의 말풍선으로 나뉘어 제때 번역됩니다."
     ]
   }
 }

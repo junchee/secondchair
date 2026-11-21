@@ -59,7 +59,8 @@ class Recorder:
                 ids = event.get("ids") or [event["id"]]
                 for line_id in ids:
                     self.translations.pop(line_id, None)
-                self.translations[ids[-1]] = event["text"]
+                if event["text"]:
+                    self.translations[ids[-1]] = event["text"]
             else:
                 self.entries.append(dict(event, time=event.get("time") or time.strftime("%H:%M:%S")))
 

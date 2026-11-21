@@ -38,12 +38,23 @@ except ImportError:
 HOST = "openrouter.ai"
 PATH = "/api/v1/chat/completions"
 TARGET = {"en": "Korean", "ko": "English"}
-CHINESE = "Simplified Chinese"   # only for the developer test switch (tuning zh_test): English lines go to Chinese
+CHINESE = "Simplified Chinese"
 
 
-def target_for(lang):
-    """The language a line of `lang` is translated into now."""
-    return CHINESE if lang == "en" and tuning.get("zh_test") else TARGET[lang]
+def target_for(lang, text=""):
+    """The language a line of `lang` (what the speech recogniser calls it) is translated into, or None when it
+    needs no translation. It follows the meeting language (tuning "meeting_language", chosen in the This meeting
+    menu): en-ko English<->Korean; en-zh English->Chinese and Chinese->English (the speaker's own Korean to
+    English); any-ko anything->Korean (own Korean to English); any-zh anything->Chinese (a Chinese line stays)."""
+    mode = tuning.get("meeting_language")
+    script = script_label(text) if text else ""
+    if mode == "en-zh":
+        return "English" if lang == "ko" or script else CHINESE
+    if mode == "any-zh":
+        return None if script == "ZH" else CHINESE
+    return TARGET[lang]   # en-ko and any-ko: a line that is not Korean goes to Korean, Korean goes to English
+
+
 CONTEXT_LINES = 2  # earlier lines sent along, so a line cut mid-sentence is understood
 
 
@@ -424,7 +435,10 @@ class Translator:
             # The first translation of a bubble arrives piece by piece (the page shows the Korean from the
             # first word); a later one is not streamed: its text would shrink and grow under the reader's eyes.
             partial = None if (version > 1 or not tuning.get("stream_translation")) else (lambda part, id=bid: self.emit({"type": "translation_partial", "id": id, "text": part}))
-            target = target_for(lang)
+            target = target_for(lang, text)
+            if target is None:   # already in the language wanted: show nothing under it
+                result = ""
+                break
             if target == CHINESE and previous and has_hangul(previous):
                 previous = None   # the earlier text on the page is Korean: not a model for the Chinese
             result = translate(text, target, context, None, self.client, on_text=partial, model=model, previous=previous)

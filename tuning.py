@@ -14,6 +14,8 @@ GROUPS = [
     ("translate", "6. 번역", "번역 요청의 제한 시간, 백업, 문맥에 관한 값입니다. 번역 모델은 위의 Translation model에서 고릅니다."),
 ]
 
+MODES = ("en-ko", "en-zh", "any-ko", "any-zh")   # the meeting language: what is heard and what it is translated to
+
 # key, group, label, kind, default, low, high, step, help
 _ROWS = [
     ("min_speech_seconds", "cut", "말로 인정하는 최소 길이 (초)", "number", 0.3, 0.1, 1.5, 0.05,
@@ -29,8 +31,6 @@ _ROWS = [
      "Whisper가 '말이 아닌 것 같다'고 보는 확률이 이보다 크고 단어 확신도 낮으면 버립니다. 내리면 더 많이 버립니다."),
     ("min_avg_logprob", "noise", "단어 확신 한계", "number", -0.8, -2.0, 0.0, 0.05,
      "단어에 대한 Whisper의 확신이 이보다 낮으면(더 음수) 버립니다. 올리면(0에 가깝게) 더 많이 버립니다."),
-    ("any_language", "noise", "언어 제한 풀기 (영어·한국어 밖의 말도 번역)", "bool", False, None, None, None,
-     "켜면 영어·한국어가 아닌 말(중국어, 러시아어 등)도 걸러내지 않고 한국어로 번역합니다. 시험용입니다. 소리가 없을 때 Whisper가 지어내는 외국어 자막 문구도 같이 통과할 수 있습니다."),
     ("min_language_share", "noise", "영어·한국어 비율 한계", "number", 0.5, 0.0, 1.0, 0.05,
      "언어 추측에서 영어와 한국어의 합이 이보다 작으면 소음으로 보고 버립니다. 다른 언어를 쓰는 회의면 내립니다."),
     ("noise_phrases", "noise", "지어낸 문구 목록", "text", "thanks for watching, thank you for watching, please subscribe, subscribe, bye, bye bye, 시청해주셔서 감사합니다, 구독과 좋아요, MBC news, 字幕", None, None, None,
@@ -84,8 +84,8 @@ _ROWS = [
      "앱이 문장 중간에서 줄을 끊었을 때, 나머지가 오기를 이만큼 기다린 뒤에도 안 오면 번역합니다."),
     ("stream_translation", "translate", "번역을 한 조각씩 보여주기", "bool", False, None, None, None,
      "켜면 첫 번역이 오는 대로 조금씩 나타납니다(빠르지만 읽기 전에 바뀝니다). 끄면(기본) 번역이 끝난 뒤 한 번에 나타납니다."),
-    ("zh_test", "translate", "중국어 시험 (영어 → 간체 중국어)", "bool", False, None, None, None,
-     "켜면 영어 줄을 한국어 대신 간체 중국어로 번역합니다. 시험용이며 브리핑 용어는 쓰지 않습니다. 한국어 줄(내 한국어)은 그대로 영어로 번역합니다."),
+    ("meeting_language", "translate", "회의 언어 (이 회의 메뉴에서 고릅니다)", "hidden", "en-ko", MODES, None, None,
+     "en-ko: 영어 ↔ 한국어. en-zh: 영어 → 중국어(간체), 중국어 → 영어. any-ko: 모든 언어 → 한국어(내 한국어는 영어로). any-zh: 모든 언어 → 중국어. en-ko 밖에서는 영어·한국어 비율 검사를 하지 않습니다."),
     ("use_previous", "translate", "앞 번역을 참고로 보냄", "bool", True, None, None, None,
      "말풍선이 자랄 때 이미 나온 한국어를 그대로 두고 이어 번역합니다. 끄면 매번 새로 번역합니다."),
     ("use_notes", "translate", "배경지식 주제·용어를 보냄", "bool", True, None, None, None,
@@ -123,6 +123,9 @@ def apply(change):
             if row["kind"] == "bool":
                 if isinstance(value, bool):
                     _values[key] = value
+            elif row["kind"] == "hidden":   # one of a fixed list of words (low holds the list)
+                if value in row["low"]:
+                    _values[key] = value
             elif row["kind"] == "text":
                 _values[key] = str(value)[:2000]
             else:
@@ -143,3 +146,8 @@ def noise_phrases():
     """The made-up phrases as a set of letters only, lower case (how a line is compared)."""
     import re
     return {re.sub(r"[\W_]+", "", p).lower() for p in _values["noise_phrases"].split(",") if p.strip()}
+
+
+def any_language():
+    """Anything but English-Korean: speech in other languages is kept (not thrown out as noise) and labelled."""
+    return _values["meeting_language"] != "en-ko"

@@ -118,7 +118,7 @@ class RemoteEngine:
             level = float(body.get("level") or 0.0)
             if source == "MIC" and level < self.settings.mic_min_level():
                 return True  # a click or room noise, not Jun
-            share = None if tuning.get("any_language") else body.get("language_share")   # the developer switch lifts the English/Korean limit
+            share = None if tuning.any_language() else body.get("language_share")   # the developer switch lifts the English/Korean limit
             text = keep_text(text, body.get("avg_logprob"), body.get("no_speech_prob"), share)
             if not text:
                 return True
@@ -127,7 +127,7 @@ class RemoteEngine:
                     "time": time.strftime("%H:%M:%S")}
             if source == "MIC":
                 line["level"] = round(level, 4)
-            script = script_label(text) if tuning.get("any_language") and language == "en" else ""
+            script = script_label(text) if tuning.any_language() and language == "en" else ""
             if script:
                 line["script"] = script   # written in another script: its own bubble, labelled on the page, translated to Korean
             if isinstance(body.get("gap"), (int, float)):
@@ -159,7 +159,7 @@ class RemoteEngine:
             if not text or re.fullmatch(r"[\[\(（【].*[\]\)）】]", text):
                 return True
             gap = body.get("gap") if isinstance(body.get("gap"), (int, float)) else None
-            script = script_label(text) if tuning.get("any_language") and language == "en" else ""
+            script = script_label(text) if tuning.any_language() and language == "en" else ""
             bubble, new = self.grouper.draft(source, text, language, gap, bool(body.get("turn")), self._take_id, script)
             if self.translator:
                 self.translator.hold(bubble)   # the bubble is still growing: its translation waits

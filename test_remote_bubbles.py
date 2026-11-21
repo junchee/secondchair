@@ -154,7 +154,7 @@ class AnyLanguage(Rig):
         self.assertIsNone(self.zh_line())                                    # as before: neither English nor Korean
 
     def test_on_keeps_it_labelled_and_in_its_own_bubble(self):
-        tuning.apply({"any_language": True})
+        tuning.apply({"meeting_language": "any-ko"})
         a = self.line(words(8))
         z = self.zh_line()
         self.assertEqual((z["lang"], z["script"]), ("en", "ZH"))              # "en": it is translated to Korean like English
@@ -164,7 +164,7 @@ class AnyLanguage(Rig):
         self.assertNotIn("script", e)
 
     def test_on_draft_and_line_share_the_bubble(self):
-        tuning.apply({"any_language": True})
+        tuning.apply({"meeting_language": "any-ko"})
         self.line(words(8))
         d = self.draft("现在北极", lang="en")
         self.assertTrue(d["new"])
@@ -174,17 +174,17 @@ class AnyLanguage(Rig):
         self.assertEqual(self.zh_line()["bubble"], d["bubble"])               # R1 again, for another script
 
     def test_on_other_scripts(self):
-        tuning.apply({"any_language": True})
+        tuning.apply({"meeting_language": "any-ko"})
         self.assertEqual(self.zh_line("Я подчеркну, Россия никогда никому не угрожала.")["script"], "RU")
         self.assertEqual(self.zh_line("これは日本語の文です。")["script"], "JA")
 
     def test_on_noise_filters_still_work(self):
-        tuning.apply({"any_language": True})
+        tuning.apply({"meeting_language": "any-ko"})
         self.assertIsNone(self.zh_line(no_speech=0.9, logprob=-1.5))          # sure it is not speech: dropped in any language
 
     def test_unpunctuated_chinese_does_not_pile_into_one_bubble(self):
         """2026-11-21: Whisper writes Chinese without a full stop, so every line looked "cut" and all joined one bubble for minutes."""
-        tuning.apply({"any_language": True})
+        tuning.apply({"meeting_language": "any-ko"})
         lines = ["保持密切交往", "有意日益深厚", "共同引领美中关系发展", "两国贸易投资关系不断加强", "芬泰尼等领域合作取得成效",
                  "双方应保持美中关系稳定发展势头", "在农产品能源超级智能等领域加强合作", "公平处理好各自关切",
                  "亚太经合组织始终把握时代脉搏", "引领亚太经济一体化进程", "助力亚太成为全球经济最具活力的地区", "中方担任今年亚太经合组织东道主以来"]
@@ -203,7 +203,7 @@ class AnyLanguage(Rig):
         self.assertFalse(translate.ends_sentence("then we"))
 
     def test_on_korean_and_english_are_unchanged(self):
-        tuning.apply({"any_language": True})
+        tuning.apply({"meeting_language": "any-ko"})
         k = self.line("안녕하세요 여러분 반갑습니다.", lang="ko")
         self.assertNotIn("script", k)
         self.assertEqual(self.line(words(5))["lang"], "en")

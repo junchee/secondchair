@@ -378,6 +378,7 @@
   .bg-tick { width: 18px; height: 18px; accent-color: var(--ok); flex: none; cursor: pointer; }
   .bg-head .trash { padding: 2px 6px; border-color: transparent; }
   #sd-list { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow-y: auto; }
+  .lang-item[aria-checked="true"]::after { content: "✓"; color: var(--accent); margin-left: 8px; }
   .sd-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
   .sd-row .sd-ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sd-row .meta { font-size: 12px; color: var(--muted); }
@@ -465,6 +466,11 @@
         <button class="menu-item" id="summary-btn" type="button"><span class="sp" data-t="miSummary"></span><kbd>S</kbd></button>
         <button class="menu-item" id="prep-btn" type="button"><span class="sp" data-t="miBackground"></span></button>
         <div class="note" id="active-bg-note"></div>
+        <h4 data-t="miLanguage"></h4>
+        <button class="menu-item lang-item" type="button" role="menuitemradio" data-lang="en-ko" aria-checked="true"><span class="sp" data-t="lgEnKo"></span></button>
+        <button class="menu-item lang-item" type="button" role="menuitemradio" data-lang="en-zh" aria-checked="false"><span class="sp" data-t="lgEnZh"></span></button>
+        <button class="menu-item lang-item" type="button" role="menuitemradio" data-lang="any-ko" aria-checked="false"><span class="sp" data-t="lgAnyKo"></span></button>
+        <button class="menu-item lang-item" type="button" role="menuitemradio" data-lang="any-zh" aria-checked="false"><span class="sp" data-t="lgAnyZh"></span></button>
       </div>
     </div>
   </div>
@@ -519,10 +525,6 @@
           <option value="strong" data-t="dMicStrong"></option>
         </select>
         <p data-t="dMicHelp"></p>
-        <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="any-lang"><span class="track"></span><span data-t="dAny"></span></label>
-        <p data-t="dAnyHelp"></p>
-        <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="zh-test"><span class="track"></span><span data-t="dZh"></span></label>
-        <p data-t="dZhHelp"></p>
         <h4 data-t="dVersion"></h4>
         <p id="app-changes" style="white-space:pre-line"></p>
         <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="dev-tools"><span class="track"></span><span data-t="dShow"></span></label>
@@ -847,6 +849,7 @@
   function setTranslation(e) {
     const cell = lines.get(e.id);
     if (!cell) return;
+    if (!e.text) { cell.style.display = "none"; return; }   // the line is already in the language wanted
     const failed = e.text.startsWith("(translation failed");
     cell.className = "text" + (failed ? " failed" : "") + (replaying ? "" : " arrived");
     cell.textContent = failed ? t("transFailed") : e.text;
@@ -945,7 +948,7 @@
       reset.onclick = (ev) => { ev.preventDefault(); post("/settings", { tuning_reset: id }); };
       head.append(reset);
       box.append(head, el("div", "gdesc", desc));
-      for (const row of t.schema.filter((r) => r.group === id)) box.append(tuneRow(row, t.values[row.key]));
+      for (const row of t.schema.filter((r) => r.group === id && r.kind !== "hidden")) box.append(tuneRow(row, t.values[row.key]));
       return box;
     }));
   }
@@ -980,8 +983,7 @@
     store.set("devtools", on ? "1" : "0");
   }
   $("dev-tools").addEventListener("change", () => setDevTools($("dev-tools").checked));
-  $("any-lang").addEventListener("change", () => post("/settings", { tuning: { any_language: $("any-lang").checked } }));
-  $("zh-test").addEventListener("change", () => post("/settings", { tuning: { zh_test: $("zh-test").checked } }));
+  document.querySelectorAll("[data-lang]").forEach((b) => b.addEventListener("click", () => post("/settings", { tuning: { meeting_language: b.dataset.lang } })));
   setDevTools(store.get("devtools", "1") === "1");
   $("mic-chip").onclick = () => post("/settings", { mic_enabled: !micOn });
   $("prep-btn").onclick = () => showTab("prep");
@@ -1027,7 +1029,7 @@
       "mModelsOk": "Models: all available.", "mModelsGone": (list) => `Models no longer listed (skipped automatically): ${list}`,
     "tipClear": "Clear (Esc): empty both boxes.",
     "miStart": "Start", "miPause": "Pause", "miResume": "Resume", "miEnd": "End", "miQuit": "Quit", "miMic": "Microphone",
-    "menuMeeting": "This meeting", "miSummary": "Summary", "miBackground": "Briefing", "bgActive": (t) => `In use: ${t}`, "bgNoneActive": "No briefing in use.",
+    "menuMeeting": "This meeting", "miSummary": "Summary", "miLanguage": "Meeting language", "lgEnKo": "English ↔ Korean", "lgEnZh": "English ↔ Chinese", "lgAnyKo": "Any language → Korean", "lgAnyZh": "Any language → Chinese", "miBackground": "Briefing", "bgActive": (t) => `In use: ${t}`, "bgNoneActive": "No briefing in use.",
     "menuView": "View", "vTheme": "Theme", "vLight": "Light", "vDark": "Dark", "vAuto": "Auto", "vTextSize": "Text size",
     "vOriginal": "Original", "vTranslation": "Translation", "vLayout": "Layout", "vCompact": "Compact view",
     "vCompactHelp": "Only the meeting buttons and the transcript, for a small window. Shortcut C.",
@@ -1039,7 +1041,7 @@
     "dLines": "Lines", "dLongest": "Longest line", "dPause": "Pause that ends a line", "dMic": "My microphone",
     "dMicOff": "Off: keep everything", "dMicNormal": "Ignore quiet sounds: normal", "dMicStrong": "Ignore quiet sounds: strong",
     "dMicHelp": "Clicks and room noise can show up as a made-up line like “Thank you.” Raise this if that happens.",
-    "dVersion": "Version and what changed", "dAny": "Translate any language (test)", "dAnyHelp": "Speech in other languages (Chinese, Russian ...) is kept and translated into Korean instead of being dropped. Made-up subtitle phrases from silence can come through too.", "dZh": "Chinese test (English → Chinese)", "dZhHelp": "English lines are translated into Simplified Chinese instead of Korean. For trying only: briefing terms are not used.", "dShow": "Show the Developer menu", "dShowHelp": "To bring it back later press Alt+Shift+D.",
+    "dVersion": "Version and what changed", "dShow": "Show the Developer menu", "dShowHelp": "To bring it back later press Alt+Shift+D.",
     "bnLoading": "Preparing speech recognition for this Mac. The first time, or after a macOS update, this takes a few minutes and sometimes 30–40 minutes. It starts by itself when ready.",
     "bnLost": "The connection to Anne was lost. Reconnecting… If this continues, restart Anne.",
     "bnPaused": "Paused: nothing is being listened to or recorded. Press Resume to continue.",
@@ -1099,7 +1101,7 @@
       "mModelsOk": "모델 점검: 모두 사용 가능.", "mModelsGone": (list) => `내려간 모델(자동으로 건너뜀): ${list}`,
     "tipClear": "지우기 (Esc): 두 칸을 비웁니다.",
     "miStart": "시작", "miPause": "일시정지", "miResume": "다시 시작", "miEnd": "종료", "miQuit": "끝내기", "miMic": "마이크",
-    "menuMeeting": "이 회의", "miSummary": "요약", "miBackground": "브리핑", "bgActive": (t) => `사용 중: ${t}`, "bgNoneActive": "사용 중인 브리핑이 없습니다.",
+    "menuMeeting": "이 회의", "miSummary": "요약", "miLanguage": "회의 언어", "lgEnKo": "영어 ↔ 한국어", "lgEnZh": "영어 ↔ 중국어", "lgAnyKo": "모든 언어 → 한국어", "lgAnyZh": "모든 언어 → 중국어", "miBackground": "브리핑", "bgActive": (t) => `사용 중: ${t}`, "bgNoneActive": "사용 중인 브리핑이 없습니다.",
     "menuView": "보기", "vTheme": "화면 색", "vLight": "밝게", "vDark": "어둡게", "vAuto": "자동", "vTextSize": "글자 크기",
     "vOriginal": "원문", "vTranslation": "번역", "vLayout": "보기 방식", "vCompact": "간단히 보기",
     "vCompactHelp": "회의 버튼과 대화만 남겨 작은 창에서 씁니다. 단축키 C.",
@@ -1111,7 +1113,7 @@
     "dLines": "줄 나누기", "dLongest": "가장 긴 줄", "dPause": "줄을 끝내는 쉬는 틈", "dMic": "내 마이크",
     "dMicOff": "끔: 모두 받아 적기", "dMicNormal": "작은 소리 무시: 보통", "dMicStrong": "작은 소리 무시: 강하게",
     "dMicHelp": "딸깍 소리나 방 소음이 “Thank you.” 같은 지어낸 줄로 나올 수 있습니다. 그럴 때 올려 보세요.",
-    "dVersion": "버전과 달라진 점", "dAny": "모든 언어 번역 (시험)", "dAnyHelp": "중국어, 러시아어 등 다른 언어의 말도 버리지 않고 한국어로 번역합니다. 소리가 없을 때 Whisper가 지어내는 외국어 자막 문구가 섞여 나올 수 있습니다.", "dZh": "중국어 시험 (영어 → 중국어)", "dZhHelp": "영어 줄을 한국어 대신 간체 중국어로 번역합니다. 시험용이며 브리핑 용어는 쓰지 않습니다.", "dShow": "개발자 메뉴 보이기", "dShowHelp": "나중에 다시 보이려면 Alt+Shift+D 를 누르세요.",
+    "dVersion": "버전과 달라진 점", "dShow": "개발자 메뉴 보이기", "dShowHelp": "나중에 다시 보이려면 Alt+Shift+D 를 누르세요.",
     "bnLoading": "음성 인식을 이 Mac에 맞게 준비하는 중입니다. 처음이거나 macOS 업데이트 뒤에는 몇 분, 길게는 30~40분 걸립니다. 끝나면 저절로 시작됩니다.",
     "bnLost": "Anne와 연결이 끊겼습니다. 다시 연결하는 중입니다. 계속되면 Anne를 다시 시작해 주세요.",
     "bnPaused": "일시정지: 지금은 듣거나 기록하지 않습니다. 다시 시작을 누르면 이어집니다.",
@@ -1410,7 +1412,9 @@
 
   function setSettings(e) {
     renderTuning(e.tuning);
-    if (e.tuning && e.tuning.values) { $("zh-test").checked = !!e.tuning.values.zh_test; $("any-lang").checked = !!e.tuning.values.any_language; }
+    if (e.tuning && e.tuning.values) {   // the meeting language chosen in the This meeting menu (kept between runs)
+      document.querySelectorAll("[data-lang]").forEach((b) => b.setAttribute("aria-checked", b.dataset.lang === e.tuning.values.meeting_language));
+    }
     updateWelcome(e);
     syncBackgrounds(e);
     if (e.models) {

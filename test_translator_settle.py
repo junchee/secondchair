@@ -63,15 +63,41 @@ class Settle(unittest.TestCase):
     def test_chinese_test_switch(self):
         seen = []
         translate.translate = lambda text, target, *a, **k: seen.append((target, k.get("previous"))) or "KO"
-        tuning.apply({"zh_test": True, "translate_settle_seconds": 0})
+        tuning.apply({"meeting_language": "en-zh", "translate_settle_seconds": 0})
         self.line(1, 1, "First sentence.")
         time.sleep(0.2)
         self.assertEqual(seen[0][0], "Simplified Chinese")
         self.assertIn("Simplified Chinese characters", translate.build_request("x", translate.CHINESE)["messages"][0]["content"])
         self.assertNotIn("English = Korean", translate.build_request("x", translate.CHINESE)["messages"][0]["content"])
-        tuning.apply({"zh_test": False})
+        tuning.apply({"meeting_language": "en-ko"})
         self.assertEqual(translate.target_for("en"), "Korean")
         self.assertEqual(translate.target_for("ko"), "English")   # my Korean still goes to English
+
+    def test_meeting_language_targets(self):
+        """What each meeting language translates a line into (None: already the language wanted, nothing is shown)."""
+        zh, ru = "我没办法按时赶到医院了。", "Спасибо большое."
+        table = {
+            "en-ko": [("en", "Hello there.", "Korean"), ("ko", "안녕하세요.", "English"), ("en", zh, "Korean")],
+            "en-zh": [("en", "Hello there.", translate.CHINESE), ("en", zh, "English"), ("ko", "안녕하세요.", "English"),
+                      ("en", ru, "English")],
+            "any-ko": [("en", "Hello there.", "Korean"), ("en", zh, "Korean"), ("ko", "안녕하세요.", "English"),
+                       ("en", ru, "Korean")],
+            "any-zh": [("en", "Hello there.", translate.CHINESE), ("en", zh, None), ("ko", "안녕하세요.", translate.CHINESE),
+                       ("en", ru, translate.CHINESE)],
+        }
+        for mode, rows in table.items():
+            tuning.apply({"meeting_language": mode})
+            for lang, text, want in rows:
+                self.assertEqual(translate.target_for(lang, text), want, (mode, text))
+        tuning.apply({"meeting_language": "nonsense"})      # a bad value changes nothing
+        self.assertEqual(tuning.get("meeting_language"), "any-zh")
+
+    def test_a_line_already_in_the_target_language_shows_no_translation(self):
+        tuning.apply({"meeting_language": "any-zh", "translate_settle_seconds": 0})
+        self.t.submit({"id": 1, "bubble": 1, "source": "Them", "lang": "en", "text": "我没办法按时赶到医院了。", "script": "ZH"})
+        time.sleep(0.2)
+        self.assertEqual(self.fake.calls, [])                # no model call
+        self.assertEqual([e["text"] for e in self.done()], [""])   # the page hides the empty slot
 
     def test_flush_translates_waiting_bubble(self):
         self.line(1, 1, "Last words.")
