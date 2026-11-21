@@ -341,6 +341,7 @@ class Translator:
         self.recent = deque()  # [bubble id, "LABEL: text"] of the latest bubbles (kept to tuning's context_lines)
         self.bubbles = {}  # bubble id -> {"ids", "text", "lang", "context", "version"}
         self.shown = {}  # bubble id -> the translation the page shows now
+        self.last_line = {}  # bubble id -> when its newest line arrived (a draft may hold the translation only up to a cap after it)
         self.pending = {}  # bubble id -> [release time, job]: a bubble that may still grow; translated once it settles
         threading.Thread(target=self._work, daemon=True).start()
 
@@ -352,6 +353,7 @@ class Translator:
             self.recent.clear()
             self.bubbles.clear()
             self.shown.clear()
+            self.last_line.clear()
 
     def submit(self, line):
         bid = line.get("bubble", line["id"])
@@ -371,6 +373,7 @@ class Translator:
                 if entry[0] == bid:
                     entry[1] = f"{line['source']}: {bubble['text']}"
             bubble["version"] += 1
+            self.last_line[bid] = time.time()
             job = (bid, bubble["text"], bubble["lang"], bubble["context"], tuple(bubble["ids"]), bubble["version"])
             # A new bubble means the earlier ones are closed (another speaker, size, or a pause): translate them now. The newest
             # bubble waits until it settles (no new line for a moment), so it is translated once as a whole, not piece by piece.
@@ -391,7 +394,11 @@ class Translator:
         settle = tuning.get("translate_settle_seconds")
         with self.cv:
             if bid in self.pending and settle > 0:
-                self.pending[bid][0] = time.time() + max(settle, tuning.get("translate_cut_wait_seconds"))
+                now = time.time()
+                # Drafts can be music or noise read as words and never stop: after the cap from the last real line, translate.
+                limit = self.last_line.get(bid, now) + tuning.get("translate_max_hold_seconds")
+                self.pending[bid][0] = min(now + max(settle, tuning.get("translate_cut_wait_seconds")), limit)
+                self.cv.notify()
 
     def flush(self):
         """The meeting ends: translate what still waits for its bubble to settle."""

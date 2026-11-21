@@ -428,6 +428,9 @@ final class Speech: @unchecked Sendable {
         if label == "SYSTEM", !tailText.isEmpty {
             let tailStart = window.absOffset + Double(tail.first!.start)
             let tailGap = get { lastEnd[label] }.map { max(0, tailStart - $0) } ?? 99
+            // for tuning (2026-11-21): what the grey drafts say and how sure the model is, to tell music and noise from speech
+            let worstLogprob = tail.map { Double($0.avgLogprob) }.min() ?? 0, worstNoSpeech = tail.map { Double($0.noSpeechProb) }.max() ?? 0
+            log(String(format: "speech: draft %@ logprob %.2f no_speech %.2f: %@", label, worstLogprob, worstNoSpeech, String(tailText.prefix(120))))
             await postWait(["partial": true, "source": label, "lang": isKorean(tailText) ? "ko" : "en", "text": tailText, "gap": tailGap, "turn": isTurn(tail.first!)])
             return true
         }

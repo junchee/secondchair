@@ -14,7 +14,8 @@
       "Briefings: pick up to 3 before a meeting; topic and terms go to speech recognition and translation.",
       "Menus: Meeting, View and Developer menus, a Mac menu bar, Korean or English by system language.",
       "Ask Anne: questions about the meeting are answered in the bottom box, with daily limits.",
-      "Meeting language: choose it in the \"This meeting\" menu (English ↔ Korean, English ↔ Chinese, any language → Korean, any language → Chinese). The choice is kept for the next meeting. This replaces the two Developer test switches. Outside English ↔ Korean, speech in other languages is kept instead of dropped; made-up subtitle phrases from silence can come through. Chinese or Russian lines without full stops now form normal bubbles and are translated on time."
+      "Meeting language: choose it in the \"This meeting\" menu (English ↔ Korean, English ↔ Chinese, any language → Korean, any language → Chinese). The choice is kept for the next meeting. This replaces the two Developer test switches. Outside English ↔ Korean, speech in other languages is kept instead of dropped; made-up subtitle phrases from silence can come through. Chinese or Russian lines without full stops now form normal bubbles and are translated on time.",
+      "Translation no longer waits for music or noise: grey drafts can hold a bubble's translation for at most 5 s after its last line (Tuning > Translation)."
     ],
     "ko": [
       "번호를 붙인 첫 버전입니다.",
@@ -29,7 +30,8 @@
       "브리핑: 회의 전에 최대 3개 선택, 주제와 용어가 음성 인식과 번역에 쓰입니다.",
       "메뉴: 회의, 보기, 개발자 메뉴와 Mac 메뉴 막대, 시스템 언어에 따라 한국어 또는 영어.",
       "Anne에게 묻기: 회의에 대한 질문을 아래 상자에서 답하며 하루 사용 한도가 있습니다.",
-      "회의 언어: \"이 회의\" 메뉴에서 고릅니다(영어 ↔ 한국어, 영어 ↔ 중국어, 모든 언어 → 한국어, 모든 언어 → 중국어). 고른 값은 다음 회의에도 남습니다. 개발자 메뉴의 시험용 스위치 둘은 이것으로 합쳤습니다. 영어 ↔ 한국어가 아니면 다른 언어의 말도 버리지 않으므로, 소리가 없을 때 Whisper가 지어내는 자막 문구가 섞여 나올 수 있습니다. 마침표 없는 중국어·러시아어 줄도 보통 크기의 말풍선으로 나뉘어 제때 번역됩니다."
+      "회의 언어: \"이 회의\" 메뉴에서 고릅니다(영어 ↔ 한국어, 영어 ↔ 중국어, 모든 언어 → 한국어, 모든 언어 → 중국어). 고른 값은 다음 회의에도 남습니다. 개발자 메뉴의 시험용 스위치 둘은 이것으로 합쳤습니다. 영어 ↔ 한국어가 아니면 다른 언어의 말도 버리지 않으므로, 소리가 없을 때 Whisper가 지어내는 자막 문구가 섞여 나올 수 있습니다. 마침표 없는 중국어·러시아어 줄도 보통 크기의 말풍선으로 나뉘어 제때 번역됩니다.",
+      "음악이나 잡음이 회색 초안으로 잡혀도 번역이 끝없이 밀리지 않습니다. 마지막 줄 뒤 최대 5초까지만 기다립니다(Tuning > 번역)."
     ]
   }
 }

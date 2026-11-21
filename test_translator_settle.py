@@ -99,6 +99,25 @@ class Settle(unittest.TestCase):
         self.assertEqual(self.fake.calls, [])                # no model call
         self.assertEqual([e["text"] for e in self.done()], [""])   # the page hides the empty slot
 
+    def test_drafts_cannot_hold_a_translation_forever(self):
+        """Music or noise read as grey drafts keeps saying "still growing": the translation still comes at the cap."""
+        tuning.apply({"translate_cut_wait_seconds": 1.0, "translate_max_hold_seconds": 0.6})
+        self.line(1, 1, "a short film made right here in the country")   # no full stop: the long wait applies
+        started = time.time()
+        while time.time() - started < 2.0 and not self.done():
+            self.t.hold(1)                                              # a draft arrives every 0.1 s
+            time.sleep(0.1)
+        self.assertTrue(self.done(), "still waiting after 2 s of drafts")
+        self.assertLess(time.time() - started, 1.2)                     # about 0.6 s after the last line
+
+    def test_a_draft_still_holds_inside_the_cap(self):
+        tuning.apply({"translate_cut_wait_seconds": 1.0, "translate_max_hold_seconds": 5})
+        self.line(1, 1, "He will help to develop and to deliver those goals.")
+        for _ in range(8):
+            self.t.hold(1)                                              # about 0.8 s of drafts, cap far away
+            time.sleep(0.1)
+        self.assertFalse(self.done())                                   # settle 0.3 s would have fired without the draft
+
     def test_flush_translates_waiting_bubble(self):
         self.line(1, 1, "Last words.")
         self.t.flush()
