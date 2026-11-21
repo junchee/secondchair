@@ -21,6 +21,36 @@ from textclean import strip_inline_labels
 from translate import Translator
 
 LANGUAGES = ("en", "ko")
+
+
+def script_label(text):
+    """For a line that is not English or Korean text: a short label of what it is written in ("ZH", "JA", "RU" ...), else "".
+    The line still counts as "en" for translation (it goes to Korean); the label only tells the page and the bubble grouping."""
+    counts = {"han": 0, "kana": 0, "cyr": 0, "arab": 0, "thai": 0, "other": 0}
+    for ch in text:
+        if not ch.isalpha():
+            continue
+        code = ord(ch)
+        if 0xAC00 <= code <= 0xD7A3 or 0x1100 <= code <= 0x11FF or code < 0x250:
+            continue   # Hangul and Latin letters
+        if 0x4E00 <= code <= 0x9FFF or 0x3400 <= code <= 0x4DBF:
+            counts["han"] += 1
+        elif 0x3040 <= code <= 0x30FF:
+            counts["kana"] += 1
+        elif 0x0400 <= code <= 0x04FF:
+            counts["cyr"] += 1
+        elif 0x0600 <= code <= 0x06FF:
+            counts["arab"] += 1
+        elif 0x0E00 <= code <= 0x0E7F:
+            counts["thai"] += 1
+        else:
+            counts["other"] += 1
+    if sum(counts.values()) < max(1, len([c for c in text if c.isalpha()]) // 2):
+        return ""   # mostly Latin or Hangul: an ordinary line with a foreign word or two
+    if counts["kana"]:
+        return "JA"
+    top = max(counts, key=counts.get)
+    return {"han": "ZH", "cyr": "RU", "arab": "AR", "thai": "TH", "other": "··"}[top]
 SOURCES = {"SYSTEM", "MIC"}  # same labels as the Python engine, so the page, the recorder and the summary need no change
 
 
@@ -118,7 +148,8 @@ class RemoteEngine:
             level = float(body.get("level") or 0.0)
             if source == "MIC" and level < self.settings.mic_min_level():
                 return True  # a click or room noise, not Jun
-            text = keep_text(text, body.get("avg_logprob"), body.get("no_speech_prob"), body.get("language_share"))
+            share = None if tuning.get("any_language") else body.get("language_share")   # the developer switch lifts the English/Korean limit
+            text = keep_text(text, body.get("avg_logprob"), body.get("no_speech_prob"), share)
             if not text:
                 return True
             translating = self.translator is not None and self.settings.translate
@@ -126,6 +157,9 @@ class RemoteEngine:
                     "time": time.strftime("%H:%M:%S")}
             if source == "MIC":
                 line["level"] = round(level, 4)
+            script = script_label(text) if tuning.get("any_language") and language == "en" else ""
+            if script:
+                line["script"] = script   # written in another script: its own bubble, labelled on the page, translated to Korean
             if isinstance(body.get("gap"), (int, float)):
                 line["gap"] = float(body["gap"])  # seconds of quiet before this sentence: a long one starts a new bubble
             if body.get("turn"):
@@ -155,11 +189,12 @@ class RemoteEngine:
             if not text or re.fullmatch(r"[\[\(（【].*[\]\)）】]", text):
                 return True
             gap = body.get("gap") if isinstance(body.get("gap"), (int, float)) else None
-            bubble, new = self.grouper.draft(source, text, language, gap, bool(body.get("turn")), self._take_id)
+            script = script_label(text) if tuning.get("any_language") and language == "en" else ""
+            bubble, new = self.grouper.draft(source, text, language, gap, bool(body.get("turn")), self._take_id, script)
             if self.translator:
                 self.translator.hold(bubble)   # the bubble is still growing: its translation waits
             self.emit({"type": "partial", "source": source, "lang": language, "text": text, "time": time.strftime("%H:%M:%S"),
-                       "bubble": bubble, "new": new, "locked": True})
+                       "bubble": bubble, "new": new, "locked": True, "script": script})
         return True
 
     # ---- the meeting's life (same events as Engine)

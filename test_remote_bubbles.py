@@ -133,6 +133,62 @@ class Cases(Rig):
             self.assertEqual(self.draft("More")["bubble"], a["bubble"])
 
 
+class AnyLanguage(Rig):
+    """The developer switch "any_language": lines that are not English or Korean are kept, labelled, and translated to Korean."""
+
+    ZH = "现在北极正在发生一些二十年前无法想象的事情。"
+
+    def zh_line(self, text=None, share=0.0, **kw):
+        return self.engine_line(text or self.ZH, share, **kw)
+
+    def engine_line(self, text, share, gap=0.3, no_speech=None, logprob=None):
+        n = len([e for e in self.out if e["type"] == "line"])
+        body = {"source": "SYSTEM", "lang": "en", "text": text, "gap": gap, "level": 0.5, "language_share": share}
+        if no_speech is not None:
+            body.update({"no_speech_prob": no_speech, "avg_logprob": logprob})
+        self.engine.submit_line(body)
+        new = [e for e in self.out if e["type"] == "line"]
+        return new[-1] if len(new) > n else None
+
+    def test_off_drops_a_chinese_line(self):
+        self.assertIsNone(self.zh_line())                                    # as before: neither English nor Korean
+
+    def test_on_keeps_it_labelled_and_in_its_own_bubble(self):
+        tuning.apply({"any_language": True})
+        a = self.line(words(8))
+        z = self.zh_line()
+        self.assertEqual((z["lang"], z["script"]), ("en", "ZH"))              # "en": it is translated to Korean like English
+        self.assertNotEqual(z["bubble"], a["bubble"])
+        e = self.line("And back in English now.")
+        self.assertNotEqual(e["bubble"], z["bubble"])
+        self.assertNotIn("script", e)
+
+    def test_on_draft_and_line_share_the_bubble(self):
+        tuning.apply({"any_language": True})
+        self.line(words(8))
+        d = self.draft("现在北极", lang="en")
+        self.assertTrue(d["new"])
+        d2 = self.draft("现在北极正在发生", lang="en")
+        self.assertEqual(d2["bubble"], d["bubble"])
+        self.assertEqual(d2["script"], "ZH")
+        self.assertEqual(self.zh_line()["bubble"], d["bubble"])               # R1 again, for another script
+
+    def test_on_other_scripts(self):
+        tuning.apply({"any_language": True})
+        self.assertEqual(self.zh_line("Я подчеркну, Россия никогда никому не угрожала.")["script"], "RU")
+        self.assertEqual(self.zh_line("これは日本語の文です。")["script"], "JA")
+
+    def test_on_noise_filters_still_work(self):
+        tuning.apply({"any_language": True})
+        self.assertIsNone(self.zh_line(no_speech=0.9, logprob=-1.5))          # sure it is not speech: dropped in any language
+
+    def test_on_korean_and_english_are_unchanged(self):
+        tuning.apply({"any_language": True})
+        k = self.line("안녕하세요 여러분 반갑습니다.", lang="ko")
+        self.assertNotIn("script", k)
+        self.assertEqual(self.line(words(5))["lang"], "en")
+
+
 class TranslationWaitsForTheDraft(unittest.TestCase):
     def test_hold(self):
         tuning.reset("all")

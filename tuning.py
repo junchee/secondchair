@@ -29,6 +29,8 @@ _ROWS = [
      "Whisper가 '말이 아닌 것 같다'고 보는 확률이 이보다 크고 단어 확신도 낮으면 버립니다. 내리면 더 많이 버립니다."),
     ("min_avg_logprob", "noise", "단어 확신 한계", "number", -0.8, -2.0, 0.0, 0.05,
      "단어에 대한 Whisper의 확신이 이보다 낮으면(더 음수) 버립니다. 올리면(0에 가깝게) 더 많이 버립니다."),
+    ("any_language", "noise", "언어 제한 풀기 (영어·한국어 밖의 말도 번역)", "bool", False, None, None, None,
+     "켜면 영어·한국어가 아닌 말(중국어, 러시아어 등)도 걸러내지 않고 한국어로 번역합니다. 시험용입니다. 소리가 없을 때 Whisper가 지어내는 외국어 자막 문구도 같이 통과할 수 있습니다."),
     ("min_language_share", "noise", "영어·한국어 비율 한계", "number", 0.5, 0.0, 1.0, 0.05,
      "언어 추측에서 영어와 한국어의 합이 이보다 작으면 소음으로 보고 버립니다. 다른 언어를 쓰는 회의면 내립니다."),
     ("noise_phrases", "noise", "지어낸 문구 목록", "text", "thanks for watching, thank you for watching, please subscribe, subscribe, bye, bye bye, 시청해주셔서 감사합니다, 구독과 좋아요, MBC news, 字幕", None, None, None,

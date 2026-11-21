@@ -519,6 +519,8 @@
           <option value="strong" data-t="dMicStrong"></option>
         </select>
         <p data-t="dMicHelp"></p>
+        <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="any-lang"><span class="track"></span><span data-t="dAny"></span></label>
+        <p data-t="dAnyHelp"></p>
         <label class="switch" style="justify-content:flex-start"><input type="checkbox" id="zh-test"><span class="track"></span><span data-t="dZh"></span></label>
         <p data-t="dZhHelp"></p>
         <h4 data-t="dVersion"></h4>
@@ -765,11 +767,11 @@
   const openBubbles = new Map();   // source -> the same record (used by the older draft style of the Python engine)
   const lockedDrafts = new Map();  // source -> id of the bubble its grey draft is in
 
-  function makeBubble(id, source, lang, time) {
+  function makeBubble(id, source, lang, time, script) {
     const me = source === "MIC";
     const row = el("div", "grid row" + (me ? " me" : ""));
     const meta = el("div", "meta");
-    const langEl = el("span", "lang", lang ? lang.toUpperCase() : "…");
+    const langEl = el("span", "lang", script || (lang ? lang.toUpperCase() : "…"));
     meta.append(el("span", "who", me ? "나" : "상대"), el("span", "", time || ""), langEl);
     const original = el("div", "col-original");
     const otext = el("div", "text");
@@ -807,7 +809,7 @@
     $("empty").style.display = "none";
     if (lockedDrafts.has(e.source) && lockedDrafts.get(e.source) !== e.bubble) clearLockedDraft(e.source);   // a speaker change marked late
     let b = bubbleRows.get(e.bubble), created = false;
-    if (!b || !b.row.isConnected) { b = makeBubble(e.bubble, e.source, e.lang, e.time); created = true; }
+    if (!b || !b.row.isConnected) { b = makeBubble(e.bubble, e.source, e.lang, e.time, e.script); created = true; }
     if (!b.draft) { b.draft = el("span", "draft"); b.otext.append(b.draft); }
     b.draft.textContent = (b.confirmed ? " " : "") + e.text;
     lockedDrafts.set(e.source, e.bubble);
@@ -828,11 +830,11 @@
     }
     let b = bubbleRows.get(id);
     const created = !b || !b.row.isConnected;
-    if (created) b = makeBubble(id, e.source, e.lang, e.time);
+    if (created) b = makeBubble(id, e.source, e.lang, e.time, e.script);
     const span = el("span", "", (b.confirmed ? " " : "") + e.text);
     if (b.draft && b.draft.parentNode === b.otext) b.otext.insertBefore(span, b.draft); else b.otext.append(span);
     b.confirmed += 1;
-    b.langEl.textContent = e.lang.toUpperCase();
+    b.langEl.textContent = e.script || e.lang.toUpperCase();
     reserve(b);
     if (created) added(b.row); else added();
   }
@@ -978,6 +980,7 @@
     store.set("devtools", on ? "1" : "0");
   }
   $("dev-tools").addEventListener("change", () => setDevTools($("dev-tools").checked));
+  $("any-lang").addEventListener("change", () => post("/settings", { tuning: { any_language: $("any-lang").checked } }));
   $("zh-test").addEventListener("change", () => post("/settings", { tuning: { zh_test: $("zh-test").checked } }));
   setDevTools(store.get("devtools", "1") === "1");
   $("mic-chip").onclick = () => post("/settings", { mic_enabled: !micOn });
@@ -1036,7 +1039,7 @@
     "dLines": "Lines", "dLongest": "Longest line", "dPause": "Pause that ends a line", "dMic": "My microphone",
     "dMicOff": "Off: keep everything", "dMicNormal": "Ignore quiet sounds: normal", "dMicStrong": "Ignore quiet sounds: strong",
     "dMicHelp": "Clicks and room noise can show up as a made-up line like “Thank you.” Raise this if that happens.",
-    "dVersion": "Version and what changed", "dZh": "Chinese test (English → Chinese)", "dZhHelp": "English lines are translated into Simplified Chinese instead of Korean. For trying only: briefing terms are not used.", "dShow": "Show the Developer menu", "dShowHelp": "To bring it back later press Alt+Shift+D.",
+    "dVersion": "Version and what changed", "dAny": "Translate any language (test)", "dAnyHelp": "Speech in other languages (Chinese, Russian ...) is kept and translated into Korean instead of being dropped. Made-up subtitle phrases from silence can come through too.", "dZh": "Chinese test (English → Chinese)", "dZhHelp": "English lines are translated into Simplified Chinese instead of Korean. For trying only: briefing terms are not used.", "dShow": "Show the Developer menu", "dShowHelp": "To bring it back later press Alt+Shift+D.",
     "bnLoading": "Preparing speech recognition for this Mac. The first time, or after a macOS update, this takes a few minutes and sometimes 30–40 minutes. It starts by itself when ready.",
     "bnLost": "The connection to Anne was lost. Reconnecting… If this continues, restart Anne.",
     "bnPaused": "Paused: nothing is being listened to or recorded. Press Resume to continue.",
@@ -1108,7 +1111,7 @@
     "dLines": "줄 나누기", "dLongest": "가장 긴 줄", "dPause": "줄을 끝내는 쉬는 틈", "dMic": "내 마이크",
     "dMicOff": "끔: 모두 받아 적기", "dMicNormal": "작은 소리 무시: 보통", "dMicStrong": "작은 소리 무시: 강하게",
     "dMicHelp": "딸깍 소리나 방 소음이 “Thank you.” 같은 지어낸 줄로 나올 수 있습니다. 그럴 때 올려 보세요.",
-    "dVersion": "버전과 달라진 점", "dZh": "중국어 시험 (영어 → 중국어)", "dZhHelp": "영어 줄을 한국어 대신 간체 중국어로 번역합니다. 시험용이며 브리핑 용어는 쓰지 않습니다.", "dShow": "개발자 메뉴 보이기", "dShowHelp": "나중에 다시 보이려면 Alt+Shift+D 를 누르세요.",
+    "dVersion": "버전과 달라진 점", "dAny": "모든 언어 번역 (시험)", "dAnyHelp": "중국어, 러시아어 등 다른 언어의 말도 버리지 않고 한국어로 번역합니다. 소리가 없을 때 Whisper가 지어내는 외국어 자막 문구가 섞여 나올 수 있습니다.", "dZh": "중국어 시험 (영어 → 중국어)", "dZhHelp": "영어 줄을 한국어 대신 간체 중국어로 번역합니다. 시험용이며 브리핑 용어는 쓰지 않습니다.", "dShow": "개발자 메뉴 보이기", "dShowHelp": "나중에 다시 보이려면 Alt+Shift+D 를 누르세요.",
     "bnLoading": "음성 인식을 이 Mac에 맞게 준비하는 중입니다. 처음이거나 macOS 업데이트 뒤에는 몇 분, 길게는 30~40분 걸립니다. 끝나면 저절로 시작됩니다.",
     "bnLost": "Anne와 연결이 끊겼습니다. 다시 연결하는 중입니다. 계속되면 Anne를 다시 시작해 주세요.",
     "bnPaused": "일시정지: 지금은 듣거나 기록하지 않습니다. 다시 시작을 누르면 이어집니다.",
@@ -1407,7 +1410,7 @@
 
   function setSettings(e) {
     renderTuning(e.tuning);
-    if (e.tuning && e.tuning.values) $("zh-test").checked = !!e.tuning.values.zh_test;
+    if (e.tuning && e.tuning.values) { $("zh-test").checked = !!e.tuning.values.zh_test; $("any-lang").checked = !!e.tuning.values.any_language; }
     updateWelcome(e);
     syncBackgrounds(e);
     if (e.models) {

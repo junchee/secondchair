@@ -29,30 +29,30 @@ class Grouper:
         self.last_source = source
         current = self.open.get(source)
         lock = self.locked.pop(source, None)
-        if lock and lock["lang"] == line["lang"] and (lock["new"] or not line.get("turn")):
+        if lock and lock["lang"] == line["lang"] and lock.get("script", "") == line.get("script", "") and (lock["new"] or not line.get("turn")):
             if lock["new"] or not current or current["id"] != lock["bubble"]:
-                self.open[source] = {"id": lock["bubble"], "text": line["text"], "lang": line["lang"]}
+                self.open[source] = {"id": lock["bubble"], "text": line["text"], "lang": line["lang"], "script": line.get("script", "")}
             else:
                 current["text"] += " " + line["text"]
             return lock["bubble"]
         if current and not line.get("turn") and self._continues(current, line):   # "turn": the speaker changed
             current["text"] += " " + line["text"]
             return current["id"]
-        self.open[source] = {"id": line["id"], "text": line["text"], "lang": line["lang"]}
+        self.open[source] = {"id": line["id"], "text": line["text"], "lang": line["lang"], "script": line.get("script", "")}
         return line["id"]
 
-    def draft(self, source, text, lang, gap, turn, new_id):   # new_id: a function that gives a fresh bubble id
+    def draft(self, source, text, lang, gap, turn, new_id, script=""):   # new_id: a function that gives a fresh bubble id
         """The bubble a grey draft is shown in (existing id, or new_id() for a new bubble). Decided at the draft's first
         appearance and kept while the draft changes; decided again only after a line used it, when the speaker change
         is marked late, or when the language changes. Returns (bubble id, is_new)."""
         lock = self.locked.get(source)
-        if lock and lock["lang"] == lang and (lock["new"] or not turn):
+        if lock and lock["lang"] == lang and lock.get("script", "") == script and (lock["new"] or not turn):
             return lock["bubble"], lock["new"]
         current = self.open.get(source)
         join = bool(current) and self.last_source in (None, source) and not turn \
-            and self._continues(current, {"lang": lang, "text": text, "gap": gap})
+            and self._continues(current, {"lang": lang, "text": text, "gap": gap, "script": script})
         bubble = current["id"] if join else new_id()
-        self.locked[source] = {"bubble": bubble, "new": not join, "lang": lang}
+        self.locked[source] = {"bubble": bubble, "new": not join, "lang": lang, "script": script}
         return bubble, not join
 
     def clear_draft(self, source):
@@ -67,7 +67,7 @@ class Grouper:
 
     @staticmethod
     def _continues(current, line):
-        if current["lang"] != line["lang"] or len(current["text"]) > tuning.get("max_bubble_chars"):
+        if current["lang"] != line["lang"] or current.get("script", "") != line.get("script", "") or len(current["text"]) > tuning.get("max_bubble_chars"):
             return False
         if line.get("gap") is not None and tuning.get("merge_sentences"):
             # From Anne.app, whose lines are whole sentences: short sentences of one speaker are gathered into one bubble until it holds
