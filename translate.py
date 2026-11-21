@@ -11,6 +11,7 @@ import queue
 import threading
 import models
 import tuning
+from textclean import script_label
 import sys
 import time
 import traceback
@@ -54,6 +55,8 @@ KOREAN_ENDINGS = "다요죠까네야어지자나군래"
 
 def ends_sentence(text):
     text = text.rstrip()
+    if script_label(text):
+        return True   # Chinese, Russian ...: Whisper often writes no full stop, so the app's cut is the only end we get
     if text.endswith("...") or text.endswith("…"):
         return False
     if text.endswith((".", "?", "!", "。", "？", "！")):

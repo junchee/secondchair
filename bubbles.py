@@ -4,9 +4,17 @@ setting, or a full stop Whisper put on a mere pause) continues its speaker's ope
 A bubble is named by the id of its first line; every line event carries it as "bubble".
 """
 import tuning
+from textclean import script_label
 from translate import ends_sentence
 
 MAX_BUBBLE_CHARS = 500
+
+
+def size_units(text):
+    """How big a bubble is, in English words: words for spaced text; for Chinese and the like (no spaces) about 1.6 characters a word."""
+    if script_label(text):
+        return sum(ch.isalpha() for ch in text) / 1.6
+    return len(text.split())
 
 
 class Grouper:
@@ -83,7 +91,7 @@ class Grouper:
                 return False
             # Decided from the open bubble alone, never from the length of the new sentence: the grey draft of a sentence that is
             # still being spoken must land in the same bubble as its final line (otherwise it would jump when the sentence grows).
-            return len(current["text"].split()) < tuning.get("bubble_target_words")
+            return size_units(current["text"]) < tuning.get("bubble_target_words")
         # Whisper often puts a full stop where it only paused: a small letter at the start continues the sentence.
         small_letter = tuning.get("small_letter_continues") and line["lang"] == "en" and line["text"][:1].islower()
         return small_letter or not ends_sentence(current["text"])

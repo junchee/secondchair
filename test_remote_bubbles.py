@@ -182,6 +182,26 @@ class AnyLanguage(Rig):
         tuning.apply({"any_language": True})
         self.assertIsNone(self.zh_line(no_speech=0.9, logprob=-1.5))          # sure it is not speech: dropped in any language
 
+    def test_unpunctuated_chinese_does_not_pile_into_one_bubble(self):
+        """2026-11-21: Whisper writes Chinese without a full stop, so every line looked "cut" and all joined one bubble for minutes."""
+        tuning.apply({"any_language": True})
+        lines = ["保持密切交往", "有意日益深厚", "共同引领美中关系发展", "两国贸易投资关系不断加强", "芬泰尼等领域合作取得成效",
+                 "双方应保持美中关系稳定发展势头", "在农产品能源超级智能等领域加强合作", "公平处理好各自关切",
+                 "亚太经合组织始终把握时代脉搏", "引领亚太经济一体化进程", "助力亚太成为全球经济最具活力的地区", "中方担任今年亚太经合组织东道主以来"]
+        ids = [self.zh_line(t)["bubble"] for t in lines]
+        groups = sorted(set(ids))
+        self.assertGreaterEqual(len(groups), 3)                                  # several bubbles, not one
+        for g in groups:
+            chars = sum(len(t) for t, i in zip(lines, ids) if i == g)
+            self.assertLessEqual(chars, 70)                                      # about 25 English words is 40 characters
+
+    def test_chinese_translation_is_not_held_like_a_cut_sentence(self):
+        import translate
+        self.assertTrue(translate.ends_sentence("保持密切交往"))                    # no punctuation, but the app ended the line
+        self.assertTrue(translate.ends_sentence("Привет, как дела"))
+        self.assertFalse(translate.ends_sentence("He will help to develop and to")) # English unchanged
+        self.assertFalse(translate.ends_sentence("then we"))
+
     def test_on_korean_and_english_are_unchanged(self):
         tuning.apply({"any_language": True})
         k = self.line("안녕하세요 여러분 반갑습니다.", lang="ko")
