@@ -122,6 +122,7 @@
 
   .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .segmented button { border: 0; background: transparent; padding: 4px 10px; cursor: pointer; color: var(--muted); }
+  #type-mode button { display: inline-flex; align-items: center; gap: 5px; }
   .segmented button + button { border-left: 1px solid var(--border); }
   .segmented button[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 600; }
   .segmented button:disabled { cursor: not-allowed; opacity: .5; }
@@ -554,8 +555,8 @@
         <button class="icon-btn" id="composer-toggle" type="button" aria-expanded="true" data-t-aria="tipFold" data-t-tip="tipFold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <span class="flag" id="in-flag" aria-label="Korean">🇰🇷</span>
         <div class="segmented" id="type-mode" role="group" aria-label="What to do with the text" data-t-aria="tipAsk">
-          <button type="button" data-kind="translate" aria-pressed="true" data-t="kTranslate"></button>
-          <button type="button" data-kind="ask" aria-pressed="false" data-t="kAsk"></button>
+          <button type="button" data-kind="translate" aria-pressed="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h8M7 3v2M5 9c1.5 3 4 5 6 6M10 5c-.5 4-3 8-7 10"/><path d="M13 21l4-10 4 10M14.5 18h5"/></svg><span data-t="kTranslate"></span></button>
+          <button type="button" data-kind="ask" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.7 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 3.5M12 16.5v.01"/></svg><span data-t="kAsk"></span></button>
         </div>
         <span class="warn" id="draft-warn"></span>
       </div>
@@ -1013,7 +1014,7 @@
     "tipEnding": "Ending: saving…", "tipQuit": "Quit: close Anne completely. A running meeting is saved first.",
     "tipMeeting": "This meeting: summary and background.", "tipView": "View: theme, text size, compact view, translation.",
     "tipDev": "Developer: tuning and technical settings.", "tipFold": "Fold or open the typing translator.",
-    "tipAsk": "Type here. Translate turns it into the other language; Anne answers a question: about the meeting (marked 📝) or a general one (marked 💡). You can also start with ?.",
+    "tipAsk": "Type here. Translate turns it into the other language; Question asks Anne: about the meeting (marked 📝) or a general one (marked 💡). You can also start with ?.",
       "askLeft": (n, limit) => `Questions left today: ${n} of ${limit}`,
       "askBlocked_limit": (limit) => `Today's limit of ${limit} questions is reached. Try again tomorrow.`,
       "askBlocked_long": "The question is too long. Please make it shorter.", "askBlocked_fast": "Please wait a moment before the next question.",
@@ -1037,7 +1038,7 @@
     "bnLost": "The connection to Anne was lost. Reconnecting… If this continues, restart Anne.",
     "bnPaused": "Paused: nothing is being listened to or recorded. Press Resume to continue.",
     "emptyIdleTitle": "Ready", "emptyIdleText": "Press ▶ to start a meeting.", "emptyRunTitle": "Listening", "emptyRunText": "Lines appear here when someone speaks.",
-    "jump": "↓ New lines", "kTranslate": "Translate", "kAsk": "Anne", "phType": "Type here", "phAsk": "Ask Anne, then press Enter",
+    "jump": "↓ New lines", "kTranslate": "Translate", "kAsk": "Question", "phType": "Type here", "phAsk": "Ask Anne, then press Enter",
     "spAgain": "Summarize again", "spHelp": "Covers everything said so far. The meeting keeps going.",
     "outputOn": (o) => `Output: ${o}`, "outputNone": "Output: not switched", "outputWait": "Output: waiting",
     "micNone": "Microphone: not found, so only the meeting is transcribed.",
@@ -1085,7 +1086,7 @@
     "tipEnding": "끝내는 중: 저장하는 중…", "tipQuit": "종료: Anne을 완전히 끕니다. 진행 중인 회의는 먼저 저장합니다.",
     "tipMeeting": "이 회의: 요약과 배경지식.", "tipView": "보기: 화면 색, 글자 크기, 간단히 보기, 번역.",
     "tipDev": "개발자: 튜닝과 기술 설정.", "tipFold": "아래 번역기를 접거나 펼칩니다.",
-    "tipAsk": "여기에 입력합니다. 번역은 다른 언어로 바꿔 주고, Anne은 질문에 답합니다. 회의 내용이면 📝, 일반 질문이면 💡로 표시합니다. ? 로 시작해도 됩니다.",
+    "tipAsk": "여기에 입력합니다. 번역은 다른 언어로 바꿔 주고, 질문은 Anne이 답합니다. 회의 내용이면 📝, 일반 질문이면 💡로 표시합니다. ? 로 시작해도 됩니다.",
       "askLeft": (n, limit) => `오늘 남은 질문: ${limit}개 중 ${n}개`,
       "askBlocked_limit": (limit) => `오늘 질문 한도(${limit}개)에 도달했습니다. 내일 다시 쓸 수 있습니다.`,
       "askBlocked_long": "질문이 너무 깁니다. 짧게 줄여 주세요.", "askBlocked_fast": "잠시 후에 다시 물어봐 주세요.",
@@ -1109,7 +1110,7 @@
     "bnLost": "Anne와 연결이 끊겼습니다. 다시 연결하는 중입니다. 계속되면 Anne를 다시 시작해 주세요.",
     "bnPaused": "일시정지: 지금은 듣거나 기록하지 않습니다. 다시 시작을 누르면 이어집니다.",
     "emptyIdleTitle": "준비되었습니다", "emptyIdleText": "▶ 를 눌러 회의를 시작하세요.", "emptyRunTitle": "듣는 중", "emptyRunText": "누군가 말하면 여기에 나옵니다.",
-    "jump": "↓ 새 줄", "kTranslate": "번역", "kAsk": "Anne", "phType": "여기 입력", "phAsk": "Anne에게 질문 입력 후 Enter",
+    "jump": "↓ 새 줄", "kTranslate": "번역", "kAsk": "질문", "phType": "여기 입력", "phAsk": "Anne에게 질문 입력 후 Enter",
     "spAgain": "다시 요약", "spHelp": "지금까지의 대화 전체를 요약합니다. 회의는 계속됩니다.",
     "outputOn": (o) => `출력: ${o}`, "outputNone": "출력: 바꾸지 않음", "outputWait": "출력: 확인 중",
     "micNone": "마이크: 찾지 못해서 회의 소리만 받아 적습니다.",
